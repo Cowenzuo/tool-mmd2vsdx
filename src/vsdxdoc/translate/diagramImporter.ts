@@ -28,6 +28,7 @@ import { renderPie } from '../render/piRenderer.js';
 import { renderQuadrant } from '../render/quadrantRenderer.js';
 import { renderGitGraph } from '../render/gitRenderer.js';
 import { renderSequence } from '../render/sequenceRenderer.js';
+import { renderGantt, addPageEngineConfig } from '../render/ganttRenderer.js';
 import { CoordinateTransform } from './coordinateTransform.js';
 import {
     addPageMetadata,
@@ -166,7 +167,13 @@ function buildPageContent(core: DocumentCore, diagram: Diagram, resolved: Create
     }
     const pageId = addPage(core, pageSpec);
 
-    // 专用渲染器：pie/quadrant/gitGraph/sequence（M4 分批落地）；gantt 尚缺
+    // 专用渲染器：gantt（引擎配置随行）→ pie/quadrant/gitGraph/sequence
+    if (diagram.gantt.tasks.length > 0) {
+        const ganttPage = core.page(pageId);
+        renderGantt(ganttPage, diagram.gantt, kMasterClient);
+        addPageEngineConfig(ganttPage, diagram.gantt);
+        return;
+    }
     if (diagram.pie.slices.length > 0) {
         renderPie(core.page(pageId), diagram.pie, transform);
         return;
@@ -178,9 +185,6 @@ function buildPageContent(core: DocumentCore, diagram: Diagram, resolved: Create
     if (diagram.git.commits.length > 0) {
         renderGitGraph(core.page(pageId), diagram.git, transform);
         return;
-    }
-    if (diagram.gantt.tasks.length > 0) {
-        throw new Error('[vsdxdoc] gantt 专用渲染器属于 M4，尚未接入');
     }
     if (resolved.diagramType === 'sequence' && diagram.nodes.length > 0) {
         renderSequence(core.page(pageId), diagram, transform);

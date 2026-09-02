@@ -180,13 +180,12 @@ describe('母版打包未接入（M5）的显式拦截', () => {
 
 const kGenericFixtures = [
     '01-block-1', '02-c4-1', '03-class-1', '04-er-1',
-    '05-flowchart-1', '06-flowchart-2', '08-git-1', '11-mindmap-1',
+    '05-flowchart-1', '06-flowchart-2', '07-gantt-1', '08-git-1', '11-mindmap-1',
     '12-pie-1', '13-quadrant-1', '15-sequence-1', '15-sequence-2',
     '16-state-1', '17-timeline-1', '18-xy-1',
 ];
-const kSpecialFixtures = ['07-gantt-1'];
 
-describe('M2 闭环：10 份通用图型 fixture → 可开卷 .vsdx', () => {
+describe('M2 闭环：16 份 fixture → 可开卷 .vsdx', () => {
     for (const name of kGenericFixtures) {
         it(`${name} 转换/打包/开卷全通过`, () => {
             const dir = mkdtempSync(path.join(tmpdir(), 'mmd2vsdx-m2-'));
@@ -208,17 +207,6 @@ describe('M2 闭环：10 份通用图型 fixture → 可开卷 .vsdx', () => {
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
-        });
-    }
-});
-
-describe('专用图型（M4）显式拦截', () => {
-    for (const name of kSpecialFixtures) {
-        it(`${name} 抛 M4 未接入错误`, () => {
-            const payload = JSON.parse(
-                readFileSync(path.join(snapshotDir, name + '.json'), 'utf8'));
-            const diagram = jsonToDiagram({ status: 'ok', ...payload });
-            expect(() => translatorTranslate(diagram, noMasters)).toThrow(/M4/);
         });
     }
 });
