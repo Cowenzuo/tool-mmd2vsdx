@@ -154,6 +154,21 @@ function isAscii(bytes: Buffer): boolean {
     return true;
 }
 
+/** 条目名解码（镜像 C++ ziparchive.cpp 分支序，审计 P2-1）：
+ *  utf8 标志未置且名字非 ASCII → unsupported（legacy 编码，不尝试解码）；
+ *  utf8 标志置位但字节非法 UTF-8 → UnsafeEntryName。ASCII 两路皆直通。 */
+function decodeEntryName(bytes: Buffer, utf8Flag: boolean): string {
+    if (!utf8Flag && !isAscii(bytes)) {
+        unsupported('ZIP entry uses a legacy non-UTF-8 filename encoding');
+    }
+    try {
+        return kUtf8Decoder.decode(bytes);
+    } catch {
+        throw new ZipError(ZipErrorCode.UnsafeEntryName,
+            'ZIP entry name is not valid UTF-8: ' + bytes.toString('latin1'));
+    }
+}
+
 /** 条目名校验（C++ validateEntryName 照抄）：PartUri 规则 + UTF-8 编码约束。 */
 function validateEntryName(name: string, utf8Flag: boolean): void {
     if (name.length === 0 || name.endsWith('/')) {
@@ -166,6 +181,7 @@ function validateEntryName(name: string, utf8Flag: boolean): void {
         throw new ZipError(ZipErrorCode.UnsafeEntryName,
             'Unsafe ZIP entry name \'' + name + '\': ' + (error as Error).message);
     }
+    // 解码已在上游 decodeEntryName 完成；此处保留编码二次校验作纵深防御
     const bytes = Buffer.from(name, 'utf8');
     if (utf8Flag) {
         if (!isValidUtf8Bytes(bytes)) {
@@ -198,14 +214,17 @@ function crcFor(data: Buffer): number {
     return crc32(data) >>> 0;
 }
 
-/** 解压（raw deflate）；长度不符/失败 → InvalidArchive（消息同 C++）。 */
+/** 解压（raw deflate）；长度不符/失败 → InvalidArchive（消息同 C++）。
+ * 分配护栏（审计 P1）：maxOutputLength = 声明 usize+1——对齐 C++ 按
+ * uncompressedSize 预分配固定缓冲的语义（超量流 Z_BUF_ERROR 截断，
+ * 绝不多分配），防"声明长度与流不符"的错配炸弹先膨胀出超限内存（OOM）。 */
 function inflateRaw(compressed: Buffer, uncompressedSize: number, name: string): Buffer {
     if (compressed.length > 0xffffffff || uncompressedSize > 0xffffffff) {
         limit('ZIP entry is too large for zlib: ' + name);
     }
     let output: Buffer;
     try {
-        output = inflateRawSync(compressed);
+        output = inflateRawSync(compressed, { maxOutputLength: uncompressedSize + 1 });
     } catch {
         invalid('Invalid Deflate stream for ZIP entry: ' + name);
     }
@@ -336,13 +355,7 @@ export function readZip(path: string, limits?: ZipLimits): ZipEntry[] {
         requireRange(cursor + kCentralHeaderSize, variableSize, bytes.length,
             'central directory variable data');
         const nameBytes = bytes.subarray(cursor + kCentralHeaderSize, cursor + kCentralHeaderSize + nameLength);
-        let name: string;
-        try {
-            name = kUtf8Decoder.decode(nameBytes);
-        } catch {
-            throw new ZipError(ZipErrorCode.UnsafeEntryName,
-                'ZIP entry name is not valid UTF-8: ' + nameBytes.toString('latin1'));
-        }
+        const name = decodeEntryName(nameBytes, (flags & kUtf8Flag) !== 0);
         validateEntryName(name, (flags & kUtf8Flag) !== 0);
         validateExtraFields(bytes, cursor + kCentralHeaderSize + nameLength, extraLength,
             'central entry ' + name);
@@ -389,7 +402,8 @@ export function readZip(path: string, limits?: ZipLimits): ZipEntry[] {
         const localNameBytes = bytes.subarray(local + kLocalHeaderSize, local + kLocalHeaderSize + localNameLength);
         let localName: string;
         try {
-            localName = kUtf8Decoder.decode(localNameBytes);
+            // 与 central 同一解码语义（central 已通过校验；此处失败只会是不一致流）
+            localName = decodeEntryName(localNameBytes, (entry.flags & kUtf8Flag) !== 0);
         } catch {
             localName = '';
         }
