@@ -6,7 +6,7 @@
     "rootDir": "src",
     "declaration": true,
     "sourceMap": false,
-    "types": []
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["tests", "vitest.config.ts"]
