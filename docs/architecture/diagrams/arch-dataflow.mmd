@@ -1,0 +1,37 @@
+---
+title: mmd2vsdx 转换流水线（一次 convert 的旅程）
+---
+flowchart LR
+    A["Mermaid 文本"] --> B["SnapshotRenderer<br/>chromium + extract bundle + mermaid UMD<br/>串行队列/失败重建"]
+    B --> C["SnapshotResult<br/>(core/snapshotTypes)"]
+    C --> D["jsonToDiagram 纯函数<br/>8 图类分派+兜底"]
+    D --> E["Diagram IR<br/>(core/types)"]
+    E --> F["diagramImporter.resolveType<br/>Auto 推导选项"]
+    F --> G["diagramImporter.translate<br/>装配 Package/DocumentCore<br/>注入 masterClient"]
+    G --> H["coordinateTransform<br/>px→inch + 校验"]
+    H --> I{"buildPageContent<br/>工厂 dispatch"}
+    I -->|"gantt"| G1["renderGantt"]
+    I -->|"pie/quadrant"| G2["renderPie / renderQuadrant"]
+    I -->|"git"| G3["renderGitGraph"]
+    I -->|"sequence"| G4["renderSequence"]
+    I -->|"其它(含 class/ER/flowchart)"| G5["renderManaged* 通用渲染"]
+    G1 --> J["connectorBinder<br/>端口/箭头/Connect 粘附"]
+    G2 --> J
+    G3 --> J
+    G4 --> J
+    G5 --> J
+    J --> K["refreshConnectors<br/>粘到 Connections.X1.."]
+    K --> L["DocumentCore<br/>live 引用 + 脏标记"]
+    L --> M["xmlPartsBuilder.build<br/>validator→脏部件 flush→validate"]
+    M --> N["XmlParts"]
+    N --> O1["convertFile<br/>Package.save → .vsdx"]
+    N --> O2["convertText<br/>base64 → ConvertResult"]
+    O1 --> P["文件落盘"]
+    O2 --> P2["HTTP /serve 响应"]
+
+    classDef io fill:#e8f0fe,stroke:#5b8ff9
+    classDef core fill:#fef6e0,stroke:#e6a700
+    classDef end fill:#e7f6ec,stroke:#389e0d
+    class A,P,P2 io
+    class C,D,E,N core
+    class O1,O2,G1,G2,G3,G4,G5 end

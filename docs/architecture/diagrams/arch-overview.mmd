@@ -1,0 +1,127 @@
+---
+title: mmd2vsdx 分层模块结构
+---
+flowchart TB
+    subgraph L5["L5 入口"]
+        cli["cli.ts<br/>三形态：单文件 / --dir / --serve<br/>退出码 0/1/2"]
+    end
+    subgraph L4["L4 编排层"]
+        app["app/application.ts<br/>Application 单例<br/>convertText·convertFile·convertDir·serve·shutdown"]
+    end
+    subgraph L3["L3 业务层（平级，经 core 类型对话）"]
+        subgraph B1["mmdtransform（快照→IR）"]
+            tr["translator.ts<br/>门面 convertText"]
+            j2d["jsonToDiagram.ts<br/>SnapshotResult → Diagram"]
+        end
+        subgraph B2["vsdxdoc（IR→VSDX）"]
+            vxt["vsdxTranslator.ts 门面"]
+            subgraph X1["translate"]
+                di["diagramImporter.ts<br/>三步导入+工厂派发"]
+            end
+            subgraph X2["docmodel"]
+                model["model.ts<br/>纯数据模型"]
+                dcore["documentCore.ts<br/>装配态+脏标记"]
+                val["validator.ts<br/>参数校验"]
+            end
+            subgraph X3["render"]
+                ren["renderer.ts<br/>通用渲染+pageShapes 守卫"]
+                cb["connectorBinder.ts"]
+                ct["coordinateTransform.ts<br/>px→inch"]
+                sre["sequenceRenderer.ts"]
+                pre["piRenderer.ts"]
+                qre["quadrantRenderer.ts"]
+                gre["gitRenderer.ts"]
+                gare["ganttRenderer.ts"]
+            end
+            subgraph X4["masters"]
+                mc["masterClient.ts<br/>抽象+masterless"]
+                ml["masterLibrary.ts<br/>pack/样式/覆盖"]
+                sd["stencilData.ts<br/>生成资产"]
+            end
+            subgraph X5["serialize"]
+                dp["documentParts.ts"]
+                xpb["xmlPartsBuilder.ts"]
+            end
+        end
+    end
+    subgraph L2["L2 快照层"]
+        snap["snapshot/renderer.ts<br/>Chromium 进程内渲染器"]
+        ex["snapshot/extract/*.mjs<br/>14 注入脚本"]
+    end
+    subgraph L1["L1 容器层"]
+        opc["opcpkg/opcpackager.ts 门面"]
+        pkg["opcpkg/package.ts"]
+        subgraph O1["opcpkg 其余"]
+            p1["partUri.ts"]
+            p2["contentTypes.ts"]
+            p3["relationships.ts"]
+            p4["zipArchive.ts<br/>自研 PKZIP"]
+        end
+    end
+    subgraph L0["L0 基础层"]
+        xl["xml/*<br/>xmlNode·xmlBuilder·constants"]
+        cl["core/*<br/>types·snapshotTypes·vsdx·xmlparts·errors"]
+    end
+
+    cli --> app
+    app --> vxt
+    app --> tr
+    app --> opc
+    app --> cl
+    tr --> snap
+    j2d --> tr
+    vxt --> di
+    vxt --> xpb
+    di --> ct
+    di --> model
+    di --> dcore
+    di --> mc
+    di --> val
+    ren --> val
+    dcore -. type-only 互引 .- model
+    ren --> cb
+    ren --> ct
+    di --> ren
+    di --> ct
+    di --> sre
+    di --> pre
+    di --> qre
+    di --> gre
+    di --> gare
+    sre --> ct
+    pre --> ct
+    qre --> ct
+    gre --> ct
+    sre --> model
+    pre --> model
+    qre --> model
+    gre --> model
+    gare --> model
+    gare --> mc
+    ml --> sd
+    dcore --> mc
+    xpb --> dp
+    xpb --> dcore
+    opc --> pkg
+    pkg --> p1
+    pkg --> p2
+    pkg --> p3
+    pkg --> p4
+    ren --> xl
+    xpb --> xl
+    p4 --> xl
+    opc --> cl
+    xl --> cl
+    snap --> cl
+    snap --> ex
+    ml --> xl
+
+    classDef base fill:#e8f0fe,stroke:#5b8ff9
+    classDef mid fill:#fef6e0,stroke:#e6a700
+    classDef biz fill:#e7f6ec,stroke:#389e0d
+    classDef top fill:#f9e9f1,stroke:#cf2e2e
+    class xl,cl base
+    class snap,opc,pkg,p1,p2,p3,p4 mid
+    class tr,j2d,vxt,di,ct,model,dcore,ren,cb,sre,pre,qre,gre,gare,mc,ml,sd,dp,val,xpb,ex biz
+    class app top
+    class cli top
