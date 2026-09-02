@@ -2,8 +2,8 @@
 //
 // C++ vsdxdoc/serialize/xmlbuilder.{hpp,cpp} 平移（04 §2、坑位 ⑩-10.3）。
 // 差异：无 libxml2 → 无 ns 参数/句柄；节点即对象引用（去指针红利）。
-// 语义红线（照抄 C++）：
-//   - number()：17 位 max_digits10 语义；非有限值抛错；|v|<1e-15 归零；
+// 语义红线（照抄 C++ 的数值语义；文本形态以 JS 最短往返表达，数值等价）：
+//   - number()：非有限值抛错；|v|<1e-15 归零；
 //   - Cell 属性：V（数值或字符串原样）、U（单位，空则移除）、F（公式，空则移除）、
 //     E 一律移除（"Inh" 是合法 F 值，语义与"无 F=本地覆盖"不同）；
 //   - setNumericCell/setStringCell 找不到 Cell 时 insertSheetChild：新元素插到
@@ -44,6 +44,8 @@ export function cppFixed6(value: number): string {
 /**
  * 对照档（仅调试/对照测试用）：17 位有效数字 + %g 风格修剪，
  * 用于与 C++ 17 位 defaultfloat 输出做数值/文本比对（04 §3.2）。
+ * 注意：修剪仅覆盖定点形态；指数形态（|v|≥1e21 或 <1e-6）按 toPrecision(17)
+ * 原样输出（尾零不修剪）——对照仅取定点样例，两者数值等价。
  */
 export function formatNumberStrict(value: number): string {
     if (!Number.isFinite(value)) throw new TypeError('[xml] VSDX number is not finite');
@@ -56,7 +58,11 @@ export function formatNumberStrict(value: number): string {
     return raw;
 }
 
-/** 对应 C++ XmlBuilder::parseDouble（std::stod + 全消费 + 有限性校验）。 */
+/**
+ * 对应 C++ XmlBuilder::parseDouble 的容错语义（fallback 模式）。
+ * 实现说明：经 Number() 解析（接受 JS 的 0x/0o/0b 前缀写法，与 C++ stod 的
+ * 全消费语义有出入；VSDX V 值域均为十进制，实际不构成差异）。
+ */
 export function parseNumber(value: string, fallback: number): number {
     if (value.length === 0) return fallback;
     const trimmed = value.trim();
@@ -70,10 +76,6 @@ export function parseNumber(value: string, fallback: number): number {
 
 export function appendElement(parent: XmlNode, localName: string): XmlNode {
     return appendChild(parent, makeElement(localName));
-}
-
-export function setCellAttribute(cell: XmlNode, name: string, value: string): void {
-    setAttribute(cell, name, value);
 }
 
 /** 设置属性并在 value 为空时移除（对应 C++ unit/formula 空指针语义）。 */

@@ -87,6 +87,9 @@ export function appendTextChild(parent: XmlNode, localName: string, value: strin
 
 export function appendText(parent: XmlNode, text: string): void {
     if (text === '') return; // 空文本不入树（保证空元素自闭合形态）
+    // XML §2.11：构造路径同样做行尾归一，树内永不驻留 CR（round-trip 字节不变量）
+    text = normalizeNewlines(text);
+    if (text === '') return;
     // 与末尾相邻文本合并，避免碎文本节点
     const last = parent.children[parent.children.length - 1];
     if (typeof last === 'string') {
@@ -153,8 +156,17 @@ function decodeEntities(text: string, source: string): string {
         const code = body.startsWith('#x')
             ? parseInt(body.slice(2), 16)
             : parseInt(body.slice(1), 10);
-        if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) {
+        if (code < 0 || code > 0x10ffff) {
             throw new Error(`[xml] invalid character entity '${m}' in ${source}`);
+        }
+        // XML 1.0 Char 白名单：#x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD]
+        // | [#x10000-#x10FFFF]（禁 NUL/控制区/孤立代理/FFFE/FFFF，libxml 同口径）
+        const charOk = code === 0x9 || code === 0xa || code === 0xd ||
+            (code >= 0x20 && code <= 0xd7ff) ||
+            (code >= 0xe000 && code <= 0xfffd) ||
+            (code >= 0x10000 && code <= 0x10ffff);
+        if (!charOk) {
+            throw new Error(`[xml] character entity out of allowed range '${m}' in ${source}`);
         }
         return String.fromCodePoint(code);
     });
@@ -182,7 +194,10 @@ function skipWhitespace(input: string, pos: number): number {
 
 /**
  * 解析一段 XML 文本，返回根元素（文档级骨架 decl/注释被跳过）。
- * @throws Error —— 非良构 / 含 DOCTYPE / 外部实体 / 超限
+ * 宽容读取（有意保留，勿改严格）：元素/属性名不做 XML Name 文法校验
+ * （坏名原样入树）；未定义实体/裸 '&' 静默保留为字面文本（首轮往返后稳定）。
+ * @throws Error —— 非良构 / 重复根/属性 / 非法字符实体 / 超长 / 嵌套过深
+ *          / 含 DOCTYPE / 外部实体
  */
 export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
     const source = sourceName;
@@ -190,6 +205,7 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
     if (xml.length > kMaxXmlLength) throw new Error('[xml] XML payload is too large');
 
     const stack: XmlNode[] = [];
+    const kMaxXmlDepth = 65536; // 序列化/解析均递归，防极深嵌套栈溢出（Do~S 护栏）
     let root: XmlNode | null = null;
     let pos = 0;
 
@@ -235,6 +251,10 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
         pos++; // expect 只断言不推进，必须显式越过 '='
         pos = skipWhitespace(xml, pos);
         const value = parseAttributeValue();
+        // XML WFC：同一元素不得出现重名属性（libxml: "Attribute x redefined"）
+        if (node.attrs.some((a) => a.name === name)) {
+            throw new Error(`[xml] duplicate attribute '${name}' in ${source}`);
+        }
         node.attrs.push({ name, value });
         return true;
     };
@@ -250,7 +270,12 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
             while (pos < xml.length && xml[pos] !== '<') pos++;
             const raw = xml.slice(start, pos);
             const target = stack[stack.length - 1];
-            if (target) appendText(target, decodeEntities(normalizeNewlines(raw), source));
+            if (target) {
+                appendText(target, decodeEntities(raw, source));
+            } else if (raw.trim() !== '') {
+                // 根已闭合后的非空白文本 = 尾随内容（XML 文档只允许一个根）
+                throw new Error(`[xml] content after root element in ${source}`);
+            }
             continue;
         }
         if (xml.startsWith('<?', pos)) {
@@ -269,7 +294,12 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
             const end = xml.indexOf(']]>', pos + 9);
             if (end < 0) throw new Error(`[xml] unterminated CDATA in ${source}`);
             const target = stack[stack.length - 1];
-            if (target) appendText(target, xml.slice(pos + 9, end));
+            if (target) {
+                // 文本按 appendText 语义入树（§2.11 行尾归一在 appendText 统一生效）
+                appendText(target, xml.slice(pos + 9, end));
+            } else {
+                throw new Error(`[xml] CDATA outside root element in ${source}`);
+            }
             pos = end + 3;
             continue;
         }
@@ -289,8 +319,8 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
                 throw new Error(`[xml] mismatched tag: expected </${open.name}> got </${name}> in ${source}`);
             }
             if (stack.length === 0) {
+                // 根闭合：不退出循环——继续扫描到 EOF，尾随根/内容交给多重守卫
                 root = open;
-                break;
             }
             continue;
         }
@@ -305,7 +335,12 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
             pos = skipWhitespace(xml, pos);
             if (inputChar() === '>') {
                 pos++;
-                if (stack.length > 0) appendChild(stack[stack.length - 1]!, node);
+                if (stack.length > 0) {
+                    if (stack.length >= kMaxXmlDepth) {
+                        throw new Error(`[xml] XML nesting too deep in ${source}`);
+                    }
+                    appendChild(stack[stack.length - 1]!, node);
+                }
                 stack.push(node);
                 break;
             }

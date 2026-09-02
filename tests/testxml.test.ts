@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     appendChild,
+    appendText,
     appendTextChild,
     attribute,
     directChild,
@@ -148,6 +149,36 @@ describe('解析器守卫（安全红线：禁 DTD/外部实体）', () => {
     });
     it('多根报错', () => {
         expect(() => parseDocument('<a/><b/>')).toThrow(/multiple root/);
+    });
+    it('成对根闭合后尾随第二根/文本同样报错（宽容度一致，审计 P1-1）', () => {
+        expect(() => parseDocument('<a></a><b/>')).toThrow(/multiple root/);
+        expect(() => parseDocument('<a></a>tail')).toThrow(/content after root/);
+        expect(() => parseDocument('<a></a>   \n  ')).not.toThrow(); // 根后空白合法
+        expect(() => parseDocument('<a></a><!--c--><?pi?>')).not.toThrow(); // 注释/PI 合法
+    });
+    it('重复属性拒绝（WFC No Duplicate Attributes，审计 P1-2）', () => {
+        expect(() => parseDocument('<a x="1" x="2"/>')).toThrow(/duplicate attribute/);
+    });
+    it('数字字符引用按 XML Char 白名单校验（审计 P1-3）', () => {
+        expect(() => parseDocument('<a>&#0;</a>')).toThrow(/allowed range/);
+        expect(() => parseDocument('<a>&#xD800;</a>')).toThrow(/allowed range/);
+        expect(() => parseDocument('<a>&#xFFFE;</a>')).toThrow(/allowed range/);
+        // 合法边界：制表/换行/BMP 高位/增补平面（&#xD; 实体经 decode 后同样走
+        // appendText 行尾归一 → LF，保证树内永不驻留 CR 的字节不变量）
+        expect(parseDocument('<a>&#x9;&#xA;&#xD;</a>').children).toEqual(['\t\n\n']);
+        expect(parseDocument('<a>&#xE000;&#x1F600;</a>').children).toEqual(['\uE000\u{1F600}']);
+    });
+    it('行尾归一覆盖 CDATA 与构造路径（审计 P1-4）', () => {
+        const viaCdata = parseDocument('<a><![CDATA[x\r\ny]]></a>');
+        expect(viaCdata.children).toEqual(['x\ny']);
+        const root = makeElement('a');
+        appendText(root, 'x\r\ny'); // 构造路径同样归一
+        expect(serializeNode(root)).toBe('<a>x\ny</a>');
+        expect(serializeNode(root).includes('\r')).toBe(false);
+    });
+    it('嵌套深度上限（审计 P2-13）', () => {
+        const deep = '<a>'.repeat(70000) + 'x' + '</a>'.repeat(70000);
+        expect(() => parseDocument(deep)).toThrow(/nesting too deep/);
     });
 });
 

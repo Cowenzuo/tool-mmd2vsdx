@@ -5,7 +5,7 @@
 
 import type { ArrowType, DiagramType, EdgeStyle, NodeShape, Point } from './types.js';
 
-// ── ID 别名（C++ uint32；运行时断言整数） ──
+// ── ID 别名（对应 C++ uint32；TS 以 number 承载，无运行时断言） ──
 
 export type PageId = number;
 export type ShapeId = number;
