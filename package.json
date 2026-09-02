@@ -16,7 +16,12 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^26.4.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "mermaid": "10.9.8",
+    "playwright": "1.61.1"
   }
 }
