@@ -19,7 +19,8 @@ import type { SnapshotResult } from '../core/snapshotTypes.js';
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// 拼接顺序 = snapshot.mjs EXTRACT_FILES（依赖序，勿改）
+// 拼接顺序 = snapshot.mjs EXTRACT_FILES（main.mjs 必须最后注入；纯函数声明
+// hoisting 下其余文件顺序实际无约束，勿依赖隐含次序）
 const kExtractFiles = [
     'dom.mjs',
     'flowchart.mjs',
@@ -47,6 +48,12 @@ function buildExtractBundle(): string {
             throw new Error(
                 `[snapshot] extract 脚本缺失：${p}（dist 需经 npm run build 完整生成）`);
         }
+        // 拼接契约（审计 S-4 断言）：extract 仅允许顶层单行 export function；
+        // export default / 模块级 import 一旦混入会产出坏 bundle（静默难排查）
+        if (/^export\s+default\b/m.test(text) || /^import\b/m.test(text)) {
+            throw new Error(
+                `[snapshot] extract/${f} 含 export default/import，拼接契约被破坏`);
+        }
         return text.replace(/^export\s+/gm, '');
     });
     return parts.join('\n') + '\nwindow.__mermaidSnapshot = makeExtractFn();\n';
@@ -73,6 +80,8 @@ export class SnapshotRenderer {
     private closed_ = false;
 
     private async ensurePage(): Promise<Page> {
+        // 已关守卫（审计 S-2）：shutdown 后不得静默重开 chromium（防无人关闭的残留）
+        if (this.closed_) throw new Error('[snapshot] renderer is closed');
         if (this.page_) return this.page_;
         if (!this.browser_) {
             this.browser_ = await chromium.launch({ headless: true });
@@ -105,10 +114,12 @@ export class SnapshotRenderer {
     async renderDiagram(text: string): Promise<SnapshotResult> {
         if (this.closed_) throw new Error('[snapshot] renderer is closed');
         const task = this.queue_.then(async () => {
+            // 排队期间可能已 shutdown（审计 S-2）：入队任务复查，勿重开浏览器
+            if (this.closed_) throw new Error('[snapshot] renderer is closed');
             try {
                 return await this.evaluate(text);
             } catch (first) {
-                // 崩溃/页面失效：重建页面重试一次（对齐原"崩溃自动重启"语义）
+                // 崩溃/页面失效：重建页面重试一次（浏览器整体死亡则连同重 launch）
                 await this.recreatePage();
                 try {
                     return await this.evaluate(text);
@@ -136,6 +147,12 @@ export class SnapshotRenderer {
         if (this.page_) {
             await this.page_.close().catch(() => {});
             this.page_ = null;
+        }
+        // 审计 S-1：chromium 整体崩溃（disconnected/OOM/被杀）时页面重建无效——
+        // 丢弃死浏览器，让下次 ensurePage 重新 launch（对齐 C++"整子进程重启"语义）
+        if (this.browser_ && !this.browser_.isConnected()) {
+            await this.browser_.close().catch(() => {});
+            this.browser_ = null;
         }
     }
 
