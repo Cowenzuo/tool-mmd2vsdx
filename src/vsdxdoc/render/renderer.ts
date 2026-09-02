@@ -36,8 +36,8 @@ function clearNodeChildren(node: XmlNode): void {
     node.children = [];
 }
 
-/** 页面 <Shapes> 容器（addPage 后必存在；防空引用）。 */
-function pageShapes(page: PageModel): XmlNode {
+/** 页面 <Shapes> 容器（addPage 后必存在；防空引用；专用渲染器共用）。 */
+export function pageShapes(page: PageModel): XmlNode {
     if (!page.shapesNode) throw new Error('[render] page Shapes node is not initialized');
     return page.shapesNode;
 }
