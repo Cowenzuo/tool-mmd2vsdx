@@ -180,10 +180,10 @@ describe('母版打包未接入（M5）的显式拦截', () => {
 
 const kGenericFixtures = [
     '01-block-1', '02-c4-1', '03-class-1', '04-er-1',
-    '05-flowchart-1', '06-flowchart-2', '11-mindmap-1',
+    '05-flowchart-1', '06-flowchart-2', '08-git-1', '11-mindmap-1',
     '12-pie-1', '13-quadrant-1', '16-state-1', '17-timeline-1', '18-xy-1',
 ];
-const kSpecialFixtures = ['07-gantt-1', '08-git-1', '15-sequence-1', '15-sequence-2'];
+const kSpecialFixtures = ['07-gantt-1', '15-sequence-1', '15-sequence-2'];
 
 describe('M2 闭环：10 份通用图型 fixture → 可开卷 .vsdx', () => {
     for (const name of kGenericFixtures) {
