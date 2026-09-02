@@ -3,27 +3,60 @@
 把 Mermaid 文本转换为**原生可编辑的 Visio VSDX** 文档（不依赖 Visio COM）。
 
 本仓库是源工程 `D:\_dev\mmd2vsdx`（C++17 引擎 + Node/mermaid-snapshot 复合结构，经验证）
-的**纯 Node/TypeScript 移植版**：拆除 C++/Node 复合结构，MMD 解析（mermaid.js +
-Playwright 渲染提取）与 VSDX 生成（OPC/ZIP/XML + 官方模具母版实例）统一于单一
-Node 生态。
+的**纯 Node/TypeScript 移植版**：MMD 解析（mermaid.js + Playwright 渲染提取）与
+VSDX 生成（OPC/ZIP/XML + 官方模具母版实例）统一于单一 Node 生态，无 C++ 复合结构。
+
+## 能力（与 C++ 基线结构等价验证）
+
+- 14 类 Mermaid 图（flowchart/state/class/er/sequence/block/gantt/pie/gitGraph/
+  mindmap/timeline/quadrantChart/xychart/c4）
+- 原生可编辑 VSDX：官方模具母版实例（Master="N"+局部覆盖）、1-D 连接线
+  `_WALKGLUE` 粘附、五节点几何、线型/箭头映射、多页
+- 16 个验收样本产物与 C++ 基线 **逐部件结构等价**（tests/testmasters 金标准闸门）
+
+## 使用
+
+```bash
+npm install
+npx playwright install chromium        # 首次（渲染需 Chromium）
+
+# 库 API（ESM）
+import { application } from 'mmd2vsdx';   // convertText / convertFile / convertDir / serve
+# CLI（npm run build 后）
+node dist/cli.js in.mmd out.vsdx
+node dist/cli.js --dir inputDir outDir
+node dist/cli.js --serve --port 12138    # POST /convert {text} → {status, vsdx(base64),...}
+```
+
+## 测试
+
+```bash
+npm test          # 186 用例（8 套件，含真实 Chromium 渲染与金标准闸门）
+npm run typecheck
+npm run build
+```
+
+## Visio 人工验收指引（M5/M6）
+
+自动化闸门已保证与 C++ 基线产物**结构等价**（部件清单 + 全部 XML parse 级一致）；
+建议再用真实 Visio 目视确认一次：
+
+1. `node dist/cli.js resources/testio/input/05-flowchart-1.mmd temp/v.vsdx`
+2. 用 Visio 打开 `temp/v.vsdx`：节点为官方形状（拖动把手/连接线端点粘附、
+   线型右键切换可用）；保存后无"格式修复"提示（Document.Saved=True 语义）
+3. 抽查甘特（07）：GC 组件列拖动重排、右键"配置"菜单与官方模板一致
 
 ## 文档
 
 - `docs/port-plan/` — 移植实施规划（00 总纲 / 01 坑位清单 / README 索引）
-- `docs/reference/` — 源工程文档收档（ts-port 原样 / architecture / 过时归档精选）
-- `resources/` — 验收样本（testio）与官方模具（visio，仅开发机，不随包分发）
-- `tests/fixtures/` — 金标准（golden: C++ 基线产物 16 份；snapshot: 提取 JSON 快照 16 份）
-
-## 命令
-
-```bash
-npm install            # dev: typescript + vitest（M3 起追加 playwright + mermaid）
-npm run typecheck      # tsc --noEmit
-npm test               # vitest run（当前阶段：testir）
-npm run make:fixtures  # 重新采集 snapshot JSON 快照（需源仓库 snapshot 组件与 Chromium）
-```
+- `docs/工程规范.md` — 提交/命名/代码规范（源自 dsh-plugins）
+- `docs/reference/` — 源工程文档收档
+- `docs/bench.md` — 性能冒烟基线
+- `resources/` — 验收样本（testio）；`resources/visio` 官方模具仅开发用、不随包分发
+- `tests/fixtures/` — 金标准（golden：C++ 基线产物；snapshot：提取 JSON）
 
 ## 状态
 
-- 步骤 0 ✅（奠基/收档/金标准固化）；M0 ✅（core 类型层，testir 绿）
-- 下一阶段：M1（xml + opcpkg 容器层，testopc 绿）——见 `docs/port-plan/00-移植实施规划.md`
+M0–M6 全部完成：core/xml/opcpkg/mmdtransform/snapshot/vsdxdoc/masters/app 全链路
+纯 TS；金标准 16/16 结构等价；测试 186/186 绿。发布准备（npm 包、模具分发红线、
+prepare-stencils 用户侧生成）见 docs/port-plan/00 §4–§7。
