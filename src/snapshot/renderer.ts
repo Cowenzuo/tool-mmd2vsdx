@@ -38,8 +38,17 @@ const kExtractFiles = [
 ];
 
 function buildExtractBundle(): string {
-    const parts = kExtractFiles.map((f) =>
-        readFileSync(path.join(here, 'extract', f), 'utf8').replace(/^export\s+/gm, ''));
+    const parts = kExtractFiles.map((f) => {
+        const p = path.join(here, 'extract', f);
+        let text: string;
+        try {
+            text = readFileSync(p, 'utf8');
+        } catch {
+            throw new Error(
+                `[snapshot] extract 脚本缺失：${p}（dist 需经 npm run build 完整生成）`);
+        }
+        return text.replace(/^export\s+/gm, '');
+    });
     return parts.join('\n') + '\nwindow.__mermaidSnapshot = makeExtractFn();\n';
 }
 

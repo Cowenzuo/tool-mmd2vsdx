@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "make:fixtures": "node scripts/make-fixtures.mjs"
