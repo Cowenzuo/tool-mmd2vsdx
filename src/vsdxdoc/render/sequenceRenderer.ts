@@ -17,7 +17,7 @@
 
 import type { PageModel } from '../docmodel/model.js';
 import type { Diagram } from '../../core/types.js';
-import type { CoordinateTransform } from '../translate/coordinateTransform.js';
+import type { CoordinateTransform } from './coordinateTransform.js';
 import {
     appendCellNumber,
     appendCellString,
@@ -110,7 +110,7 @@ function addLifeline(page: PageModel, kind: string, label: string,
 }
 
 /** 激活条：Activation 母版 1-D 竖条，两端粘 lifeline Connection 点（禁写 Angle）。 */
-function addActivation(page: PageModel, actorId: string, x: number, yTop: number,
+function addActivation(page: PageModel, x: number, yTop: number,
                        yBottom: number, line: LifelineInfo,
                        transform: CoordinateTransform, masters: MasterClient): void {
     const id = page.nextShapeId++;
@@ -157,7 +157,6 @@ function addActivation(page: PageModel, actorId: string, x: number, yTop: number
         setAttribute(endConnect, 'ToCell', 'Connections.X' + topConn);
         setAttribute(endConnect, 'ToPart', '102');
     }
-    void actorId;
 }
 
 /** 消息：Message.21/Return Message.22，两端粘 lifeline Connection 点。 */
@@ -366,7 +365,7 @@ export function renderSequence(page: PageModel, diagram: Diagram,
     for (const act of diagram.sequence.activations) {
         const line = lifelines.get(act.actorId);
         if (!line) continue;
-        addActivation(page, act.actorId, act.x, act.yTop, act.yBottom, line,
+        addActivation(page, act.x, act.yTop, act.yBottom, line,
             transform, masters);
     }
     for (const edge of diagram.edges) {

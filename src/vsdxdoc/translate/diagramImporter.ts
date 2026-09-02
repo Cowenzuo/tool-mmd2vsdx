@@ -3,10 +3,11 @@
 // C++ translate/diagramimporter.cpp（415 行）平移。三步职责照抄：
 //   1. resolveType：类型解析（Auto 推导）+ outputScale 校验；
 //   2. assembleDocumentCore：Package + 文档部件 + Relationships + DocumentCore；
-//   3. buildPageContent：坐标变换 + 页面/形状/连接线组装（专用渲染器分支
-//      gantt/git/pie/quadrant/sequence 属 M4，暂以明确错误拦截）。
-// M2 适配：母版打包属 M5 —— useConnectorMaster=true 时抛明确错误；
-// 渲染经 masterlessClient（masterId=0 本地内容路径）。
+//   3. buildPageContent：坐标变换 + 页面/形状/连接线组装（专用渲染器按
+//      gantt→pie→quadrant→git→sequence 次序分派，其余走通用渲染）。
+// 母版双路径（M2 masterless → M5 真实官方 stencil）：装配期按
+// useConnectorMaster 注入 masterlessClient 或 realMasterClient（含 stylesXml
+// 合入文档），渲染代码只认 MasterClient 抽象。
 // TS 差异（去指针）：shape.nodeRef/connector 的 begin/endConnectRef 直持引用，
 // C++ 的页面句柄索引机制消失；页面关系部件在 addPage 即时写包。
 
@@ -23,13 +24,13 @@ import { PartUri } from '../../opcpkg/partUri.js';
 import { Relationships } from '../../opcpkg/relationships.js';
 import { resolveDiagramType, masterlessClient } from '../masters/masterClient.js';
 import { realMasterClient, selectForType, stylesXmlFor } from '../masters/masterLibrary.js';
-import { renderManagedConnector, renderManagedShape, logicalIdExists } from '../render/renderer.js';
+import { renderManagedConnector, renderManagedShape } from '../render/renderer.js';
 import { renderPie } from '../render/piRenderer.js';
 import { renderQuadrant } from '../render/quadrantRenderer.js';
 import { renderGitGraph } from '../render/gitRenderer.js';
 import { renderSequence } from '../render/sequenceRenderer.js';
 import { renderGantt, addPageEngineConfig } from '../render/ganttRenderer.js';
-import { CoordinateTransform } from './coordinateTransform.js';
+import { CoordinateTransform } from '../render/coordinateTransform.js';
 import {
     addPageMetadata,
     createAppProperties,
@@ -40,9 +41,9 @@ import {
     createPagesXml,
     createWindowsXml,
 } from '../serialize/documentParts.js';
-import { validateShapeBounds, validateStyle } from '../serialize/validator.js';
+import { validateShapeBounds, validateStyle } from '../docmodel/validator.js';
 import { DocumentCore } from '../docmodel/documentCore.js';
-import { defaultConnectorModel, defaultPageModel, defaultShapeModel } from '../docmodel/model.js';
+import { defaultConnectorModel, defaultPageModel, defaultShapeModel, logicalIdExists } from '../docmodel/model.js';
 import type { PageModel, ShapeModel, ConnectorModel } from '../docmodel/model.js';
 import type { Diagram } from '../../core/types.js';
 import type { CreateOptions, PageSpec, ShapeSpec, ConnectorSpec } from '../../core/vsdx.js';
@@ -88,7 +89,7 @@ export function resolveType(diagram: Diagram, options: CreateOptions): CreateOpt
 // 步骤 2：装配（建包/部件/关系/DocumentCore）
 // ═══════════════════════════════════════════════════════
 
-function assembleDocumentCore(diagram: Diagram, resolved: CreateOptions): DocumentCore {
+function assembleDocumentCore(resolved: CreateOptions): DocumentCore {
     const package_ = Package.create();
     const documentXml = createDocumentXml(resolved.diagramType);
     const pagesXml = createPagesXml();
@@ -142,7 +143,6 @@ function assembleDocumentCore(diagram: Diagram, resolved: CreateOptions): Docume
     // 页面关系部件（占位空表；addPage 逐页追加后即时写包）
     package_.setRelationships(Relationships.create(PartUri.parse(kPagesUri)));
 
-    void diagram; // 装配阶段不依赖 diagram（页面内容在步骤 3 组装）
     return core;
 }
 
@@ -325,7 +325,6 @@ function addShape(core: DocumentCore, pageId: number, spec: ShapeSpec): number {
     data.height = spec.height;
     data.style = spec.style;
     data.dividers = spec.dividers;
-    data.managed = true;
     data.nodeRef = node;
     page.shapes.set(id, data);
     renderManagedShape(page, data, core.masterClient);
@@ -395,7 +394,6 @@ function addConnector(core: DocumentCore, pageId: number, spec: ConnectorSpec): 
     data.arrowTail = spec.arrowTail;
     data.fromMultiplicity = spec.fromMultiplicity;
     data.toMultiplicity = spec.toMultiplicity;
-    data.managed = true;
     data.nodeRef = node;
     const beginConnect = appendChild(page.connectsNode!, makeElement('Connect'));
     const endConnect = appendChild(page.connectsNode!, makeElement('Connect'));
@@ -427,7 +425,7 @@ export function translate(diagram: Diagram, options?: Partial<CreateOptions>): D
     // 1. 纯翻译：类型解析 + 校验
     const resolved = resolveType(diagram, merged);
     // 2. 装配
-    const core = assembleDocumentCore(diagram, resolved);
+    const core = assembleDocumentCore(resolved);
     // 3. 翻译+渲染
     buildPageContent(core, diagram, resolved);
     return core;

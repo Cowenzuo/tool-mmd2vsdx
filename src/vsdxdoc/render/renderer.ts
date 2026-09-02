@@ -16,11 +16,12 @@ import {
     appendRow,
     appendSection,
     cppFixed6,
+    number,
     replaceShapeText,
     setNumericCell,
     setStringCell,
 } from '../../xml/xmlBuilder.js';
-import { validateShapeBounds, validateStyle } from '../serialize/validator.js';
+import { validateShapeBounds, validateStyle } from '../docmodel/validator.js';
 import type { PageModel, ShapeId, ShapeModel, ConnectorModel } from '../docmodel/model.js';
 import type { DiagramType, Point } from '../../core/types.js';
 import { arrowValue, bindConnector, setConnect } from './connectorBinder.js';
@@ -460,7 +461,10 @@ function renderERShape(page: PageModel, shape: ShapeModel, node: XmlNode,
         if (lines[i]!.length > 0) attributes.push(lines[i]!);
     }
     if (entityName.length === 0) {
-        // 无文本：回退普通 managed 路径（C++ return）
+        // 与 C++ return 同款（无文本不渲染 ER 实体内容）；注释勿改写成"回退
+        // 普通路径"——分派（renderManagedShape）按 diagramType 进本函数，
+        // 空名仅在 Diagram API 层可达（mermaid 语法不可达），节点保持 addShape
+        // 初始结构（已 clear 且不写 cell，产物为空 <Shape/> 由调用方容忍）。
         return;
     }
 
@@ -519,7 +523,10 @@ function renderERShape(page: PageModel, shape: ShapeModel, node: XmlNode,
         setAttribute(sub, 'MasterShape', String(childId));
     }
 
-    // 高度回写：连接线粘真实框边
+    // 高度回写：连接线粘真实框边。
+    // 与 C++ 同款的不对称（基线已验证，勿"修复"）：只回写 h、不回写 w
+    // （w 恒 ≥ 模型宽+0.45"），类图重算 h 后也不回写模型——choosePort 等在
+    // masterless 静态路径用旧尺寸属已知行为，M5 路径由 Visio recalc/glue 掩盖。
     shape.height = h;
 
     const groupId = node.attrs.find((a) => a.name === 'ID')?.value ?? '';
@@ -760,19 +767,28 @@ function renderConnectorImpl(page: PageModel, connector: ConnectorModel, node: X
     // 文本块：中段中点 + 可拖 TextPosition 手柄（⑦-7.6 文字位置公式链）
     let estW = 0.1;
     {
-        // 中文按 UTF-8 字节 /3 折算（C++ 按字节，TS 按码点等效）
-        let cjk = 0;
+        // 中文按 UTF-8 字节 /3 折算：逐码点计字节（1/2/3/4），非 ASCII 部分
+        // 总字节 /3 与 C++ "UTF-8 字节/3" 逐字节一致（勿退回码点计数）
+        let wideBytes = 0;
         let ascii = 0;
         for (const ch of connector.text) {
-            if (ch.codePointAt(0)! >= 0x80) cjk++;
-            else ascii++;
+            const cp = ch.codePointAt(0)!;
+            if (cp < 0x80) {
+                ascii++;
+            } else if (cp < 0x800) {
+                wideBytes += 2;
+            } else if (cp < 0x10000) {
+                wideBytes += 3;
+            } else {
+                wideBytes += 4;
+            }
         }
-        estW += 0.14 * (cjk / 3.0) + 0.08 * ascii;
+        estW += 0.14 * (wideBytes / 3.0) + 0.08 * ascii;
     }
     estW = Math.min(4.0, Math.max(0.5, estW));
     setNumericCell(node, 'TxtPinX', targetLocalX, undefined, 'SETATREF(Controls.TextPosition)');
     setNumericCell(node, 'TxtPinY', targetLocalY, undefined, 'SETATREF(Controls.TextPosition.Y)');
-    setNumericCell(node, 'TxtWidth', estW, undefined, 'GUARD(' + String(estW) + ')');
+    setNumericCell(node, 'TxtWidth', estW, undefined, 'GUARD(' + number(estW) + ')');
     setNumericCell(node, 'TxtHeight', 0.2000515258789062, undefined,
         'GUARD(0.2000515258789062)');
     setNumericCell(node, 'TxtLocPinX', estW / 2, undefined, 'TxtWidth*0.5');
@@ -868,16 +884,6 @@ function renderConnectorImpl(page: PageModel, connector: ConnectorModel, node: X
 // 渲染编排（render_managed.cpp 平移）
 // ═══════════════════════════════════════════════════════
 
-export function logicalIdExists(page: PageModel, id: string): boolean {
-    for (const shape of page.shapes.values()) {
-        if (shape.logicalId === id) return true;
-    }
-    for (const connector of page.connectors.values()) {
-        if (connector.logicalId === id) return true;
-    }
-    return false;
-}
-
 /** 形状渲染分派：dividers→类、ER 实体（非 Diamond）→ER、其余→通用。 */
 export function renderManagedShape(page: PageModel, shape: ShapeModel,
                                    masters: MasterClient): void {
@@ -910,13 +916,4 @@ function resolveFor(page: PageModel, _masters: MasterClient): DiagramType {
     return page.document !== null
         ? resolveDiagramType(page.document.options.diagramType, [])
         : 'basic';
-}
-
-/** 刷新受影响连接线（形状移动后重渲染其连接线）。 */
-export function refreshConnectors(page: PageModel, shapeId: ShapeId, masters: MasterClient): void {
-    for (const connector of page.connectors.values()) {
-        if (connector.source === shapeId || connector.target === shapeId) {
-            renderManagedConnector(page, connector, masters);
-        }
-    }
 }

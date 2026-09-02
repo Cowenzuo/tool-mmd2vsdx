@@ -5,13 +5,14 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.2.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:arch": "node scripts/check-architecture.mjs",
     "make:fixtures": "node scripts/make-fixtures.mjs"
   },
   "license": "MIT",

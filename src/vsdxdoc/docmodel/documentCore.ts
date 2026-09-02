@@ -3,8 +3,11 @@
 // C++ docmodel/render_internal.hpp 平移（DocumentCore 部分）。
 // TS 差异（05 §1.3/§5.4）：
 //   - 节点即对象引用：documentXml/pagesXml 以根 XmlNode 持有；
-//   - 脏标记保留结构但不需要增量序列化（构建后整体序列化）；
+//   - 页面部件 addPage 即写包（空壳树），build 期按 dirtyPages 选择性回刷
+//     （xmlPartsBuilder flush；单程 translate 下全脏 = 全量回刷）；
 //   - uniquePageName/nextPagePartUri/markPageDirty 语义照抄。
+// 环约束：与 model.ts 互引必须保持 import type（编译期擦除、运行时零边），
+// 任一侧改值导入即构成运行时环（TDZ/初始化序风险），禁止。
 
 import type { XmlNode } from '../../xml/xmlNode.js';
 import type { Package } from '../../opcpkg/package.js';

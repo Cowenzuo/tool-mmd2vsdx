@@ -1,6 +1,8 @@
-// mmd2vsdx - vsdxdoc/translate：coordinateTransform（坐标变换）
+// mmd2vsdx - vsdxdoc/render：coordinateTransform（坐标变换）
 //
 // C++ translate/coordinatetransform.{hpp,cpp} 平移（坑位 ④-4.1、判别 D7）。
+// 归位说明：importer 与全部专用渲染器共用（px→inch 页面坐标），放 render
+// 消除专用渲染器 → translate 的反向依赖。
 // 语义逐条照抄：
 //   - scale = outputScale / 96；outputScale 非有限/≤0 抛（TypeError，消息同 C++）；
 //   - 边距 ≥0 有限，否则抛 'Invalid page margin: <name>'；

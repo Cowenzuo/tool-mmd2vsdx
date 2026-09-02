@@ -2,7 +2,7 @@
 // 蓝本：C++ testtranslate.cpp 坐标节 + 05 文档正反例 + 坑位 ④-4.1
 // （scale=outputScale/96、y 翻转、边距、空图默认 96×96 源界、最小 0.1" 内容）。
 import { describe, expect, it } from 'vitest';
-import { CoordinateTransform } from '../src/vsdxdoc/translate/coordinateTransform.js';
+import { CoordinateTransform } from '../src/vsdxdoc/render/coordinateTransform.js';
 import { defaultDiagram } from '../src/core/types.js';
 import type { Diagram } from '../src/core/types.js';
 

@@ -12,7 +12,7 @@
 
 import type { PageModel } from '../docmodel/model.js';
 import type { PieChart } from '../../core/types.js';
-import type { CoordinateTransform } from '../translate/coordinateTransform.js';
+import type { CoordinateTransform } from './coordinateTransform.js';
 import {
     appendCellNumber,
     appendCellString,

@@ -1,6 +1,7 @@
 // mmd2vsdx - testtranslate：vsdxdoc 翻译（Diagram → DocumentCore / XmlParts）
-// C++ src/tests/testtranslate.cpp 平移（无母版模式适配：M2 未接入母版打包，
-// 用 useConnectorMaster=false 等价 C++ 本地内容路径；母版结构等价属 M5 闸门）。
+// C++ src/tests/testtranslate.cpp 平移（母版双路径：useConnectorMaster=false 走
+// 本地内容路径等价 C++ 无母版模式；真实母版打包/形状 Master 引用在本文件
+// useConnectorMaster=true 用例 + golden 16 样本结构等价闸门分别验证）。
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -65,7 +66,6 @@ describe('shape data preserved through translate', () => {
         expect(s1!.logicalId).toBe('A');
         expect(s1!.text).toBe('Start');
         expect(s1!.kind).toBe('rect');
-        expect(s1!.managed).toBe(true);
         const s2 = page.shapes.get(2);
         expect(s2).toBeDefined();
         expect(s2!.logicalId).toBe('B');

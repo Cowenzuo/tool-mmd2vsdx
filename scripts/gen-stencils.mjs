@@ -11,8 +11,10 @@
  * 说明：
  *   - 本脚本自包含（不含 ZIP 三方库）：内嵌轻量 zip 读取（EOCD+中央目录+
  *     inflateRawSync），与 src/opcpkg/zipArchive.ts 同源语义、仅服务读取；
- *   - 产物 stencilData.ts 提交仓库（开发资产），npm files 白名单排除
- *     （分发红线：官方模具不随包，用户侧 prepare-stencils 生成）；
+ *   - 产物 stencilData.ts 提交仓库（开发资产）。分发红线现状（审核 P2-⑨）：
+ *     package.json 为 private:true（npm 不分发），631KB 资产随 tsc 编入 dist；
+ *     若将来转公开发布，须补 files 白名单 + 用户侧资产生成工具后，再宣称
+ *     "官方模具不随包"——当前注释不预设该机制存在；
  *   - 用法：node scripts/gen-stencils.mjs [visio_dir] [out_ts]
  * 默认 visio_dir=resources/visio，out=src/vsdxdoc/masters/stencilData.ts
  */
@@ -125,7 +127,8 @@ mkdirSync(path.dirname(outFile), { recursive: true });
 const json = JSON.stringify(data);
 writeFileSync(outFile,
     '// 生成文件（scripts/gen-stencils.mjs）：8 份官方模具按 stencil 压缩资产。\n' +
-    '// 分发红线：不随 npm 包（用户侧 prepare-stencils 生成）；开发仓库内提交。\n' +
+    '// 分发红线（审核 P2-⑨）：package.json private:true（npm 不分发），资产随 tsc 编入 dist；\n' +
+    '// 若转公开发布须补 files 白名单与用户侧资产生成工具后再移除本说明。\n' +
     '// key=stencil 名（basic_shape/flowchart/uml_class/...），value=gzip(base64(JSON{\n' +
     '//   mastersXml, relsXml?, contents:{fileName:xml}, stylesXml?}))。\n' +
     'export const STENCIL_DATA: Record<string, string> = ' + json + ';\n');

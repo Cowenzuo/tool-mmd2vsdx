@@ -1,6 +1,8 @@
-// mmd2vsdx - vsdxdoc/serialize：validator（模型/参数校验）
+// mmd2vsdx - vsdxdoc/docmodel：validator（模型/参数校验）
 //
 // C++ serialize/validator.cpp 平移（坑位 ⑩-10.4：渲染前调用、失败即中止）。
+// 归位说明：校验对象为模型层形状/样式参数，translate 与 render 两处共用，
+// 放 docmodel 消除 render → serialize 的反向依赖。
 
 import type { ShapeStyle } from '../../core/vsdx.js';
 

@@ -16,11 +16,11 @@ import type {
     NodeShape,
     Point,
 } from '../../core/types.js';
-import type { ShapeStyle } from '../../core/vsdx.js';
+// ID 别名统一源：core/vsdx.js（勿在本层重定义，避免三处漂移，审核 P2-2）
+import type { PageId, ShapeId, ShapeStyle } from '../../core/vsdx.js';
 import type { DocumentCore } from './documentCore.js';
 
-export type PageId = number;
-export type ShapeId = number;
+export type { PageId, ShapeId };
 
 // ── 形状内部模型（纯数据） ──
 
@@ -34,10 +34,6 @@ export interface ShapeModel {
     width: number;
     height: number;
     style: ShapeStyle;
-    /** 提取层"特殊形状"（managed 渲染路径）。 */
-    managed: boolean;
-    /** 母版标识（渲染层经 MasterLibrary.masterIdFor 查数字 Master ID；空=无母版）。 */
-    masterId: string;
     /** 类图分区线（相对中心的本地 y 偏移）。 */
     dividers: number[];
     /** 渲染时填写的 XML 节点引用（模型↔树对应）。 */
@@ -55,8 +51,6 @@ export function defaultShapeModel(): ShapeModel {
         width: 0,
         height: 0,
         style: { fillColor: '#FFFFFF', lineColor: '#000000', textColor: '#000000', lineWidthPoints: 0.5, fontSizePoints: 12 },
-        managed: false,
-        masterId: '',
         dividers: [],
         nodeRef: null,
     };
@@ -78,7 +72,6 @@ export interface ConnectorModel {
     fromMultiplicity: string;
     /** ER 关系终点基数。 */
     toMultiplicity: string;
-    managed: boolean;
     /** 连接线形状 XML 节点引用。 */
     nodeRef: XmlNode | null;
     /** 页面 <Connects> 中 BeginX/EndX 两条记录节点引用。 */
@@ -99,7 +92,6 @@ export function defaultConnectorModel(): ConnectorModel {
         arrowTail: 'none',
         fromMultiplicity: '',
         toMultiplicity: '',
-        managed: false,
         nodeRef: null,
         beginConnectRef: null,
         endConnectRef: null,
@@ -107,6 +99,10 @@ export function defaultConnectorModel(): ConnectorModel {
 }
 
 // ── 页面内部模型（页面 = 树的容器） ──
+//
+// 注册契约（审核 P3-12 明示）：shapes/connectors 映射只登记"managed 路径"形状
+// （通用渲染 renderManaged*/连接线）；pi/quadrant/git/sequence/gantt 专用渲染器
+// 只写树 + nextShapeId，不登记映射——按映射遍历会漏专用形状，勿依赖。
 
 export interface PageModel {
     id: PageId;
@@ -124,7 +120,9 @@ export interface PageModel {
     nextShapeId: ShapeId;
     shapes: Map<ShapeId, ShapeModel>;
     connectors: Map<ShapeId, ConnectorModel>;
-    /** 反向引用（DocumentCore；母版查询等用）。 */
+    /** 反向引用（DocumentCore；母版查询等用）。
+     *  环约束（审核 P2-1 固化）：model ↔ documentCore 互引必须保持 import type
+     *  （编译期擦除、运行时零边）；任何一侧改成值导入即构成运行时环，禁止。 */
     document: DocumentCore | null;
 }
 
@@ -146,7 +144,14 @@ export function defaultPageModel(): PageModel {
     };
 }
 
-/** 页内形状/连接线 ID 是否已占用（C++ logicalIdExists 语义按 id 查）。 */
-export function shapeExists(page: PageModel, id: ShapeId): boolean {
-    return page.shapes.has(id) || page.connectors.has(id);
+/** 页内形状/连接线的逻辑 ID 是否已占用（C++ logicalIdExists：按 logicalId 字符串查，
+ *  与"按数值 id 查"的 shapeExists 无关——后者已删除，勿重建）。 */
+export function logicalIdExists(page: PageModel, id: string): boolean {
+    for (const shape of page.shapes.values()) {
+        if (shape.logicalId === id) return true;
+    }
+    for (const connector of page.connectors.values()) {
+        if (connector.logicalId === id) return true;
+    }
+    return false;
 }
