@@ -27,6 +27,7 @@ import { renderManagedConnector, renderManagedShape, logicalIdExists } from '../
 import { renderPie } from '../render/piRenderer.js';
 import { renderQuadrant } from '../render/quadrantRenderer.js';
 import { renderGitGraph } from '../render/gitRenderer.js';
+import { renderSequence } from '../render/sequenceRenderer.js';
 import { CoordinateTransform } from './coordinateTransform.js';
 import {
     addPageMetadata,
@@ -165,7 +166,7 @@ function buildPageContent(core: DocumentCore, diagram: Diagram, resolved: Create
     }
     const pageId = addPage(core, pageSpec);
 
-    // 专用渲染器：pie/quadrant/gitGraph（M4 分批落地）；gantt/sequence 尚缺
+    // 专用渲染器：pie/quadrant/gitGraph/sequence（M4 分批落地）；gantt 尚缺
     if (diagram.pie.slices.length > 0) {
         renderPie(core.page(pageId), diagram.pie, transform);
         return;
@@ -182,7 +183,8 @@ function buildPageContent(core: DocumentCore, diagram: Diagram, resolved: Create
         throw new Error('[vsdxdoc] gantt 专用渲染器属于 M4，尚未接入');
     }
     if (resolved.diagramType === 'sequence' && diagram.nodes.length > 0) {
-        throw new Error('[vsdxdoc] sequence 专用渲染器属于 M4，尚未接入');
+        renderSequence(core.page(pageId), diagram, transform);
+        return;
     }
 
     const nodeToShape = new Map<string, number>();
