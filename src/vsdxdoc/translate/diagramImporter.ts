@@ -22,7 +22,7 @@ import { Package } from '../../opcpkg/package.js';
 import { PartUri } from '../../opcpkg/partUri.js';
 import { Relationships } from '../../opcpkg/relationships.js';
 import { resolveDiagramType, masterlessClient } from '../masters/masterClient.js';
-import type { MasterClient } from '../masters/masterClient.js';
+import { realMasterClient, selectForType, stylesXmlFor } from '../masters/masterLibrary.js';
 import { renderManagedConnector, renderManagedShape, logicalIdExists } from '../render/renderer.js';
 import { renderPie } from '../render/piRenderer.js';
 import { renderQuadrant } from '../render/quadrantRenderer.js';
@@ -97,10 +97,20 @@ function assembleDocumentCore(diagram: Diagram, resolved: CreateOptions): Docume
     const custom = createCustomProperties();
     const windows = createWindowsXml(resolved.diagramType);
 
+    const core = new DocumentCore(package_, resolved);
+    core.documentRoot = documentXml;
+    core.pagesRoot = pagesXml;
+    core.pagesRelsDirty = true;
+
     if (resolved.useConnectorMaster) {
-        // M2 尚无 MasterLibrary 打包（M5 接入）；显式失败而非产出半成品
-        throw new Error(
-            '[vsdxdoc] master packing requires M5; use useConnectorMaster=false for now');
+        // M5：真实母版管线（selectForType → pack → mergeStyles；映射在客户端内）
+        const client = realMasterClient();
+        const selection = selectForType(resolved.diagramType);
+        client.pack(package_, selection, resolved);
+        client.mergeStylesInto(documentXml, stylesXmlFor(selection.stencil));
+        core.masterClient = client;
+    } else {
+        core.masterClient = masterlessClient;
     }
 
     const addPartText = (uri: string, contentType: string, root: XmlNode) => {
@@ -132,11 +142,6 @@ function assembleDocumentCore(diagram: Diagram, resolved: CreateOptions): Docume
     // 页面关系部件（占位空表；addPage 逐页追加后即时写包）
     package_.setRelationships(Relationships.create(PartUri.parse(kPagesUri)));
 
-    const core = new DocumentCore(package_, resolved);
-    core.documentRoot = documentXml;
-    core.pagesRoot = pagesXml;
-    core.pagesRelsDirty = true;
-
     void diagram; // 装配阶段不依赖 diagram（页面内容在步骤 3 组装）
     return core;
 }
@@ -144,8 +149,6 @@ function assembleDocumentCore(diagram: Diagram, resolved: CreateOptions): Docume
 // ═══════════════════════════════════════════════════════
 // 步骤 3：翻译+渲染（页面/形状/连接线组装）
 // ═══════════════════════════════════════════════════════
-
-const kMasterClient: MasterClient = masterlessClient;
 
 function buildPageContent(core: DocumentCore, diagram: Diagram, resolved: CreateOptions): void {
     const transform = new CoordinateTransform(diagram, resolved.outputScale, {
@@ -170,7 +173,7 @@ function buildPageContent(core: DocumentCore, diagram: Diagram, resolved: Create
     // 专用渲染器：gantt（引擎配置随行）→ pie/quadrant/gitGraph/sequence
     if (diagram.gantt.tasks.length > 0) {
         const ganttPage = core.page(pageId);
-        renderGantt(ganttPage, diagram.gantt, kMasterClient);
+        renderGantt(ganttPage, diagram.gantt, core.masterClient);
         addPageEngineConfig(ganttPage, diagram.gantt);
         return;
     }
@@ -179,15 +182,15 @@ function buildPageContent(core: DocumentCore, diagram: Diagram, resolved: Create
         return;
     }
     if (diagram.quadrant.points.length > 0) {
-        renderQuadrant(core.page(pageId), diagram.quadrant, transform);
+        renderQuadrant(core.page(pageId), diagram.quadrant, transform, core.masterClient);
         return;
     }
     if (diagram.git.commits.length > 0) {
-        renderGitGraph(core.page(pageId), diagram.git, transform);
+        renderGitGraph(core.page(pageId), diagram.git, transform, core.masterClient);
         return;
     }
     if (resolved.diagramType === 'sequence' && diagram.nodes.length > 0) {
-        renderSequence(core.page(pageId), diagram, transform);
+        renderSequence(core.page(pageId), diagram, transform, core.masterClient);
         return;
     }
 
@@ -325,7 +328,7 @@ function addShape(core: DocumentCore, pageId: number, spec: ShapeSpec): number {
     data.managed = true;
     data.nodeRef = node;
     page.shapes.set(id, data);
-    renderManagedShape(page, data, kMasterClient);
+    renderManagedShape(page, data, core.masterClient);
     core.needsRecalculation = true;
     core.markPageDirty(pageId);
     return id;
@@ -353,9 +356,31 @@ function addConnector(core: DocumentCore, pageId: number, spec: ConnectorSpec): 
     setAttribute(node, 'NameU', 'Dynamic connector');
     setAttribute(node, 'Name', 'Dynamic connector');
     setAttribute(node, 'Type', 'Shape');
-    // M2 masterless：useConnectorMaster=false → 不写 Master 属性（M5 接入选母版）
+    // 连接线母版选择（C++ diagramimporter.cpp:361-388）：ER→Relationship、
+    // sequence 虚线→Return Message.22/实线→Message.21、其余 Dynamic connector
+    // （小写先试、大写兜底）；masterId 命中才写 Master 并同步 NameU/Name。
     if (core.options.useConnectorMaster) {
-        throw new Error('[vsdxdoc] connector 母版选择属于 M5');
+        const isER = core.options.diagramType === 'er';
+        const isSequence = core.options.diagramType === 'sequence';
+        let masterId = 0;
+        if (isER) {
+            masterId = core.masterClient.masterIdFor('Relationship');
+            if (masterId !== 0) {
+                setAttribute(node, 'NameU', 'Relationship');
+                setAttribute(node, 'Name', 'Relationship');
+            }
+        } else if (isSequence) {
+            const msgMaster = spec.style === 'dotted'
+                ? 'Return Message.22' : 'Message.21';
+            masterId = core.masterClient.masterIdFor(msgMaster);
+            if (masterId !== 0) {
+                setAttribute(node, 'NameU', msgMaster);
+                setAttribute(node, 'Name', msgMaster);
+            }
+        }
+        if (masterId === 0) masterId = core.masterClient.masterIdFor('Dynamic connector');
+        if (masterId === 0) masterId = core.masterClient.masterIdFor('Dynamic Connector');
+        if (masterId !== 0) setAttribute(node, 'Master', String(masterId));
     }
 
     const data: ConnectorModel = defaultConnectorModel();
@@ -377,7 +402,7 @@ function addConnector(core: DocumentCore, pageId: number, spec: ConnectorSpec): 
     data.beginConnectRef = beginConnect;
     data.endConnectRef = endConnect;
     page.connectors.set(id, data);
-    renderManagedConnector(page, data, kMasterClient);
+    renderManagedConnector(page, data, core.masterClient);
     core.needsRecalculation = true;
     core.markPageDirty(pageId);
 }

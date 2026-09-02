@@ -11,6 +11,8 @@ import type { Package } from '../../opcpkg/package.js';
 import { PartUri } from '../../opcpkg/partUri.js';
 import type { CreateOptions } from '../../core/vsdx.js';
 import { kVisioNamespace, kDocumentUri, kPagesUri } from '../../xml/constants.js';
+import type { MasterClient } from '../masters/masterClient.js';
+import { masterlessClient } from '../masters/masterClient.js';
 import type { PageModel } from './model.js';
 
 export type { PageId } from '../../core/vsdx.js';
@@ -18,6 +20,8 @@ export type { PageId } from '../../core/vsdx.js';
 export class DocumentCore {
     package: Package;
     options: CreateOptions;
+    /** 母版查询客户端（装配期设定：useConnectorMaster=false → masterless）。 */
+    masterClient: MasterClient = masterlessClient;
     visioNamespace: string = kVisioNamespace;
     documentUri: PartUri = PartUri.parse(kDocumentUri);
     pagesUri: PartUri = PartUri.parse(kPagesUri);

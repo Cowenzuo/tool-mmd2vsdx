@@ -167,10 +167,20 @@ describe('class diagram with dividers translates', () => {
     });
 });
 
-describe('母版打包未接入（M5）的显式拦截', () => {
-    it('useConnectorMaster=true → 明确报错', () => {
-        expect(() => translatorTranslate(makeFlowchartDiagram(), { useConnectorMaster: true }))
-            .toThrow(/M5/);
+describe('真实母版模式（M5）：useConnectorMaster=true 打包母版', () => {
+    it('flowchart 打包 masters.xml + masterN + 页面形状带 Master 属性', () => {
+        const parts = translatorTranslate(makeFlowchartDiagram(), { useConnectorMaster: true });
+        const masters = findPart(parts.parts, 'visio/masters/masters.xml');
+        expect(masters, 'masters.xml 存在').not.toBeNull();
+        expect(masters!.xml.includes('<Master ')).toBe(true);
+        const masterFiles = parts.parts.filter((p) =>
+            p.uri.startsWith('visio/masters/master') && p.uri.endsWith('.xml'));
+        expect(masterFiles.length).toBeGreaterThanOrEqual(2);
+        const page1 = findPart(parts.parts, 'visio/pages/page1.xml')!;
+        expect(page1.xml).toContain('Master='); // 形状带母版实例引用
+        // 文档关系含 masters
+        const docRels = findPart(parts.parts, 'visio/_rels/document.xml.rels')!;
+        expect(docRels.xml).toContain('masters/masters.xml');
     });
 });
 
