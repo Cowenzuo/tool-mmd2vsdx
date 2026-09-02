@@ -36,14 +36,22 @@ function newPlainShape(page: PageModel): { id: number; node: XmlNode } {
     return { id, node };
 }
 
-/** 无边框无填充文本框（水平居中，指定字号；CJK 估宽档：0.55/0.28(空格)/0.42(%)/0.36）。 */
+/** 码点 → UTF-8 字节数（估宽按字节计，golden 实证：中文每字节 fs*0.55/72）。 */
+function utf8BytesOf(code: number): number {
+    if (code < 0x80) return 1;
+    if (code < 0x800) return 2;
+    if (code < 0x10000) return 3;
+    return 4;
+}
+
+/** 无边框无填充文本框（水平居中，指定字号；CJK 按 UTF-8 字节计：0.55/0.28(空格)/0.42(%)/0.36）。 */
 function addTextLabel(page: PageModel, px: number, py: number, text: string,
                       fontSizePt: number): void {
     if (text.length === 0) return;
     let tw = 0.0;
     for (const ch of text) {
         const code = ch.codePointAt(0)!;
-        if (code >= 0x80) tw += fontSizePt * 0.55 / 72.0; // 中文
+        if (code >= 0x80) tw += fontSizePt * 0.55 / 72.0 * utf8BytesOf(code); // 中文（每字节）
         else if (ch === ' ') tw += fontSizePt * 0.28 / 72.0;
         else if (ch === '%') tw += fontSizePt * 0.42 / 72.0;
         else tw += fontSizePt * 0.36 / 72.0;

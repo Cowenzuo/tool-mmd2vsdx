@@ -34,6 +34,14 @@ export function number(value: number): string {
 }
 
 /**
+ * C++ std::to_string(double) 形态（定点 6 位小数）——公式文本内嵌数值复刻用
+ * （如 BOUND(2.500000DL,...)、IF(User.IsSummary,-1.5E300,46240.000000)）。
+ */
+export function cppFixed6(value: number): string {
+    return value.toFixed(6);
+}
+
+/**
  * 对照档（仅调试/对照测试用）：17 位有效数字 + %g 风格修剪，
  * 用于与 C++ 17 位 defaultfloat 输出做数值/文本比对（04 §3.2）。
  */

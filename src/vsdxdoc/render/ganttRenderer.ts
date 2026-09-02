@@ -29,6 +29,7 @@ import {
     appendSection,
     replaceShapeText,
     setNumericCell,
+    cppFixed6,
 } from '../../xml/xmlBuilder.js';
 import { pageShapes } from './renderer.js';
 
@@ -682,7 +683,7 @@ export function renderGantt(page: PageModel, gantt: GanttChart,
                     frame.id + '!User.WHLookup,Sheet.' + frame.id +
                     '!User.WTLookupSep),0)/24');
                 addVal(user, 'LastStartFromMove', startSerial, undefined,
-                    'IF(User.IsSummary,-1.5E300,' + startSerial + ')');
+                    'IF(User.IsSummary,-1.5E300,' + cppFixed6(startSerial) + ')');
                 addVal(user, 'WTNormalizedStart', startSerial, undefined,
                     'IF(Sheet.' + frame.id + '!User.PriScaleUnitsType<3,' +
                     'INT(User.LastStartFromMove)+((Sheet.' + frame.id +
@@ -752,7 +753,7 @@ export function renderGantt(page: PageModel, gantt: GanttChart,
                 frame.id + '!User.WHLookup,Sheet.' + frame.id +
                 '!User.WTLookupSep),0)/24');
             addVal(user, 'LastStartFromMove', startSerial, undefined,
-                'IF(User.IsSummary,-1.5E300,' + startSerial + ')');
+                'IF(User.IsSummary,-1.5E300,' + cppFixed6(startSerial) + ')');
             addVal(user, 'WTNormalizedStart', startSerial, undefined,
                 'IF(Sheet.' + frame.id + '!User.PriScaleUnitsType<3,' +
                 'INT(User.LastStartFromMove)+((Sheet.' + frame.id +
@@ -967,6 +968,13 @@ function addMasterShapeSkeleton(bar: XmlNode, page: PageModel, kind: 'bar' | 'mi
         setAttribute(sub, 'Type', 'Shape');
         setAttribute(sub, 'MasterShape', String(childId));
         setNumericCell(sub, 'LayerMember', 0, 'IN');
+        if (kind === 'milestone') {
+            // 里程碑骨架：仅 LayerMember + 11/12/13 文本边距（C++ 910-926 行）
+            if (childId === 11 || childId === 12 || childId === 13) {
+                addTextLeftRight(sub);
+            }
+            continue;
+        }
         switch (childId) {
             case 5: // 起条（条本体水平一半）
                 setNumericCell(sub, 'PinX', kScalar * 0.5, 'IN', 'Inh');

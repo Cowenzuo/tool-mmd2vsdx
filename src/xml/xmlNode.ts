@@ -133,6 +133,15 @@ export function serializeDocument(root: XmlNode): string {
 
 // ── 只读解析器（自研 ~150 行：decl/注释/PI 跳过、CDATA 当文本、五实体+数字实体） ──
 
+/**
+ * XML 行尾归一（XML 1.0 §2.11：文本与属性值 CRLF/CR → LF）。
+ * libxml/C++ 基线产物即此形态；官方模具原始 CRLF 经此归一后与基线一致。
+ */
+function normalizeNewlines(text: string): string {
+    if (!text.includes('\r')) return text;
+    return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
 function decodeEntities(text: string, source: string): string {
     if (!text.includes('&')) return text;
     return text.replace(/&(#x[0-9a-fA-F]+|#[0-9]+|amp|lt|gt|quot|apos);/g, (m, body: string) => {
@@ -209,7 +218,7 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
         if (pos >= xml.length) throw new Error(`[xml] unterminated attribute value in ${source}`);
         const raw = xml.slice(start, pos);
         pos++;
-        return decodeEntities(raw, source);
+        return decodeEntities(normalizeNewlines(raw), source);
     };
 
     const isNameChar = (ch: string) => !/[\s/>=]/.test(ch);
@@ -236,12 +245,12 @@ export function parseDocument(xml: string, sourceName = '<memory>'): XmlNode {
             throw new Error(`[xml] unclosed element <${stack[stack.length - 1]!.name}> in ${source}`);
         }
         if (xml[pos] !== '<') {
-            // 文本内容
+            // 文本内容（行尾归一：CRLF/CR → LF）
             const start = pos;
             while (pos < xml.length && xml[pos] !== '<') pos++;
             const raw = xml.slice(start, pos);
             const target = stack[stack.length - 1];
-            if (target) appendText(target, decodeEntities(raw, source));
+            if (target) appendText(target, decodeEntities(normalizeNewlines(raw), source));
             continue;
         }
         if (xml.startsWith('<?', pos)) {

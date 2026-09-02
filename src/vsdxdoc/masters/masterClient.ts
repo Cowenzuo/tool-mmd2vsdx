@@ -79,6 +79,7 @@ export function shapeMasterName(type: DiagramType, kind: NodeShape): string {
                 case 'diamond': return 'Diamond';
                 case 'circle': return 'Circle';
                 case 'ellipse': return 'Ellipse';
+                case 'roundRect': return 'Rounded Rectangle';
                 default: return 'Rectangle';
             }
         case 'basic':

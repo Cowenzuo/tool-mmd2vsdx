@@ -62,15 +62,19 @@ function addLine2D(page: PageModel, x1: number, y1: number, x2: number, y2: numb
     replaceShapeText(node, '');
 }
 
-/** 无边框无填充文本框（quadrant 估宽档）。 */
+/** 无边框无填充文本框（quadrant 估宽档：CJK 按 UTF-8 字节计）。 */
 function addTextBox(page: PageModel, px: number, py: number, text: string,
                     fontSizePt = 12): void {
     if (text.length === 0) return;
     let tw = 0;
     for (const ch of text) {
         const code = ch.codePointAt(0)!;
-        if (code >= 0x80) tw += fontSizePt * 0.55 / 72.0;
-        else tw += fontSizePt * 0.36 / 72.0;
+        if (code >= 0x80) {
+            const bytes = code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+            tw += fontSizePt * 0.55 / 72.0 * bytes;
+        } else {
+            tw += fontSizePt * 0.36 / 72.0;
+        }
     }
     const w = tw + 0.1;
     const h = fontSizePt / 72.0 * 1.4;

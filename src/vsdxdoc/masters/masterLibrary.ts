@@ -23,6 +23,10 @@ import type { XmlNode } from '../../xml/xmlNode.js';
 import { parseDocument, serializeDocument } from '../../xml/xmlNode.js';
 import type { Package } from '../../opcpkg/package.js';
 import { PartUri } from '../../opcpkg/partUri.js';
+
+const kVisioNamespace = 'http://schemas.microsoft.com/office/visio/2012/main';
+const kOfficeRelsNs =
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 import { Relationships } from '../../opcpkg/relationships.js';
 import type { DiagramType } from '../../core/types.js';
 import type { CreateOptions } from '../../core/vsdx.js';
@@ -707,6 +711,9 @@ function packMasters(core: MasterLibraryCore, package_: Package,
                 }
             }
             const copy = cloneNode(master);
+            // 跨文档移入节点携带 ns 声明（等效 libxml xmlAddChild 行为）
+            copy.attrs.unshift({ name: 'xmlns:r', value: kOfficeRelsNs });
+            copy.attrs.unshift({ name: 'xmlns', value: kVisioNamespace });
             nextId = skipHole(nextId);
             setAttr(copy, 'ID', String(nextId));
             result.set(connectorMasterRec.nameU, nextId++);
@@ -918,9 +925,13 @@ function applyFromMasterShape(shape: XmlNode, masterShape: XmlNode, width: numbe
     for (const tc of txtCells) {
         const copy = cloneNode(tc);
         rewriteCellV(copy, ctx, masterW, masterH);
-        if (firstSectionIdx >= 0) shape.children.splice(firstSectionIdx, 0, copy);
+        // 每次重算首个 Section 位置插入（等效 xmlAddPrevSibling 保序追加）
+        const idx = shape.children.findIndex(
+            (c) => typeof c !== 'string' && c.name === 'Section');
+        if (idx >= 0) shape.children.splice(idx, 0, copy);
         else shape.children.push(copy);
     }
+    void firstSectionIdx;
 
     // 克隆 Sections：User 合并行 / Control+Scratch 追加 / Connection 补 T+U /
     // Geometry 追加

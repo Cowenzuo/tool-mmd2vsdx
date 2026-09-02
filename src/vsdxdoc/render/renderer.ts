@@ -15,6 +15,7 @@ import {
     appendNamedRow,
     appendRow,
     appendSection,
+    cppFixed6,
     replaceShapeText,
     setNumericCell,
     setStringCell,
@@ -192,7 +193,7 @@ function renderClassShape(page: PageModel, shape: ShapeModel, node: XmlNode,
     const control = appendSection(node, 'Control');
     const row1 = appendNamedRow(control, 'Row_1');
     const boundFormula =
-        'BOUND(' + String(w) +
+        'BOUND(' + cppFixed6(w) +
         'DL,0,User.Test,25MM,2540MM,NOT(User.Test),User.WidthMin+' +
         'User.msvSDContainerMargin*2,2540MM)';
     appendCellNumber(row1, 'X', w, 'DL', boundFormula);
@@ -500,7 +501,7 @@ function renderERShape(page: PageModel, shape: ShapeModel, node: XmlNode,
     const control = appendSection(node, 'Control');
     const row1 = appendNamedRow(control, 'Row_1');
     const boundFormula =
-        'BOUND(' + String(w) +
+        'BOUND(' + cppFixed6(w) +
         'DL,0,User.Test,25MM,2540MM,NOT(User.Test),User.WidthMin+' +
         'User.msvSDContainerMargin*2,2540MM)';
     appendCellNumber(row1, 'X', w, 'DL', boundFormula);
