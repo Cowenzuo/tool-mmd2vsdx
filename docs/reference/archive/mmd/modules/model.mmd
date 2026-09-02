@@ -1,0 +1,73 @@
+%% model.mmd — model 层：内部文档对象模型 + 值类型（src/vsdx/model/model.hpp）
+%% 跨模块依赖：core（NodeShape/Point 等）、opc（PartUri/XmlDocument）、detail（DocumentCore 反向指针）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+class ShapeStyle {
+    +string fillColor
+    +string lineColor
+    +string textColor
+    +double lineWidthPoints
+    +double fontSizePoints
+}
+
+class ShapeModel {
+    +ShapeId id
+    +string logicalId
+    +string text
+    +NodeShape kind
+    +double x
+    +double y
+    +double width
+    +double height
+    +ShapeStyle style
+    +bool managed
+    +string masterId
+    +double[] dividers
+    +xmlNodePtr node
+}
+
+class ConnectorModel {
+    +ShapeId id
+    +string logicalId
+    +string text
+    +ShapeId source
+    +ShapeId target
+    +Point[] waypoints
+    +EdgeStyle style
+    +ArrowType arrowHead
+    +ArrowType arrowTail
+    +string fromMultiplicity
+    +string toMultiplicity
+    +bool managed
+    +xmlNodePtr node
+    +xmlNodePtr beginConnect
+    +xmlNodePtr endConnect
+}
+
+class PageModel {
+    +PageId id
+    +string name
+    +double width
+    +double height
+    +PartUri partUri
+    +string relationshipId
+    +unique_ptr<XmlDocument> xml
+    +xmlNodePtr metadataNode
+    +xmlNodePtr shapesNode
+    +xmlNodePtr connectsNode
+    +ShapeId nextShapeId
+    +map shapes
+    +map connectors
+    +DocumentCore* document
+}
+
+%% ── model 内部关系 ──
+PageModel *-- ShapeModel : shapes
+PageModel *-- ConnectorModel : connectors
+ShapeModel *-- ShapeStyle : style 成员
+
+%% ── 跨模块（标注，不画连线）──
+%% PageModel ..> DocumentCore : document 反向指针（detail）
+%% PageModel ..> OpcPart : 部件访问（opc）

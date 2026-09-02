@@ -1,0 +1,23 @@
+gitGraph
+    commit id: "init"
+    branch feature/login
+    commit id: "login-ui"
+    commit id: "login-api"
+    branch feature/pay
+    commit id: "pay-cart"
+    commit id: "pay-checkout"
+    checkout feature/login
+    commit id: "login-oauth" type: HIGHLIGHT
+    checkout main
+    merge feature/login id: "m-login"
+    branch hotfix
+    commit id: "hotfix-a" type: HIGHLIGHT
+    commit id: "hotfix-b"
+    checkout main
+    merge hotfix id: "m-hotfix"
+    checkout feature/pay
+    cherry-pick id: "hotfix-a"
+    commit id: "pay-final"
+    checkout main
+    merge feature/pay id: "m-pay"
+    commit id: "release-2.0" tag: "v2.0" type: HIGHLIGHT

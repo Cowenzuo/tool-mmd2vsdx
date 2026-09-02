@@ -1,0 +1,76 @@
+%% detail.mmd — detail 层：DocumentCore 协调者 + 母版数据（src/vsdx/render_internal.hpp / stencil.hpp）
+%% detail 为命名空间（非目录），文件位于 src/vsdx/ 根
+%% 跨模块依赖：model（PageModel 等）、opc（Package/XmlDocument/Relationships）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+%% P7b：DocumentImpl 更名 DocumentCore（薄协调者，纯数据 + 查找）
+class DocumentCore {
+    +page(id) PageModel
+    +shape(pageId, shapeId) ShapeModel
+    +connector(pageId, shapeId) ConnectorModel
+    +uniquePageName(requested, except) string
+    +nextPagePartUri() PartUri
+    +markPageDirty(id)
+    +Package package
+    +CreateOptions options
+    +string visioNamespace
+    +PartUri documentUri
+    +PartUri pagesUri
+    +unique_ptr<XmlDocument> documentXml
+    +unique_ptr<XmlDocument> pagesXml
+    +unique_ptr<Relationships> pagesRelationships
+    +set dirtyPages
+    +PageModel[] pages
+    +PageId nextPageId
+    +bool needsRecalculation
+    +bool documentXmlDirty
+    +bool pagesXmlDirty
+    +bool pagesRelsDirty
+}
+
+class StencilMaster {
+    +string nameU
+    +string name
+    +int masterType
+    +int originalId
+    +string relId
+    +string fileName
+}
+
+class LoadedStencil {
+    +string name
+    +StencilMaster[] masters
+    +string mastersXml
+    +map contents
+    +string stylesXml
+}
+
+class StencilSelection {
+    +string stencil
+    +string[] nameUs
+}
+
+%% stencil 兼容包装层：9 个 detail 自由函数，委托 MasterLibrary::shared()
+class stencil_wrappers {
+    <<function>>
+    +loadStencil(name) LoadedStencil
+    +stencilNames() string[]
+    +hasStencil(name) bool
+    +selectForType(type) StencilSelection
+    +resolveDiagramType(requested, diagrams) DiagramType
+    +masterNameForShape(type, kind) string
+    +masterChildShapeIds(nameU) int[]
+    +packMasters(package, selection, options) map
+    +mergeStyles(document, stylesXml)
+}
+
+%% ── detail 内部关系 ──
+DocumentCore *-- PageModel : pages 持有（依赖 model）
+DocumentCore *-- Package : package 成员（依赖 opc）
+DocumentCore *-- Relationships : pagesRelationships（依赖 opc）
+DocumentCore *-- XmlDocument : documentXml 与 pagesXml（依赖 opc）
+
+%% ── 跨模块（标注）──
+%% stencil_wrappers ..> MasterLibrary : 委托（masters）

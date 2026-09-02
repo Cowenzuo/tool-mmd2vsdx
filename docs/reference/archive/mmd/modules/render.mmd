@@ -1,0 +1,82 @@
+%% render.mmd — render 层：渲染策略族 + 连接线辅助（src/vsdx/render/*.hpp + render.cpp）
+%% 跨模块依赖：model（PageModel/ShapeModel）、io（XmlBuilder/Validator）、masters（MasterLibrary）、core
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+%% P4b：策略族。renderShape 纯虚按类型分派；renderConnector/refreshConnectors 共享
+class Renderer {
+    <<interface>>
+    +renderShape(page, shape)
+    +renderConnector(page, connector)
+    +refreshConnectors(page, shapeId)
+}
+
+class FlowchartRenderer {
+    +renderShape(page, shape)
+}
+
+class ClassDiagramRenderer {
+    +renderShape(page, shape)
+}
+
+class ERRenderer {
+    +renderShape(page, shape)
+}
+
+class RendererFactory {
+    <<static>>
+    +forShape(shape, diagramType) Renderer
+    +forType(diagramType) Renderer
+}
+
+%% P4a：连接线辅助（原 connector_helpers 类化）
+class ConnectorBinder {
+    <<static>>
+    +cleanWaypoints(points) Point[]
+    +samePoint(a, b) bool
+    +choosePort(shape, dx, dy) PortBinding
+    +bindConnector(source, target, waypoints) ConnectorBinding
+    +arrowValue(arrow) int
+    +setConnect(connect, connectorId, fromCell, fromPart, targetId)
+}
+
+class PortBinding {
+    +unsigned index
+    +string cell
+    +int toPart
+    +Point point
+}
+
+class ConnectorBinding {
+    +PortBinding begin
+    +PortBinding end
+    +Point[] path
+}
+
+%% render.cpp 薄包装：4 个跨 TU 渲染接口，委托 RendererFactory
+class render_dispatch {
+    <<function>>
+    +renderManagedShape(page, shape)
+    +renderManagedConnector(page, connector)
+    +refreshConnectors(page, shapeId)
+    +logicalIdExists(page, id) bool
+}
+
+%% ── render 内部关系 ──
+Renderer <|-- FlowchartRenderer
+Renderer <|-- ClassDiagramRenderer
+Renderer <|-- ERRenderer
+RendererFactory ..> Renderer : 返回渲染器
+render_dispatch ..> RendererFactory : 委托分发
+ConnectorBinder ..> PortBinding : choosePort 返回
+ConnectorBinder ..> ConnectorBinding : bindConnector 返回
+ConnectorBinding *-- PortBinding : begin/end
+Renderer ..> ConnectorBinder : 连接线渲染辅助
+
+%% ── 跨模块（标注，不画连线）──
+%% Renderer ..> PageModel : 渲染操作（model）
+%% render_dispatch ..> XmlBuilder : 低层构建（io）
+%% Renderer ..> XmlBuilder : 低层构建（io）
+%% Renderer ..> Validator : 参数校验（io）
+%% Renderer ..> MasterLibrary : masterIdFor 唯一数据源（masters）

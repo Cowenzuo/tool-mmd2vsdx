@@ -1,0 +1,158 @@
+%% opc.mmd — opc 层：OPC/ZIP/XML 打包（src/opc/，独立模块）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+class PartUri {
+    +parse(string) PartUri
+    +resolve(source, target) PartUri
+    +packageRelationships() PartUri
+    +sourceFromRelationships(relationshipsUri) PartUri
+    +string()
+    +relationshipsUri() PartUri
+}
+
+class XmlDocument {
+    +parse(payload, name) XmlDocument
+    +create(root, ns, prefix) XmlDocument
+    +get() xmlDocPtr
+    +root() xmlNodePtr
+    +serialize() uint8[]
+}
+
+%% P2：低层 XML 工具类化
+class XmlUtils {
+    <<static>>
+    +isElement(node, ns, localName) bool
+    +attribute(node, name) string
+    +hasAttribute(node, name) bool
+    +setAttribute(node, name, value)
+}
+
+class RelationshipTargetMode {
+    <<enumeration>>
+    Internal
+    External
+}
+
+class Relationship {
+    +string id
+    +string type
+    +string target
+    +RelationshipTargetMode targetMode
+}
+
+class Relationships {
+    +parse(payload, source) Relationships
+    +create(source) Relationships
+    +source() PartUri
+    +items() Relationship[]
+    +findById(id) Relationship
+    +findByType(type) Relationship[]
+    +resolveTarget(rel) PartUri
+    +add(type, target, mode, id) string
+    +remove(id)
+    +serialize() uint8[]
+}
+
+class ContentTypes {
+    +parse(payload) ContentTypes
+    +create() ContentTypes
+    +contentTypeFor(part) string
+    +defaults() map
+    +overrides() map
+    +setDefault(ext, contentType)
+    +setOverride(part, contentType)
+    +removeOverride(part)
+    +serialize() uint8[]
+}
+
+class ZipArchive {
+    <<static>>
+    +read(path, limits) ZipEntry[]
+    +write(path, entries, limits)
+}
+
+class ZipEntry {
+    +string name
+    +uint8[] data
+    +ZipCompression compression
+}
+
+class ZipLimits {
+    +size_t maxEntries
+    +uint64 maxArchiveBytes
+    +uint64 maxEntryBytes
+    +uint64 maxTotalUncompressedBytes
+}
+
+class ZipCompression {
+    <<enumeration>>
+    Store
+    Deflate
+}
+
+class ZipErrorCode {
+    <<enumeration>>
+    IoError
+    InvalidArchive
+    UnsupportedFeature
+    UnsafeEntryName
+    DuplicateEntry
+    CrcMismatch
+    LimitExceeded
+}
+
+class ZipError {
+    +ZipError(code, message)
+    +ZipErrorCode code
+}
+
+class OpcPart {
+    +PartUri uri
+    +string contentType
+    +uint8[] payload
+    +ZipCompression compression
+    +bool dirty
+}
+
+class Package {
+    +open(path, limits) Package
+    +create() Package
+    +contains(uri) bool
+    +part(uri) OpcPart
+    +partUris() PartUri[]
+    +addPart(uri, contentType, payload, compression)
+    +removePart(uri)
+    +relationships(source) Relationships
+    +setRelationships(rels)
+    +contentTypes() ContentTypes
+    +validate()
+    +save(path, limits)
+}
+
+class runtime_error {
+    <<external>>
+}
+
+Package *-- OpcPart : parts_
+Package *-- ContentTypes : contentTypes_
+Package ..> Relationships : 序列化/解析关系部件
+Package ..> PartUri : 部件键
+Package ..> ZipArchive : open/save 读写
+Package ..> ZipLimits : 安全限制
+Relationships *-- Relationship : items_
+Relationships *-- XmlDocument : 文档模型
+Relationships ..> PartUri : resolveTarget
+Relationships ..> XmlUtils : 解析校验
+ContentTypes ..> XmlUtils : 解析校验
+ContentTypes *-- XmlDocument : 文档模型
+ContentTypes ..> PartUri : contentTypeFor
+ZipArchive ..> ZipEntry : 读写条目
+ZipArchive ..> ZipLimits : 安全限制
+ZipArchive ..> ZipError : 失败抛出
+Relationship *-- RelationshipTargetMode : targetMode 成员
+ZipEntry *-- ZipCompression : compression 成员
+OpcPart *-- ZipCompression : compression 成员
+ZipError *-- ZipErrorCode : code 成员
+runtime_error <|-- ZipError

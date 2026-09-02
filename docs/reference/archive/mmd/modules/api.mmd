@@ -1,0 +1,181 @@
+%% api.mmd — api 层：公共句柄 + DTO（src/mermaidc/vsdx.hpp + document.cpp + diagram_importer.cpp）
+%% 跨模块依赖：detail（DocumentCore）、io（VsdxWriter）、model（值类型）、core（IR/NodeShape）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+class DiagramType {
+    <<enumeration>>
+    Auto
+    Basic
+    Flowchart
+    Class
+    Sequence
+    ER
+    Gantt
+    Timeline
+    Calendar
+}
+
+class CreateOptions {
+    +double outputScale
+    +double marginLeft
+    +double marginRight
+    +double marginTop
+    +double marginBottom
+    +bool useConnectorMaster
+    +DiagramType diagramType
+}
+
+%% ShapeStyle/ShapeId/PageId 由 model 域拥有，此处经 using 转发
+class ShapeSpec {
+    +string logicalId
+    +string text
+    +NodeShape kind
+    +double x
+    +double y
+    +double width
+    +double height
+    +ShapeStyle style
+    +double[] dividers
+}
+
+class ConnectorSpec {
+    +string logicalId
+    +ShapeId source
+    +ShapeId target
+    +string text
+    +Point[] waypoints
+    +EdgeStyle style
+    +ArrowType arrowHead
+    +ArrowType arrowTail
+    +string fromMultiplicity
+    +string toMultiplicity
+}
+
+class PageSpec {
+    +string name
+    +double width
+    +double height
+}
+
+class ValidationSeverity {
+    <<enumeration>>
+    Warning
+    Error
+}
+
+class ValidationIssue {
+    +ValidationSeverity severity
+    +string code
+    +string partUri
+    +string xmlPath
+    +string message
+}
+
+class Shape {
+    +id() ShapeId
+    +logicalId() string
+    +text() string
+    +setText(text)
+    +setBounds(x, y, w, h)
+    +setStyle(style)
+    -DocumentCore* document_
+    -PageId page_
+    -ShapeId id_
+}
+
+class Connector {
+    +id() ShapeId
+    +logicalId() string
+    +text() string
+    +setText(text)
+    +setWaypoints(points)
+    -DocumentCore* document_
+    -PageId page_
+    -ShapeId id_
+}
+
+class Page {
+    +id() PageId
+    +name() string
+    +setName(name)
+    +width() double
+    +height() double
+    +shapeIds() ShapeId[]
+    +connectorIds() ShapeId[]
+    +shape(id) Shape
+    +connector(id) Connector
+    +addShape(spec) Shape
+    +addConnector(spec) Connector
+    +removeShape(id)
+    -DocumentCore* document_
+    -PageId id_
+}
+
+class Document {
+    +create(options) Document
+    +fromDiagrams(diagrams, options) Document
+    +pageIds() PageId[]
+    +page(id) Page
+    +addPage(spec) Page
+    +removePage(id)
+    +validate() ValidationReport
+    +save(path)
+    -unique_ptr<DocumentCore> impl_
+}
+
+class writeVsdx {
+    <<function>>
+    +writeVsdx(path, diagram, options)
+    +writeVsdx(path, diagrams, options)
+}
+
+class PageMargins {
+    +double left
+    +double right
+    +double top
+    +double bottom
+}
+
+class PagePoint {
+    +double x
+    +double y
+    +point(x, y) PagePoint
+}
+
+class PageBounds {
+    +double minX
+    +double minY
+    +double maxX
+    +double maxY
+}
+
+class CoordinateTransform {
+    +CoordinateTransform(diagram, outputScale, margins)
+    +point(x, y) PagePoint
+    +length(px) double
+    +pageWidth() double
+    +pageHeight() double
+    +sourceBounds() PageBounds
+}
+
+%% ── api 内部关系 ──
+Document *-- DocumentCore : unique_ptr Pimpl（依赖 detail）
+Document ..> Page : page(id) 返回句柄
+Document ..> CoordinateTransform : fromDiagrams 换算
+Document ..> CreateOptions : create/fromDiagrams
+Document ..> PageSpec : addPage
+Document ..> ValidationIssue : validate 返回
+Document ..> VsdxWriter : 创建与保存委托（依赖 io）
+Page ..> Shape : shape(id) 返回句柄
+Page ..> Connector : connector(id) 返回句柄
+Page ..> ShapeSpec : addShape 参数
+Page ..> ConnectorSpec : addConnector 参数
+Shape ..> ShapeStyle : setStyle 样式（model 值类型）
+writeVsdx ..> Document : 便捷入口
+CoordinateTransform ..> Diagram : 构造输入（依赖 core）
+CoordinateTransform *-- PageMargins : margins 成员
+CoordinateTransform ..> PagePoint : point 返回
+CoordinateTransform *-- PageBounds : sourceBounds 成员
+CreateOptions *-- DiagramType : diagramType 成员

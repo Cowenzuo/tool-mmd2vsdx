@@ -1,0 +1,33 @@
+%% masters.mmd — masters 层：母版库（src/vsdx/masters/masterlibrary.hpp）
+%% 跨模块依赖：opc（Package/XmlUtils）、core（DiagramType）、detail（LoadedStencil 等数据）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+%% P5：有状态母版库（原 stencil 9 个自由函数收编为类）
+class MasterLibrary {
+    +shared() MasterLibrary
+    +load(name) LoadedStencil
+    +names() string[]
+    +has(name) bool
+    +selectForType(type) StencilSelection
+    +resolveDiagramType(requested, diagrams) DiagramType
+    +masterNameForShape(type, kind) string
+    +masterChildShapeIds(nameU) int[]
+    +pack(package, selection, options) map
+    +mergeStyles(document, stylesXml)
+    +masterIdFor(nameU) int
+    +setMasterIds(ids)
+    -map cache_
+    -map childCache_
+    -map masterIds_
+}
+
+%% ── 跨模块（标注，不画连线）──
+%% MasterLibrary ..> LoadedStencil : load 返回（detail 数据）
+%% MasterLibrary ..> StencilSelection : selectForType 返回（detail 数据）
+%% MasterLibrary ..> StencilMaster : 母版清单（detail 数据）
+%% stencil_wrappers ..> MasterLibrary : 委托（detail 包装层）
+%% MasterLibrary ..> Package : pack 写入（opc）
+%% MasterLibrary ..> XmlUtils : 解析/规范化母版（opc）
+%% Renderer ..> MasterLibrary : masterIdFor 唯一数据源（render 依赖本层）

@@ -1,0 +1,48 @@
+%% parse.mmd — parse 层：解析域（src/parse/）
+%% 跨模块依赖：core（Diagram/Error）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+%% P8：解析接口
+class IParser {
+    <<interface>>
+    +parse(text) Diagram
+    +shutdown()
+}
+
+%% P8b：解析编排（原 Engine）—— NodeJsProcess → JSON → Diagram
+class MermaidParser {
+    +MermaidParser(nodePath, scriptPath)
+    +parse(text) Diagram
+    +shutdown()
+    -NodeJsProcess process_
+}
+
+%% P8a：Node.js 子进程管理（原 NodeProcess）
+class NodeJsProcess {
+    +NodeJsProcess(nodePath, scriptPath)
+    +start()
+    +send(text) string
+    +isRunning() bool
+    +stop()
+    -startProcess()
+    -readLine() string
+    -cleanup()
+}
+
+%% jsonToDiagram：glue.mjs JSON → Diagram（原 jsonparser.cpp）
+class jsonToDiagram {
+    <<function>>
+    +jsonToDiagram(json) Diagram
+}
+
+%% ── parse 内部关系 ──
+MermaidParser ..|> IParser : 实现
+MermaidParser *-- NodeJsProcess : process_
+MermaidParser ..> jsonToDiagram : 消费 JSON
+MermaidParser ..> Diagram : parse 返回（依赖 core）
+MermaidParser ..> Error : 失败抛出（依赖 core）
+NodeJsProcess ..> Error : 通信失败抛出（依赖 core）
+jsonToDiagram ..> Diagram : 转换（依赖 core）
+jsonToDiagram ..> Error : 解析失败抛出（依赖 core）

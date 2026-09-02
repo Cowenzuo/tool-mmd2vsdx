@@ -1,0 +1,80 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：app（应用编排模块）类图（串行版）
+%%
+%% 本图 = 模块重构验收标准与实现参考。
+%%
+%% 设计：单例编排入口，串行处理，按顺序输出。
+%%   多 mmd：逐个读取 -> 串行三单例流转 -> 按输入顺序输出。
+%%
+%% 职责（用户确认）：
+%%   1. 确定输入单文件/文件夹（FileScanner）
+%%   2. 获取 mmd（MmdReader 读文件 -> 文本）
+%%   3. 控制三个单例流转：Parser -> VsdxTranslator -> OpcPackager
+%%      （全部单例，串行调用，无并行）
+%%   4. 指定输出路径（OutPathResolver + 写盘）
+%%
+%% 门面边界（验收红线）：
+%%   - 对外只暴露 Application（单例）：convertFile / convertDir / shutdown
+%%   - 内部 input/pipeline/output 全隐藏
+%%   - 串行：一个文件完成转换后才处理下一个，输出顺序 = 输入顺序
+%%   - 三单例：Parser（单一 Node.js 子进程）/ VsdxTranslator / OpcPackager
+%%
+%% 数据流：
+%%   .mmd 文件 -> 文本 -> Diagram(Parser) -> XmlParts(VsdxTranslator)
+%%             -> .vsdx(OpcPackager)，逐个串行
+%%
+%% 标准 UML 约定：<<singleton>>
+%% 组合 *-- | 依赖 ..> | namespace 不作关系端点 | 泛型不含量逗号
+%% ============================================================
+classDiagram
+direction TB
+
+%% ================ 门面（单例编排入口） ================
+class Application {
+    <<singleton 门面>>
+    +convertFile(mmdPath: path, outPath: path)
+    +convertDir(inputDir: path, outDir: path)
+    +shutdown()
+}
+%% convertFile：单文件 -> 单 .vsdx
+%% convertDir：文件夹 -> 遍历 *.mmd -> 串行转换 -> 按输入顺序输出
+
+%% ================ input：输入处理 ================
+namespace input {
+    %% 单文件 -> 单路径；文件夹 -> 遍历收集 *.mmd
+    class FileScanner {
+        +collect(inputPath: path) vector~path~
+    }
+    %% 文件 -> mmd 文本
+    class MmdReader {
+        +read(path: path) string
+    }
+}
+
+%% ================ pipeline：串行编排 ================
+namespace pipeline {
+    %% 串行编排：Parser -> VsdxTranslator -> OpcPackager（全单例）
+    class Pipeline {
+        +run(mmd: string, options: CreateOptions)
+    }
+}
+
+%% ================ output：输出路径 ================
+namespace output {
+    %% 输出路径解析（单文件直接定路径；文件夹内一一对应）
+    class OutPathResolver {
+        +resolve(inputPath: path, output: path) path
+    }
+}
+
+%% ================= 内部关系 =================
+Application ..> FileScanner : 收集输入
+Application ..> MmdReader : 读取 mmd
+Application ..> Pipeline : 编排
+Application ..> OutPathResolver : 输出路径
+
+%% ================= 跨模块（门面对门面，单例） =================
+Pipeline ..> Parser : mmdparse 单例
+Pipeline ..> VsdxTranslator : vsdxdoc 单例
+Pipeline ..> OpcPackager : opcpkg 单例
+Application ..> CreateOptions : core

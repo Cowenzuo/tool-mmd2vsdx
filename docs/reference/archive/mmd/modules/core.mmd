@@ -1,0 +1,115 @@
+%% core.mmd — core 层：IR 领域模型 + 异常（src/core/ir.hpp，零依赖）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+class Point {
+    +double x
+    +double y
+}
+
+class Node {
+    +string id
+    +string label
+    +NodeShape shape
+    +double x
+    +double y
+    +double width
+    +double height
+    +string styleClass
+    +string parentId
+    +double[] dividers
+}
+
+class Edge {
+    +string from
+    +string to
+    +string label
+    +EdgeStyle style
+    +ArrowType arrowHead
+    +ArrowType arrowTail
+    +Point[] waypoints
+    +string fromMultiplicity
+    +string toMultiplicity
+}
+
+class BoundingBox {
+    +double minX
+    +double minY
+    +double maxX
+    +double maxY
+    +width() double
+    +height() double
+}
+
+class Cluster {
+    +string id
+    +string label
+    +double x
+    +double y
+    +double width
+    +double height
+}
+
+class Diagram {
+    +Node[] nodes
+    +Edge[] edges
+    +Cluster[] clusters
+    +string diagramType
+    +string direction
+    +BoundingBox bounds
+    +string svg
+}
+
+class NodeShape {
+    <<enumeration>>
+    Rect
+    RoundRect
+    Diamond
+    Circle
+    Ellipse
+}
+
+class EdgeStyle {
+    <<enumeration>>
+    Normal
+    Dotted
+    Thick
+}
+
+class ArrowType {
+    <<enumeration>>
+    None
+    Arrow
+    Circle
+    OpenArrow
+}
+
+%% Error::Code 嵌套枚举（ir.hpp:101），图中以 ErrorCode 表示
+class ErrorCode {
+    <<enumeration>>
+    NodeNotFound
+    JsonParseError
+    SubprocessCrashed
+    MermaidError
+}
+
+class Error {
+    +Error::Code code
+    +Error(Error::Code, string)
+}
+
+class runtime_error {
+    <<external>>
+}
+
+Diagram *-- Node : nodes
+Diagram *-- Edge : edges
+Diagram *-- Cluster : clusters
+Diagram *-- BoundingBox : bounds
+Edge *-- Point : waypoints
+Node *-- NodeShape : shape 成员
+Edge *-- EdgeStyle : style 成员
+Edge *-- ArrowType : 箭头类型
+Error *-- ErrorCode : 嵌套枚举 Code
+runtime_error <|-- Error

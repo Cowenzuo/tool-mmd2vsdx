@@ -1,0 +1,65 @@
+%% ============================================================
+%% mmd2vsdx — 第一级：功能模块划分（classDiagram）
+%%
+%% 设计原则（用户确认）：
+%%   1. 每个功能模块内部自行闭环，只有一个门面（输入输出控制）
+%%   2. 跨模块调用 = 门面对门面；禁止模块内部直接穿透到其他模块内部
+%%   3. core 为数据层：只提供跨模块共享类型 + 类型方法/检查函数，
+%%      不提供业务逻辑接口（允许各模块对其耦合）
+%%
+%% 约定：<module> 类框标注「门面」= 该模块对外唯一入口；
+%%       core 不设门面（纯类型层）
+%% ============================================================
+classDiagram
+direction TB
+
+class core {
+    <<数据层>>
+    +跨模块共享类型
+    +IR Point Node Edge Cluster BoundingBox Diagram ...
+    +值类型 ShapeId PageId ShapeStyle ...
+    +类型方法 检查 转换 序列化辅助
+    +无业务逻辑接口
+}
+
+class opcpkg {
+    <<功能模块>>
+    +门面 OpcPackager 单例
+    +输入 XmlParts
+    +输出 vsdx 文件
+    +内部闭环 container uri xml rels ct zip
+}
+
+class mmdparse {
+    <<功能模块>>
+    +门面 Parser 单例
+    +输入 mermaid 文本
+    +输出 Diagram
+    +内部闭环 NodeJsProcess jsonToDiagram
+}
+
+class vsdxdoc {
+    <<功能模块>>
+    +门面 VsdxTranslator 单例
+    +输入 Diagram
+    +输出 XmlParts
+    +内部闭环 translate docmodel render serialize masters
+}
+
+class app {
+    <<功能模块>>
+    +门面 Application 单例
+    +对外业务入口 唯一对用户开放
+    +串行转换 按顺序输出
+}
+
+%% ── 模块依赖（门面对门面）──
+app --> mmdparse : 门面 Parser
+app --> vsdxdoc : 门面 VsdxTranslator
+vsdxdoc --> opcpkg : 门面 OpcPackager
+
+%% ── core 类型依赖（允许耦合）──
+app ..> core : 使用共享类型
+mmdparse ..> core : 使用共享类型
+vsdxdoc ..> core : 使用共享类型
+opcpkg ..> core : 使用共享类型

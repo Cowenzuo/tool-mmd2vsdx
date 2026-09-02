@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>VSDX 格式手册</title>
+<style>
+:root{--bg:#1a1a2e;--fg:#e0e0e0;--accent:#4fc3f7;--border:#333;--code-bg:#16213e}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--fg);margin:0;display:flex;min-height:100vh}
+nav{width:260px;background:#0f0f1a;padding:20px;border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto}
+nav h2{color:var(--accent);font-size:16px;margin-top:0}
+nav a{display:block;color:#aaa;text-decoration:none;padding:6px 0;font-size:14px;border-left:2px solid transparent;padding-left:12px}
+nav a:hover,nav a.active{color:var(--accent);border-left-color:var(--accent)}
+main{flex:1;padding:30px 50px;max-width:900px}
+h1{color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:10px}
+h2{color:#82b1ff;margin-top:30px}
+h3{color:#b388ff}
+code{background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px}
+pre{background:var(--code-bg);padding:15px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:15px 0}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;font-size:14px}
+th{background:#1a1a3e;color:var(--accent)}
+td code{font-size:12px}
+.note{background:#1b3a1b;border-left:4px solid #4caf50;padding:10px 15px;margin:15px 0;border-radius:0 4px 4px 0}
+.warn{background:#3a2a1b;border-left:4px solid #ff9800;padding:10px 15px;margin:15px 0;border-radius:0 4px 4px 0}
+.diff{background:#2a1a3a;border-left:4px solid #e040fb;padding:10px 15px;margin:15px 0}
+</style></head>
+<body>
+<nav>
+  <h2>VSDX 格式手册</h2>
+  <a href="index.html" class="active">总览</a>
+  <a href="structure.html">1. ZIP/OPC 结构</a>
+  <a href="content-types.html">2. [Content_Types].xml</a>
+  <a href="rels.html">3. Relationships (.rels)</a>
+  <a href="document.html">4. document.xml</a>
+  <a href="pages.html">5. pages.xml &amp; pageN.xml</a>
+  <a href="masters.html">6. Masters 体系</a>
+  <a href="shapes.html">7. Shape 元素结构</a>
+  <a href="connectors.html">8. Connector 连接线</a>
+  <a href="cells.html">9. Cell/Section/Row 参考</a>
+  <a href="text-position.html">10. 文本定位与 SETATREF</a>
+  <a href="windows.html">11. windows.xml</a>
+  <a href="custom.html">12. custom.xml 属性</a>
+</nav>
+<main>
+<h1>VSDX 格式手册 — 总览</h1>
+
+<p>本文档基于对 Microsoft Visio 生成的 .vsdx 文件以及 mermaid-c 项目的逆向分析编写。记录了 VSDX 文件的完整结构、各 XML 部件的职责、关键参数及其组织形式。</p>
+
+<h2>VSDX 文件本质</h2>
+<p>VSDX 是一个 <strong>ZIP 压缩包</strong>，遵循 <strong>OPC (Open Packaging Convention)</strong> 规范。可以用任何 ZIP 工具解压查看。</p>
+
+<h2>部件清单（以 min.vsdx 为例，17 个部件）</h2>
+<table>
+<tr><th>部件路径</th><th>内容类型</th><th>职责</th></tr>
+<tr><td><code>[Content_Types].xml</code></td><td>(特殊)</td><td>定义所有部件的 MIME 类型</td></tr>
+<tr><td><code>_rels/.rels</code></td><td>relationships+xml</td><td>包级别关系（指向 document、core、app）</td></tr>
+<tr><td><code>visio/document.xml</code></td><td>drawing.main+xml</td><td>文档设置、样式表、母版索引</td></tr>
+<tr><td><code>visio/_rels/document.xml.rels</code></td><td>relationships+xml</td><td>文档→pages/masters/windows 关系</td></tr>
+<tr><td><code>visio/pages/pages.xml</code></td><td>pages+xml</td><td>页面索引（PageSheet 尺寸等）</td></tr>
+<tr><td><code>visio/pages/_rels/pages.xml.rels</code></td><td>relationships+xml</td><td>页面→pageN.xml 关系</td></tr>
+<tr><td><code>visio/pages/page1.xml</code></td><td>page+xml</td><td>页面内容：Shapes、Connects</td></tr>
+<tr><td><code>visio/pages/_rels/page1.xml.rels</code></td><td>relationships+xml</td><td>页面→Master 引用关系（仅当使用 Master 时）</td></tr>
+<tr><td><code>visio/masters/masters.xml</code></td><td>masters+xml</td><td>母版索引</td></tr>
+<tr><td><code>visio/masters/_rels/masters.xml.rels</code></td><td>relationships+xml</td><td>母版→masterN.xml 关系</td></tr>
+<tr><td><code>visio/masters/masterN.xml</code></td><td>master+xml</td><td>母版内容（Shape 定义）</td></tr>
+<tr><td><code>visio/windows.xml</code></td><td>windows+xml</td><td>窗口设置</td></tr>
+<tr><td><code>docProps/core.xml</code></td><td>core-properties+xml</td><td>核心属性</td></tr>
+<tr><td><code>docProps/app.xml</code></td><td>extended-properties+xml</td><td>应用程序属性</td></tr>
+<tr><td><code>docProps/custom.xml</code></td><td>custom-properties+xml</td><td>Visio 自定义属性（RecalcDocument 等）</td></tr>
+<tr><td><code>docProps/thumbnail.emf</code></td><td>image/x-emf</td><td>缩略图（可选）</td></tr>
+</table>
+
+<h2>命名空间</h2>
+<table>
+<tr><th>前缀</th><th>URI</th><th>用途</th></tr>
+<tr><td>(默认)</td><td><code>http://schemas.microsoft.com/office/visio/2012/main</code></td><td>Visio 主命名空间</td></tr>
+<tr><td>r</td><td><code>http://schemas.openxmlformats.org/officeDocument/2006/relationships</code></td><td>OPC 关系</td></tr>
+<tr><td>a</td><td><code>http://schemas.openxmlformats.org/drawingml/2006/main</code></td><td>DrawingML（主题用）</td></tr>
+<tr><td>vt</td><td><code>http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes</code></td><td>属性值类型</td></tr>
+</table>
+
+<h2>ShapeSheet 数据模型</h2>
+<p>Visio 的每个 Shape 本质是一个 <strong>ShapeSheet 电子表格</strong>。XML 中的 Cell 对应电子表格的单元格：</p>
+<ul>
+<li><strong>Cell</strong>: 单个属性，含 N(ame)、V(alue)、U(nit)、F(ormula)、E(rror)</li>
+<li><strong>Section</strong>: 一组相关 Cell 的容器（如 Geometry、Character、Control）</li>
+<li><strong>Row</strong>: Section 中的一行（如 Geometry 的一个顶点、Connection 的一个连接点）</li>
+<li><strong>F="Inh"</strong>: 从 Master 继承公式</li>
+<li><strong>F="GUARD(...)"</strong>: 保护公式不被用户交互覆盖</li>
+<li><strong>F="SETATREF(...)"</strong>: 设置"用户修改时回写目标"的绑定</li>
+</ul>
+
+<div class="note"><strong>关键原则</strong>：有 Master 的 Shape 只需设置 <strong>覆盖值</strong>（仅 V，或 V+F="Inh"），其余全部从 Master 继承。无 Master 的 Shape 需要本地设置所有 Cell。</div>
+</main>
+</body></html>

@@ -1,0 +1,41 @@
+classDiagram
+    class Animal {
+        +name: string
+        +age: int
+        +species: string
+        +eat()
+        +sleep()
+    }
+    class Dog {
+        +breed: string
+        +color: string
+        +bark()
+        +fetch()
+    }
+    class Cat {
+        +furColor: string
+        +meow()
+    }
+    class IPet {
+        <<interface>>
+        +play()
+        +getName()
+    }
+    class Zoo {
+        -animals: list
+        -address: string
+        +addAnimal(a)
+        +removeAnimal(a)
+    }
+    class Owner {
+        +name: string
+        +phone: string
+        +adopt()
+    }
+    Dog --|> Animal
+    Cat --|> Animal
+    Dog ..|> IPet
+    Cat ..|> IPet
+    Zoo --o Animal
+    Owner --> Dog
+    Owner --> Cat

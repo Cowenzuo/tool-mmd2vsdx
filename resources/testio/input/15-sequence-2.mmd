@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant Alice
+    participant Bob
+    Alice->>John: Hello John, how are you?
+    activate John
+    John-->>Alice: Great!
+    deactivate John
+    loop HealthCheck
+        Alice->>Bob: How are you?
+    end

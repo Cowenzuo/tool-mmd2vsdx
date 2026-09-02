@@ -1,0 +1,80 @@
+%% ============================================================
+%% mmd2vsdx — 第一级：功能模块划分（classDiagram）
+%%
+%% 模块职责（说明文字一律放注释，不进成员框）：
+%%   core        数据层：跨模块共享类型（IR 结构/枚举/值类型），无门面
+%%   mmdtransform 翻译层：mermaid 文本 -> Diagram(IR)。
+%%               门面 Translator；内部 SnapshotClient + JsonToDiagram。
+%%               解析/渲染在远端 mermaid-snapshot 完成，本层仅编排+契约映射
+%%   http        通信层：client（HttpClient/SnapshotClient）调
+%%               mermaid-snapshot；server（HttpServer/ConvertHandler）
+%%               对外 mmd->vsdx 服务。零业务依赖（server 业务经回调注入）
+%%   vsdxdoc     文档翻译：Diagram -> XmlParts。门面 VsdxTranslator
+%%   opcpkg      OPC 打包：XmlParts -> .vsdx。门面 OpcPackager
+%%   app         编排：门面 Application。CLI（convertFile/convertDir）+
+%%               服务形态（serve 装配 http::server）
+%%
+%% 依赖约定：app -> mmdtransform/vsdxdoc/opcpkg/http（门面对门面）；
+%%           mmdtransform -> http（client）；vsdxdoc -> opcpkg；
+%%           各模块 ..> core（类型依赖）
+%% ============================================================
+classDiagram
+direction TB
+
+%% ---- 数据层（无门面）----
+class core {
+    <<module>>
+    +IR: Diagram Node Edge Cluster
+    +base: Point BoundingBox Error
+    +vsdx: ShapeId PageId ShapeStyle CreateOptions
+}
+
+%% ---- 翻译层 ----
+class mmdtransform {
+    <<module>>
+    +facade: Translator
+    +inner: SnapshotClient JsonToDiagram
+}
+
+%% ---- 通信层 ----
+class http {
+    <<module>>
+    +client: HttpClient SnapshotClient
+    +server: HttpServer ConvertHandler
+}
+
+%% ---- 文档翻译 ----
+class vsdxdoc {
+    <<module>>
+    +facade: VsdxTranslator
+    +inner: translate docmodel render serialize masters
+}
+
+%% ---- OPC 打包 ----
+class opcpkg {
+    <<module>>
+    +facade: OpcPackager
+    +inner: container uri xml rels ct zip
+}
+
+%% ---- 编排 ----
+class app {
+    <<module>>
+    +facade: Application
+    +inner: input pipeline output
+}
+
+%% ---- 模块依赖（门面对门面）----
+app --> mmdtransform : Translator
+app --> vsdxdoc : VsdxTranslator
+app --> opcpkg : OpcPackager
+app --> http : serve / ConvertHandler
+mmdtransform --> http : SnapshotClient
+vsdxdoc --> opcpkg : XmlParts
+
+%% ---- core 类型依赖（允许耦合）----
+app ..> core : types
+mmdtransform ..> core : types
+http ..> core : types
+vsdxdoc ..> core : types
+opcpkg ..> core : types

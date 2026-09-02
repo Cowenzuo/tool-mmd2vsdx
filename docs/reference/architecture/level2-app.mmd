@@ -1,0 +1,77 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：app（应用编排模块）类图
+%%
+%% 设计：单例编排入口，双形态：
+%%   CLI 形态（兼容既有）：convertFile / convertDir（gen_samples 使用），
+%%     多 mmd 逐个读取 -> 串行三单例流转 -> 按输入顺序输出
+%%   服务形态（主程序演进方向）：
+%%     serve(port)：装配 http::server（HttpServer + ConvertHandler 注入），
+%%       POST /convert {mmd, options} -> {status, vsdx(base64), ...}
+%%
+%% 门面边界（验收红线）：
+%%   - 对外只暴露 Application（单例）：convertFile / convertDir /
+%%     serve / setSnapshotPath / shutdown
+%%   - 内部 input/pipeline/output 全隐藏；串行处理
+%%   - 三单例：Translator(mmdtransform) / VsdxTranslator(vsdxdoc) /
+%%     OpcPackager(opcpkg)
+%%
+%% 标准 UML 约定：<<singleton>> / <<interface>>
+%% 组合 *-- | 依赖 ..> | namespace 不作关系端点 | 泛型不含量逗号
+%% ============================================================
+classDiagram
+direction TB
+
+%% ---- 门面（单例编排入口）----
+class Application {
+    <<singleton>>
+    +convertFile(mmdPath: path, outPath: path)
+    +convertDir(inputDir: path, outDir: path)
+    +serve(port: int)
+    +setSnapshotPath(path: string)
+    +shutdown()
+}
+
+%% ---- http::server 业务回调（app 注入实现）----
+class ConvertHandler {
+    <<interface>>
+    +convert(mmd: string, options: json) ConvertResult
+}
+
+%% ---- input：输入处理 ----
+namespace input {
+    class FileScanner {
+        +collect(inputPath: path) vector~path~
+    }
+    class MmdReader {
+        +read(path: path) string
+    }
+}
+
+%% ---- pipeline：串行编排 ----
+namespace pipeline {
+    class Pipeline {
+        +run(mmd: string, options: CreateOptions)
+        +runToBytes(mmd: string, options: CreateOptions) bytes
+    }
+}
+
+%% ---- output：输出路径 ----
+namespace output {
+    class OutPathResolver {
+        +resolve(inputPath: path, output: path) path
+    }
+}
+
+%% ---- 内部关系 ----
+Application ..> FileScanner : collect
+Application ..> MmdReader : read
+Application ..> Pipeline : run
+Application ..> OutPathResolver : resolve
+Application ..> ConvertHandler : inject
+
+%% ---- 跨模块（门面对门面）----
+Pipeline ..> Translator : mmdtransform
+Pipeline ..> VsdxTranslator : vsdxdoc
+Pipeline ..> OpcPackager : opcpkg
+Application ..> CreateOptions : core
+Application ..> HttpServer : http server

@@ -1,0 +1,250 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：vsdxdoc（VSDX 文档模块）类图（细化验收版）
+%%
+%% 本图 = 模块重构验收标准与实现参考（成员已按源码精确盘点）。
+%%
+%% 设计：单例翻译器。Diagram 进，XML 部件集合出，内部全隐藏。
+%%   Diagram(core) -> VsdxTranslator.translate() -> XmlParts -> opcpkg -> .vsdx
+%%
+%% 门面边界（验收红线）：
+%%   - 对外只暴露 VsdxTranslator::translate()（单例）
+%%   - 内部 5 子域（translate/docmodel/render/serialize/masters）全隐藏
+%%   - 输出 XmlParts 为纯数据（内存 XML 集合），方便流转
+%%
+%% 内部子域（职责）：
+%%   translate   Diagram -> 规格（含坐标变换）
+%%   docmodel    文档内存模型（翻译中间产物）
+%%   render      模型 -> VSDX 形状内容
+%%   serialize   模型 -> XmlParts（XmlPartsBuilder）
+%%   masters     官方模具资源
+%%
+%% 标准 UML 约定：<<singleton>> / <<interface>>
+%% 组合 *-- | 依赖 ..> | namespace 不作关系端点 | 泛型不含量逗号
+%% ============================================================
+classDiagram
+direction TB
+
+%% ================ 门面（单例翻译器） ================
+class VsdxTranslator {
+    <<singleton>>
+    +shared() VsdxTranslator
+    +translate(diagram: Diagram, options: CreateOptions) XmlParts
+}
+
+%% ================ 输出类型（流转给 opcpkg） ================
+class XmlParts {
+    <<opcpkg 类型>>
+    +parts: vector~XmlPart~
+}
+%% XmlParts 类型归 opcpkg（OPC 域部件集合）；vsdxdoc 仅输出使用
+
+%% ================ translate：组装翻译 ================
+namespace translate {
+    %% Diagram -> 页面/形状/连接线规格
+    class DiagramImporter {
+        +translate(diagram: Diagram, options: CreateOptions)
+    }
+    %% 图坐标 -> 页面单位
+    class CoordinateTransform {
+        +point(x: double, y: double) PagePoint
+        +length(pixels: double) double
+        +pageWidth() double
+        +pageHeight() double
+    }
+}
+
+%% ================ docmodel：文档模型 ================
+namespace docmodel {
+    %% 文档状态核心
+    class DocumentCore {
+        +package: Package
+        +options: CreateOptions
+        +pages: vector~PageModel~
+        +page(id: PageId) PageModel
+        +shape(pageId: PageId, shapeId: ShapeId) ShapeModel
+        +connector(pageId: PageId, shapeId: ShapeId) ConnectorModel
+        +uniquePageName(requested: string) string
+        +nextPagePartUri() PartUri
+        +markPageDirty(id: PageId)
+    }
+    class ShapeModel {
+        +id: ShapeId
+        +logicalId: string
+        +text: string
+        +kind: NodeShape
+        +x: double
+        +y: double
+        +width: double
+        +height: double
+        +style: ShapeStyle
+        +managed: bool
+        +node: xmlNodePtr
+    }
+    class ConnectorModel {
+        +id: ShapeId
+        +logicalId: string
+        +text: string
+        +source: ShapeId
+        +target: ShapeId
+        +waypoints: vector~Point~
+        +style: EdgeStyle
+        +arrowHead: ArrowType
+        +arrowTail: ArrowType
+        +managed: bool
+        +node: xmlNodePtr
+        +beginConnect: xmlNodePtr
+        +endConnect: xmlNodePtr
+    }
+    class PageModel {
+        +id: PageId
+        +name: string
+        +width: double
+        +height: double
+        +partUri: PartUri
+        +relationshipId: string
+        +xml: XmlDocument
+        +metadataNode: xmlNodePtr
+        +shapesNode: xmlNodePtr
+        +connectsNode: xmlNodePtr
+        +nextShapeId: ShapeId
+        +shapes: map
+        +connectors: map
+        +document: DocumentCore
+    }
+}
+
+%% ================ render：渲染 ================
+namespace render {
+    class Renderer {
+        <<interface>>
+        +renderShape(page: PageModel, shape: ShapeModel)
+        +renderConnector(page: PageModel, connector: ConnectorModel)
+        +refreshConnectors(page: PageModel, shapeId: ShapeId)
+    }
+    class FlowchartRenderer {
+        +renderShape(page: PageModel, shape: ShapeModel)
+    }
+    class ClassDiagramRenderer {
+        +renderShape(page: PageModel, shape: ShapeModel)
+    }
+    class ERRenderer {
+        +renderShape(page: PageModel, shape: ShapeModel)
+    }
+    %% 甘特图专用渲染（不走 Renderer 接口；静态工具类，官方 Gantt 组件复刻）
+    class GanttRenderer {
+        +render(page: PageModel, gantt: GanttChart)
+        +addPageEngineConfig(page: PageModel, gantt: GanttChart)
+    }
+    class RendererFactory {
+        +forShape(shape: ShapeModel, type: DiagramType) Renderer
+        +forType(type: DiagramType) Renderer
+    }
+    class ConnectorBinder {
+        +cleanWaypoints(input: vector~Point~) vector~Point~
+        +samePoint(lhs: Point, rhs: Point) bool
+        +choosePort(shape: ShapeModel, dx: double, dy: double) PortBinding
+        +bindConnector(source: ShapeModel, target: ShapeModel, waypoints: vector~Point~) ConnectorBinding
+        +arrowValue(arrow: ArrowType) int
+        +setConnect(connect: xmlNodePtr, connectorId: ShapeId, fromCell: string, fromPart: int, targetId: ShapeId)
+    }
+    class PortBinding {
+        +index: unsigned
+        +cell: string
+        +toPart: int
+        +point: Point
+    }
+    class ConnectorBinding {
+        +begin: PortBinding
+        +end: PortBinding
+        +path: vector~Point~
+    }
+}
+
+%% ================ serialize：序列化（模型 -> XmlParts） ================
+namespace serialize {
+    %% 低层 XML 构建（Visio 专有结构），共 19 个函数
+    class XmlBuilder {
+        +appendChild(parent: xmlNodePtr, name: string) xmlNodePtr
+        +appendTextChild(parent: xmlNodePtr, ns: xmlNsPtr, name: string, value: string) xmlNodePtr
+        +appendCell(parent: xmlNodePtr, name: string, value: double) xmlNodePtr
+        +appendCell(parent: xmlNodePtr, name: string, value: string) xmlNodePtr
+        +appendCell(parent: xmlNodePtr, name: string, value: string, unit: string) xmlNodePtr
+        +appendCell(parent: xmlNodePtr, name: string, value: string, unit: string, formula: string) xmlNodePtr
+        +setNumericCell(sheet: xmlNodePtr, name: string, value: double) xmlNodePtr
+        +setStringCell(sheet: xmlNodePtr, name: string, value: string) xmlNodePtr
+        +appendSection(shape: xmlNodePtr, name: string) xmlNodePtr
+        +appendRow(section: xmlNodePtr, type: string, index: unsigned) xmlNodePtr
+        +appendNamedRow(section: xmlNodePtr, name: string) xmlNodePtr
+        +replaceShapeText(shape: xmlNodePtr, text: string)
+        +number(value: double) string
+        +parseDouble(value: string, fallback: double) double
+    }
+    %% 文档部件工厂
+    class DocumentParts {
+        +createDocumentXml() XmlDocument
+        +createPagesXml() XmlDocument
+        +createPageXml() XmlDocument
+        +createAppProperties() XmlDocument
+        +createCoreProperties() XmlDocument
+        +createWindowsXml(type: DiagramType) XmlDocument
+        +createCustomProperties() XmlDocument
+        +officeStencilPath(fileName: string) string
+        +addPageMetadata(impl: DocumentCore, page: PageModel) xmlNodePtr
+    }
+    %% 模型 -> XmlParts 的构建者
+    class XmlPartsBuilder {
+        +build(core: DocumentCore) XmlParts
+    }
+    class Validator {
+        +validateStyle(style: ShapeStyle)
+        +validateShapeBounds(x: double, y: double, w: double, h: double)
+    }
+}
+%% 原 VsdxWriter::save（写盘）职责移交 opcpkg
+
+%% ================ masters：母版 ================
+namespace masters {
+    class MasterLibrary {
+        <<singleton>>
+        +load(stencilName: string) LoadedStencil
+        +names() vector~string~
+        +has(name: string) bool
+        +selectForType(type: DiagramType) StencilSelection
+        +resolveDiagramType(requested: DiagramType, diagrams: vector~Diagram~) DiagramType
+        +masterNameForShape(type: DiagramType, kind: NodeShape) string
+        +masterChildShapeIds(nameU: string) vector~int~
+        +pack(package: Package, selection: StencilSelection, options: CreateOptions) map
+        +mergeStyles(document: XmlDocument, stylesXml: string)
+        +masterIdFor(nameU: string) int
+        +setMasterIds(ids: map)
+        %% 注：gantt 母版 ID 保留官方空洞（108 后跳 112-115）
+    }
+}
+
+%% ================= 关系 =================
+VsdxTranslator ..> DiagramImporter : 调用翻译
+DiagramImporter ..> CoordinateTransform : 坐标转换
+DiagramImporter ..> DocumentCore : 组装
+DiagramImporter ..> GanttRenderer : gantt 分支调用
+DocumentCore *-- PageModel : 持有
+RendererFactory ..> Renderer : 返回
+Renderer <|.. FlowchartRenderer
+Renderer <|.. ClassDiagramRenderer
+Renderer <|.. ERRenderer
+ConnectorBinder ..> Renderer : 复用
+GanttRenderer ..> MasterLibrary : 母版 ID 查询
+GanttRenderer ..> XmlBuilder : 形状/单元格构建
+GanttRenderer ..> DocumentCore : pagesXml 引擎配置
+
+%% 输出流转
+VsdxTranslator ..> XmlParts : 输出
+XmlParts ..> Package : opcpkg 输入
+
+%% 序列化依赖
+XmlPartsBuilder ..> DocumentCore : 输入
+XmlPartsBuilder ..> XmlParts : 产出
+DocumentCore ..> Package : opcpkg 容器
+
+%% 跨模块（core）
+VsdxTranslator ..> Diagram : core 输入
+VsdxTranslator ..> CreateOptions : core

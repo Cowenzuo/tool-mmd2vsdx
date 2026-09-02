@@ -1,0 +1,34 @@
+flowchart TD
+    classDef startend fill:#f9f,stroke:#333
+    classDef process fill:#e1f5fe
+    classDef decision fill:#fff9c4
+
+    subgraph 前置
+        S([开始]) --> R[读取配置]
+        R --> V{配置有效?}
+        V -- 是 --> D[加载数据]
+        V == 否 ==> E[使用默认配置]
+    end
+
+    subgraph 处理
+        D --> P1[数据清洗]
+        P1 --> P2[特征计算]
+        P2 --> Q{数据规模大?}
+        Q -- 是 --> M1[并行处理]
+        Q -. 否 .-> M2[串行处理]
+        M1 --> M3[合并结果]
+        M2 --> M3
+    end
+
+    subgraph 输出
+        M3 --> O1[生成报告]
+        O1 --> O2[导出文件]
+        O2 --> O3((缓存))
+    end
+
+    E --> P1
+    O3 --> X([结束])
+
+    class S,V,X startend
+    class R,D,P1,P2,O1,O2 process
+    class Q decision
