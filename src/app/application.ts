@@ -17,7 +17,6 @@ import { OpcPackager } from '../opcpkg/opcpackager.js';
 import type { CreateOptions } from '../core/vsdx.js';
 import type { ConvertResult, XmlParts } from '../core/xmlparts.js';
 import { defaultConvertResult } from '../core/xmlparts.js';
-import { MmdError } from '../core/errors.js';
 
 /** 输出路径解析：以 .vsdx 结尾视为文件直接写，否则视为目录写 <stem>.vsdx。 */
 export function resolveOutPath(outPath: string, mmdPath: string): string {
@@ -56,8 +55,9 @@ export class Application {
         try {
             const diagram = await translator.translate(text);
             const parts = vsdxTranslate(diagram, options);
-            result.ok = true;
+            // ok 必须在打包成功后再置（审核 P2-②）：打包失败走 catch → ok=false
             result.vsdxBase64 = await partsToBase64(parts);
+            result.ok = true;
             result.diagramType = diagram.diagramType;
             result.pageCount = parts.parts.filter((p) =>
                 /^visio\/pages\/page\d+\.xml$/.test(p.uri)).length;
@@ -90,9 +90,11 @@ export class Application {
         return outputs;
     }
 
-    /** HTTP 服务：POST /convert（base64）、GET /health；串行队列。 */
+    /** HTTP 服务：POST /convert（base64）、GET /health；串行队列 + 排队上限背压。 */
     async serve(port: number): Promise<Server> {
         let queue: Promise<unknown> = Promise.resolve();
+        let pending = 0; // 排队/执行中的任务数（背压，审核 P2-④）
+        const kQueueLimit = 32;
         const server = createServer((req, res) => {
             const send = (code: number, body: unknown) => {
                 res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -108,8 +110,12 @@ export class Application {
                 req.on('data', (chunk: Buffer) => {
                     body += chunk.toString('utf8');
                     if (body.length > 1024 * 1024) {
-                        killed = true;
-                        req.destroy();
+                        if (!killed) {
+                            killed = true;
+                            // 超限给客户端可读应答再断开（审核 P2-③），勿裸 destroy
+                            send(413, { status: 'error', message: 'request body too large' });
+                            req.destroy();
+                        }
                     }
                 });
                 req.on('end', () => {
@@ -122,12 +128,21 @@ export class Application {
                         send(400, { status: 'error', message: 'bad request' });
                         return;
                     }
+                    if (pending >= kQueueLimit) {
+                        send(503, { status: 'error', message: 'server busy, queue full' });
+                        return;
+                    }
+                    pending++;
                     const task = queue.then(async () => {
-                        const result = await this.convertText(text);
-                        // 协议兼容：业务异常 200 + status:error（勿改 4xx）
-                        send(200, result.ok
-                            ? { status: 'ok', vsdx: result.vsdxBase64, diagramType: result.diagramType, pageCount: result.pageCount }
-                            : { status: 'error', message: result.error });
+                        try {
+                            const result = await this.convertText(text);
+                            // 协议兼容：业务异常 200 + status:error（勿改 4xx）
+                            send(200, result.ok
+                                ? { status: 'ok', vsdx: result.vsdxBase64, diagramType: result.diagramType, pageCount: result.pageCount }
+                                : { status: 'error', message: result.error });
+                        } finally {
+                            pending--;
+                        }
                     });
                     queue = task.catch(() => {});
                 });
@@ -151,7 +166,3 @@ export class Application {
 export const application = new Application();
 
 export type { Server };
-
-export function isMmdError(e: unknown): e is MmdError {
-    return e instanceof MmdError;
-}

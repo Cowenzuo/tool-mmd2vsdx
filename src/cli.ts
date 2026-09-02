@@ -8,27 +8,38 @@
 import { application } from './app/application.js';
 import { phaseError } from './app/application.js';
 
+/** 收尾关渲染器（幂等、吞错）：否则 chromium 子进程句柄悬挂、进程不退出。 */
+async function shutdownQuietly(): Promise<void> {
+    await application.shutdown().catch(() => {});
+}
+
 async function main(): Promise<number> {
     const argv = process.argv.slice(2);
     const positional: string[] = [];
 
     let servePort: number | null = null;
+    const parsePort = (value: string): number | null => {
+        const port = Number(value);
+        if (!Number.isInteger(port) || port < 0 || port > 65535) return null;
+        return port;
+    };
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i]!;
         if (a === '--serve') {
             servePort = 12138;
             const next = argv[i + 1];
             if (next !== undefined && !next.startsWith('--')) {
-                servePort = Number(next);
+                const port = parsePort(next);
+                if (port === null) return usage(); // 与 --port 同一校验口径（exit 2）
+                servePort = port;
                 i++;
             }
         } else if (a === '--port') {
             const next = argv[i + 1];
             if (next === undefined) return usage();
-            servePort = Number(next);
-            if (!Number.isInteger(servePort) || servePort < 0 || servePort > 65535) {
-                return usage();
-            }
+            const port = parsePort(next);
+            if (port === null) return usage();
+            servePort = port;
             i++;
         } else if (a === '--dir') {
             const inDir = argv[i + 1];
@@ -42,6 +53,8 @@ async function main(): Promise<number> {
             } catch (e) {
                 process.stderr.write('error: ' + phaseError(e, 'convert') + '\n');
                 return 1;
+            } finally {
+                await shutdownQuietly();
             }
         } else if (a.startsWith('-')) {
             return usage();
@@ -81,6 +94,8 @@ async function main(): Promise<number> {
     } catch (e) {
         process.stderr.write('error: ' + phaseError(e, 'convert') + '\n');
         return 1;
+    } finally {
+        await shutdownQuietly();
     }
 }
 
