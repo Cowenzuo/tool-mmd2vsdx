@@ -4,12 +4,23 @@
   "description": "Mermaid → Visio VSDX converter (pure Node/TypeScript port of the verified C++17 mmd2vsdx engine)",
   "type": "module",
   "private": true,
+  "main": "./dist/app/application.js",
+  "types": "./dist/app/application.d.ts",
+  "bin": {
+    "mmd2vsdx": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=22.2.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "check:arch": "node scripts/check-architecture.mjs",
