@@ -6,3 +6,7 @@ temp/
 coverage/
 .DS_Store
 tests/fixtures/golden/*.vsdx.tmp
+# 微软官方模具及其提取物：不进入公开仓库（合规红线，docs/usage.md §〇·一）
+# 本地保留以支持开发再生成（gen-stencils）与测试（金标准闸门）
+resources/visio/
+assets/stencils/
