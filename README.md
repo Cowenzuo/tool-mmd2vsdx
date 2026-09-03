@@ -20,12 +20,21 @@ VSDX 生成（OPC/ZIP/XML + 官方模具母版实例）统一于单一 Node 生�
 npm install
 npx playwright install chromium        # 首次（渲染需 Chromium）
 
-# 库 API（ESM）
-import { application } from 'mmd2vsdx';   // convertText / convertFile / convertDir / serve
-# CLI（npm run build 后）
+# CLI（npm run build 后；或 npm link 全局注册 mmd2vsdx）
 node dist/cli.js in.mmd out.vsdx
 node dist/cli.js --dir inputDir outDir
 node dist/cli.js --serve --port 12138    # POST /convert {text} → {status, vsdx(base64),...}
+```
+
+三种消费场景（手动/目录批量、另一 Node 项目 import、AI 本地工具调用）的
+完整说明见 **[docs/usage.md](docs/usage.md)**（含构建、打包分发对照、serve JSON 协议
+与 LLM 工具描述示例）。
+
+```ts
+// 库 API（ESM；包已声明 main/types，import 名即包名）
+import { application } from 'mmd2vsdx';
+const r = await application.convertText('flowchart LR\n  A-->B');
+if (r.ok) fs.writeFileSync('out.vsdx', Buffer.from(r.vsdxBase64, 'base64'));
 ```
 
 ## 测试
