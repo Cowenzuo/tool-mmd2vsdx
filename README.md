@@ -67,6 +67,8 @@ npm run build
 ## 状态
 
 M0–M6 全部完成：core/xml/opcpkg/mmdtransform/snapshot/vsdxdoc/masters/app 全链路
-纯 TS；金标准 16/16 结构等价；测试 199/199 绿。官方模具资产**不随包分发**：
+纯 TS；金标准 16/16 结构等价；测试 199/199 绿。官方模具资产**不随包、不入公开
+仓库**（`resources/visio` 与 `assets/stencils` 已 gitignore 并在历史中清除）：
 运行期自动搜寻本机 Visio 或经 `--stencil-dir/--stencil-asset` 显式导入
-（详见 docs/usage.md §〇·一），公开 npm 分发无合规障碍。
+（详见 docs/usage.md §〇·一）；公开克隆无模具文件——真实母版/金标准测试自动
+跳过，本地与私有 CI 提供模具后全量 201/201 通过。
