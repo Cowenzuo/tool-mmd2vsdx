@@ -67,5 +67,6 @@ npm run build
 ## 状态
 
 M0–M6 全部完成：core/xml/opcpkg/mmdtransform/snapshot/vsdxdoc/masters/app 全链路
-纯 TS；金标准 16/16 结构等价；测试 186/186 绿。发布准备（npm 包、模具分发红线、
-prepare-stencils 用户侧生成）见 docs/port-plan/00 §4–§7。
+纯 TS；金标准 16/16 结构等价；测试 199/199 绿。官方模具资产**不随包分发**：
+运行期自动搜寻本机 Visio 或经 `--stencil-dir/--stencil-asset` 显式导入
+（详见 docs/usage.md §〇·一），公开 npm 分发无合规障碍。

@@ -1,7 +1,7 @@
 # 使用指南（构建 / 打包 / 三种调用场景）
 
 > 适用于当前仓库（private 包，未发 npm）。三种消费方式共用同一构建产物 `dist/`
-> （tsc 编译 + extract 资产复制 + 631KB 母版资产编入），入口三态：
+> （tsc 编译 + extract 资产复制；官方模具资产**不随包**，见 §〇·一 供应机制），入口三态：
 > CLI（`dist/cli.js`）、库 API（`dist/app/application.js`）、HTTP（serve）。
 
 ## 〇、构建与首次准备
@@ -19,7 +19,36 @@ npm run typecheck && npm test && npm run check:arch
   含 playwright/mermaid，或随包一起装）；
 - 运行期 Chromium 首次 launch 约 1s（预热后 ~100ms/图）；
 - `resources/visio/*.vssx`（官方模具原件）只用于开发期再生成，运行不需要；
-  运行所需母版数据已打包在 `dist/vsdxdoc/masters/stencilData.js`（631KB gzip）。
+  **官方模具资产不随包分发**——运行期按 §〇·一 的供应机制自动获取。
+
+## 〇·一、母版资产供给（官方模具不随包）
+
+转换需要 8 类官方 Visio 模具（基础形状/流程/类/时序/ER/甘特/时间线/日历）的
+提取数据。为规避微软模具再分发许可风险，**npm 包内不携带任何模具资产**，
+运行时按以下优先级自动获取：
+
+| 优先级 | 来源 | 适用 |
+| --- | --- | --- |
+| 1 | `--stencil-asset <file>`（库 API：`configureStencils({assetFile})`） | 预生成资产 JSON（`assets/stencils/stencil-data.json` 形态，646KB）——**私自分发形态 B**：开发机用 `node scripts/gen-stencils.mjs` 生成后，把该文件单独交给目标机（不经公开渠道），对方零依赖可用 |
+| 2 | `--stencil-dir <dir>`（库 API：`configureStencils({stencilDir})`） | 官方模具目录（含 .vssx/.vstx 原件）——**私自分发形态 A**：直接给模具目录，现场提取（内部按内容指纹识别 8 类，目录里其它无关模具自动忽略） |
+| 3 | 缺省自动 | **首次转换自动搜寻本机 Visio** 安装目录（Windows 常见布局），现场提取；结果缓存到 `%LOCALAPPDATA%\mmd2vsdx\stencil-data.json`（按模具文件指纹失效），二次启动免提取 |
+| 4 | `--no-stencil-search` | 显式关闭自动搜寻（配合前两者使用） |
+
+行为说明：
+- 找不到任何来源时转换报错（`ok=false` / exit 1），错误信息带引导
+  （`[assets] …请用 --stencil-dir / --stencil-asset 导入或安装 Visio 后重试`）；
+- 纯本地内容模式（`useConnectorMaster=false`，不经官方模具）**不需要**资产，不触发获取；
+- 库 API 幂等：`await application.configureStencils({ assetFile: '…' })` 可在进程内
+  随时切换来源；未配置时 `convertText` 自动按缺省（第 3 项）懒加载一次；
+- serve 模式同规则（启动时可用旗标配置，或让每个请求懒加载）。
+
+私自分发快速上手（形态 B，最省事）：
+```bash
+# 分发侧（你有模具/或本仓库 assets 已生成）
+node scripts/gen-stencils.mjs <visio_dir> my-stencil-data.json   # 生成资产文件
+# 接收侧（目标工程/服务器，无 Visio 也可）
+mmd2vsdx --stencil-asset my-stencil-data.json in.mmd out/
+```
 
 ## 一、手动调用（文件 / 目录批量）
 
@@ -168,11 +197,11 @@ LLM 工具调用两种选一：
 
 | 场景 | 形态 | 前置 |
 | --- | --- | --- |
-| 本机手动 | 仓库内 `npm run build` + `node dist/cli.js` | playwright chromium |
-| 交付他人（目录拷贝） | 拷贝 dist + node_modules（或 `npm ci --omit=dev` 后同目录） | 对方装 chromium |
-| 另一 Node 项目 | file:/git 依赖或 npm link（见 2.1） | 无（chromium 由本包首次 launch 时检测，报错提示 `npx playwright install`） |
+| 本机手动 | 仓库内 `npm run build` + `node dist/cli.js` | playwright chromium；资产自动搜本机 Visio |
+| 交付他人（目录拷贝） | 拷贝 dist + node_modules（或 `npm ci --omit=dev` 后同目录） | 对方装 chromium；资产 = 本机 Visio 自动搜寻，或随交付私下分发 `--stencil-asset` 文件 |
+| 另一 Node 项目 | file:/git 依赖或 npm link（见 2.1） | 无（chromium 报错提示安装；资产自动搜寻/`configureStencils` 显式导入） |
 | AI/自动化 | CLI 子进程 或 serve HTTP 常驻 | 同上 |
-| 未来公开 npm | 去 `private:true` + 保留 files 白名单（dist/README/LICENSE）+ 移除 stencil 资产分发红线（见 docs/architecture/03 §G-9 与 scripts/gen-stencils.mjs 头注释） | 合规审查 |
+| 未来公开 npm | `private:true` 可移除（files 白名单 dist/README/LICENSE 已就绪）——**模具资产剥离已完成**（G-9 落地）：公开包零模具数据，用户侧走本机搜寻或私下分发 asset | 合规审查 |
 
 Chromium 缺失时的处理：渲染器会抛带指引的错误（消息含 `npx playwright install`）；
-库调用方可在 `ok=false` 时提示用户执行安装。
+库调用方可在 `ok=false` 时提示用户执行安装。母版资产缺失同理（`[assets]` 引导见 §〇·一）。
