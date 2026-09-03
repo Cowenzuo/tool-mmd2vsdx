@@ -19,7 +19,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
     "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -14,6 +14,8 @@ import path from 'node:path';
 import { translator } from '../mmdtransform/translator.js';
 import { translate as vsdxTranslate } from '../vsdxdoc/vsdxTranslator.js';
 import { OpcPackager } from '../opcpkg/opcpackager.js';
+import { ensureStencilAssets } from '../vsdxdoc/masters/stencilAssets.js';
+import type { StencilAssetsConfig } from '../vsdxdoc/masters/stencilAssets.js';
 import type { CreateOptions } from '../core/vsdx.js';
 import type { ConvertResult, XmlParts } from '../core/xmlparts.js';
 import { defaultConvertResult } from '../core/xmlparts.js';
@@ -49,10 +51,26 @@ async function partsToBase64(parts: XmlParts): Promise<string> {
 }
 
 export class Application {
+    /** 显式资产配置（configureStencils 设置；convertText 懒加载时作为缺省）。 */
+    private stencilConfig_?: StencilAssetsConfig;
+
+    /** 显式配置母版资产来源（幂等；可反复调用换源）：
+     *  assetFile=预生成资产 JSON / stencilDir=官方模具目录 / 缺省=自动搜寻本机 Visio。
+     *  未调用时 convertText 按相同缺省自动加载（useConnectorMaster=false 跳过）。
+     *  @returns 来源描述（asset:/dir:/cache），诊断用。 */
+    async configureStencils(config?: StencilAssetsConfig): Promise<string> {
+        this.stencilConfig_ = config;
+        return ensureStencilAssets(config);
+    }
+
     /** 文本 → ConvertResult（真实母版默认选项；失败 ok=false+error）。 */
     async convertText(text: string, options?: Partial<CreateOptions>): Promise<ConvertResult> {
         const result = defaultConvertResult();
         try {
+            // 母版资产懒加载：仅真实母版路径需要；失败经 catch → ok=false + [assets] 引导
+            if (options?.useConnectorMaster !== false) {
+                await ensureStencilAssets(this.stencilConfig_ ?? {});
+            }
             const diagram = await translator.translate(text);
             const parts = vsdxTranslate(diagram, options);
             // ok 必须在打包成功后再置（审核 P2-②）：打包失败走 catch → ok=false
@@ -166,3 +184,5 @@ export class Application {
 export const application = new Application();
 
 export type { Server };
+
+export type { StencilAssetsConfig } from '../vsdxdoc/masters/stencilAssets.js';

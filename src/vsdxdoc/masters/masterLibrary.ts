@@ -2,8 +2,11 @@
 //
 // C++ masters/masterlibrary.cpp（1,487 行）平移 + stencil 资产管线（M5）。
 // 结构：
-//   - STENCIL_DATA（scripts/gen-stencils.mjs 生成）：stencil 名 → gzip(base64 JSON)
-//     {mastersXml, relsXml?, contents:{fileName:xml}, stylesXml?}；
+//   - 资产运行时供应（stencilAssets.ts，G-9 落地）：npm 包不随分模具资产——
+//     首次转换自动搜寻本机 Visio 现场提取，或 --stencil-dir/--stencil-asset
+//     显式导入（见 docs/usage.md）；本模块只经 stencilDataRecord() 读取已就绪
+//     record（stencil 名 → gzip(base64 JSON) {mastersXml, relsXml?, contents:
+//     {fileName:xml}, stylesXml?}），未就绪抛 [assets] 引导错误；
 //   - load(name) 懒解压缓存；selectForType 按 TypeMapping（含 gantt ID 空洞）；
 //   - pack：Master ID 100 起重写（gantt 109–111 空洞 +3）、masters.xml 按
 //     wanted 声明序重排、relId 绝不重编、跨模具补充连接线（冲突换 rIdN 并改
@@ -32,7 +35,7 @@ import type { DiagramType } from '../../core/types.js';
 import type { CreateOptions } from '../../core/vsdx.js';
 import { shapeMasterName } from './masterClient.js';
 import type { MasterClient } from './masterClient.js';
-import { STENCIL_DATA } from './stencilData.js';
+import { stencilDataRecord } from './stencilAssets.js';
 
 const kMasterRelationship =
     'http://schemas.microsoft.com/visio/2010/relationships/master';
@@ -150,9 +153,11 @@ class MasterLibraryCore {
     load(stencilName: string): LoadedStencil {
         const cached = this.cache_.get(stencilName);
         if (cached) return cached;
-        const encoded = STENCIL_DATA[stencilName];
+        const encoded = stencilDataRecord()[stencilName];
         if (!encoded) {
-            throw new Error('stencil: missing data for ' + stencilName);
+            throw new Error(
+                '[assets] 模具数据缺失：' + stencilName + '（资产未含该模具；' +
+                '请确认 --stencil-dir/--stencil-asset 提供完整 8 类官方模具）');
         }
         const record: StencilRecord = JSON.parse(
             gunzipSync(Buffer.from(encoded, 'base64')).toString('utf8'));
@@ -973,7 +978,7 @@ function collectMasterChildShapeIds(core: MasterLibraryCore, nameU: string,
     const cached = childCache.get(nameU);
     if (cached) return cached;
     const result: number[] = [];
-    for (const stencilName of Object.keys(STENCIL_DATA)) {
+    for (const stencilName of Object.keys(stencilDataRecord())) {
         const st = core.load(stencilName);
         for (const master of st.masters) {
             if (master.nameU !== nameU) continue;
@@ -1020,7 +1025,7 @@ export function realMasterClient(): RealMasterClient {
         masterIdFor: (nameU) => masterIds.get(nameU) ?? 0,
         masterChildShapeIds: (nameU) => collectMasterChildShapeIds(core, nameU, childCache),
         applyInstanceOverrides: (node, nameU, width, height) => {
-            for (const stencilName of Object.keys(STENCIL_DATA)) {
+            for (const stencilName of Object.keys(stencilDataRecord())) {
                 const st = core.load(stencilName);
                 const master = st.masters.find((m) => m.nameU === nameU);
                 if (!master) continue;

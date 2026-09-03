@@ -11,12 +11,13 @@
  * 说明：
  *   - 本脚本自包含（不含 ZIP 三方库）：内嵌轻量 zip 读取（EOCD+中央目录+
  *     inflateRawSync），与 src/opcpkg/zipArchive.ts 同源语义、仅服务读取；
- *   - 产物 stencilData.ts 提交仓库（开发资产）。分发红线现状（审核 P2-⑨）：
- *     package.json 为 private:true（npm 不分发），631KB 资产随 tsc 编入 dist；
- *     若将来转公开发布，须补 files 白名单 + 用户侧资产生成工具后，再宣称
- *     "官方模具不随包"——当前注释不预设该机制存在；
- *   - 用法：node scripts/gen-stencils.mjs [visio_dir] [out_ts]
- * 默认 visio_dir=resources/visio，out=src/vsdxdoc/masters/stencilData.ts
+ *   - 产物 stencil-data.json 提交仓库（开发资产，assets/stencils/）。运行时
+ *     "资产供应"设计（docs/architecture 03 §G-9 落地）：npm 包不随分此资产——
+ *     目标机首次转换自动搜寻本机 Visio 官方模具现场提取，或经
+ *     --stencil-dir（模具目录）/ --stencil-asset（本产物文件，私自分发形态）
+ *     显式导入；本产物同时供开发/CI/测试加载；
+ *   - 用法：node scripts/gen-stencils.mjs [visio_dir] [out_json]
+ * 默认 visio_dir=resources/visio，out=assets/stencils/stencil-data.json
  */
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { gunzipSync, gzipSync, inflateRawSync } from 'node:zlib';
@@ -28,7 +29,7 @@ const root = path.resolve(here, '..');
 const visioDir = process.argv[2] ? path.resolve(process.argv[2])
     : path.join(root, 'resources', 'visio');
 const outFile = process.argv[3] ? path.resolve(process.argv[3])
-    : path.join(root, 'src', 'vsdxdoc', 'masters', 'stencilData.ts');
+    : path.join(root, 'assets', 'stencils', 'stencil-data.json');
 
 // ── 轻量 zip 读取（自包含；raw deflate） ──
 function readZipEntries(buf) {
@@ -125,12 +126,9 @@ for (const f of files) {
 
 mkdirSync(path.dirname(outFile), { recursive: true });
 const json = JSON.stringify(data);
-writeFileSync(outFile,
-    '// 生成文件（scripts/gen-stencils.mjs）：8 份官方模具按 stencil 压缩资产。\n' +
-    '// 分发红线（审核 P2-⑨）：package.json private:true（npm 不分发），资产随 tsc 编入 dist；\n' +
-    '// 若转公开发布须补 files 白名单与用户侧资产生成工具后再移除本说明。\n' +
-    '// key=stencil 名（basic_shape/flowchart/uml_class/...），value=gzip(base64(JSON{\n' +
-    '//   mastersXml, relsXml?, contents:{fileName:xml}, stylesXml?}))。\n' +
-    'export const STENCIL_DATA: Record<string, string> = ' + json + ';\n');
+// 资产文件 = 纯 JSON：key=stencil 名，value=gzip(base64(JSON{mastersXml, relsXml?,
+// contents:{fileName:xml}, stylesXml?}))。运行时由 src/vsdxdoc/masters/stencilAssets.ts
+// 读取（包不分发此文件；本产物 = 开发/CI/私自分发形态 B）。
+writeFileSync(outFile, json + '\n');
 const total = Buffer.byteLength(json);
-console.log(`written ${outFile} (${total} bytes, gzip 后 ${Math.round(total / 1024)} KB)`);
+console.log(`written ${outFile} (${total} bytes ≈ ${Math.round(total / 1024)} KB)`);

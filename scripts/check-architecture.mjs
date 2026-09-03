@@ -22,6 +22,7 @@ const kAllowed = new Set([
     // 入口/编排
     'cli>app',
     'app>core', 'app>mmdtransform', 'app>opcpkg', 'app>vxt',
+    'app>masters', // 资产运行时供应门面（stencilAssets：configureStencils/懒加载）
     // 业务层内部子包
     'translate>docmodel', 'translate>masters', 'translate>opcpkg',
     'translate>render', 'translate>serialize', 'translate>xml', 'translate>core',
