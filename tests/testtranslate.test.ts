@@ -12,7 +12,7 @@ import { defaultDiagram, defaultNode, defaultEdge } from '../src/core/types.js';
 import type { Diagram } from '../src/core/types.js';
 import { jsonToDiagram } from '../src/mmdtransform/jsonToDiagram.js';
 import { OpcPackager } from '../src/opcpkg/opcpackager.js';
-import { snapshotDir } from './helpers.js';
+import { snapshotDir, stencilAssetsAvailable } from './helpers.js';
 
 const noMasters = { useConnectorMaster: false } as const;
 
@@ -167,7 +167,7 @@ describe('class diagram with dividers translates', () => {
     });
 });
 
-describe('真实母版模式（M5）：useConnectorMaster=true 打包母版', () => {
+describe.skipIf(!stencilAssetsAvailable)('真实母版模式（M5）：useConnectorMaster=true 打包母版', () => {
     it('flowchart 打包 masters.xml + masterN + 页面形状带 Master 属性', () => {
         const parts = translatorTranslate(makeFlowchartDiagram(), { useConnectorMaster: true });
         const masters = findPart(parts.parts, 'visio/masters/masters.xml');

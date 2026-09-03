@@ -8,10 +8,11 @@ import { jsonToDiagram } from '../src/mmdtransform/jsonToDiagram.js';
 import { translate as translatorTranslate } from '../src/vsdxdoc/vsdxTranslator.js';
 import { OpcPackager } from '../src/opcpkg/opcpackager.js';
 import { Package } from '../src/opcpkg/package.js';
-import { goldenDir, goldenVsdxFiles, snapshotDir } from './helpers.js';
+import { goldenDir, goldenVsdxFiles, snapshotDir, stencilAssetsAvailable } from './helpers.js';
 import { diffXmlParts } from './goldenCompare.js';
 
-describe('M5 金标准闸门：真实母版模式产物 vs C++ 基线（16 样本）', () => {
+// 公开克隆不含模具资产（合规红线）→ 金标准闸门自动跳过；本地/私有 CI 全绿。
+describe.skipIf(!stencilAssetsAvailable)('M5 金标准闸门：真实母版模式产物 vs C++ 基线（16 样本）', () => {
     const files = goldenVsdxFiles();
     expect(files).toHaveLength(16);
     for (const name of files) {
@@ -40,7 +41,7 @@ describe('M5 金标准闸门：真实母版模式产物 vs C++ 基线（16 样�
     }
 });
 
-describe('roundtrip 冒烟：真实母版产物经 OpcPackager 开卷自洽', () => {
+describe.skipIf(!stencilAssetsAvailable)('roundtrip 冒烟：真实母版产物经 OpcPackager 开卷自洽', () => {
     it('flowchart 母版产物打包→开卷→validate', () => {
         const payload = JSON.parse(
             readFileSync(path.join(snapshotDir, '05-flowchart-1.json'), 'utf8'));

@@ -8,7 +8,7 @@ import { OpcPackager } from '../src/opcpkg/opcpackager.js';
 import { Package } from '../src/opcpkg/package.js';
 import { translate as vsdxTranslate } from '../src/vsdxdoc/vsdxTranslator.js';
 import { jsonToDiagram } from '../src/mmdtransform/jsonToDiagram.js';
-import { snapshotDir, makeTempDir } from './helpers.js';
+import { snapshotDir, makeTempDir, stencilAssetsAvailable } from './helpers.js';
 import { diffXmlParts } from './goldenCompare.js';
 
 afterAll(async () => {
@@ -16,7 +16,8 @@ afterAll(async () => {
 });
 
 describe('convertText 与 ConvertResult', () => {
-    it('真实文本 → ok + base64 可开卷（默认母版）', { timeout: 60000 }, async () => {
+    it('真实文本 → ok + base64 可开卷（真实母版；无资产环境自动跳过）',
+        { timeout: 60000, skip: !stencilAssetsAvailable }, async () => {
         const r = await application.convertText('graph TB; A[开始] --> B[结束]');
         expect(r.ok).toBe(true);
         expect(r.vsdxBase64.length).toBeGreaterThan(1000);
@@ -33,9 +34,28 @@ describe('convertText 与 ConvertResult', () => {
             rmSync(dir, { recursive: true, force: true });
         }
     });
+
+    it('真实文本 → ok + base64 可开卷（masterless 本地内容路径，任何环境可跑）',
+        { timeout: 60000 }, async () => {
+        const r = await application.convertText('graph TB; A[开始] --> B[结束]',
+            { useConnectorMaster: false });
+        expect(r.ok).toBe(true);
+        expect(r.vsdxBase64.length).toBeGreaterThan(1000);
+        expect(r.pageCount).toBe(1);
+        const dir = makeTempDir('mmd2vsdx-app-');
+        try {
+            const file = path.join(dir, 'a.vsdx');
+            writeFileSync(file, Buffer.from(r.vsdxBase64, 'base64'));
+            const pkg = Package.open(file);
+            expect(pkg.partUris().some((u) => u.string() === 'visio/masters/masters.xml')).toBe(false);
+            expect(() => pkg.validate()).not.toThrow();
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
 });
 
-describe('convertFile / convertDir', () => {
+describe.skipIf(!stencilAssetsAvailable)('convertFile / convertDir', () => {
     it('目录批量串行输出（顺序=输入序）', { timeout: 120000 }, async () => {
         const dir = makeTempDir('mmd2vsdx-cd-');
         const out = path.join(dir, 'out');
@@ -55,7 +75,7 @@ describe('convertFile / convertDir', () => {
     });
 });
 
-describe('serve 形态', () => {
+describe.skipIf(!stencilAssetsAvailable)('serve 形态', () => {
     it('health + convert（业务错误 200+status:error）', { timeout: 90000 }, async () => {
         const server = await application.serve(0);
         const address = server.address();
@@ -79,7 +99,7 @@ describe('serve 形态', () => {
     });
 });
 
-describe('roundtrip：真实母版产物 生成→读取→再生成 结构等价', () => {
+describe.skipIf(!stencilAssetsAvailable)('roundtrip：真实母版产物 生成→读取→再生成 结构等价', () => {
     for (const name of ['05-flowchart-1', '07-gantt-1']) {
         it(`${name} 两次打包部件与 XML 结构自洽`, () => {
             const payload = JSON.parse(
@@ -114,7 +134,7 @@ describe('roundtrip：真实母版产物 生成→读取→再生成 结构等�
     }
 });
 
-describe('性能冒烟（fixture 驱动，不含浏览器）', () => {
+describe.skipIf(!stencilAssetsAvailable)('性能冒烟（fixture 驱动，不含浏览器）', () => {
     it('单图翻译+打包 ≤ 2s', () => {
         const payload = JSON.parse(
             readFileSync(path.join(snapshotDir, '06-flowchart-2.json'), 'utf8'));

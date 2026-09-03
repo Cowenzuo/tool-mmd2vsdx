@@ -1,5 +1,5 @@
 // tests/helpers.ts — 共享测试工具（fixtures 定位、临时目录、结构比较、资产加载）
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -10,14 +10,20 @@ export const fixturesDir = path.join(testsDir, 'fixtures');
 export const goldenDir = path.join(fixturesDir, 'golden');
 export const snapshotDir = path.join(fixturesDir, 'snapshot');
 
-/** 仓库内开发资产（assets/stencils/stencil-data.json；运行包不分发此文件）。 */
+/** 仓库内开发资产路径（assets/stencils/stencil-data.json）。公开克隆不含
+ *  模具相关文件（合规红线，见 docs/usage.md §〇·一）——本地/私有 CI 提供。 */
 export function repoStencilAssetFile(): string {
     return path.join(testsDir, '..', 'assets', 'stencils', 'stencil-data.json');
 }
 
-/** 加载母版资产（幂等；真实母版路径的测试依赖它）。 */
-export async function ensureTestStencils(): Promise<string> {
-    return ensureStencilAssets({ assetFile: repoStencilAssetFile() });
+/** 母版资产是否可用（公开克隆为 false → 真实母版用例经 skipIf 跳过）。 */
+export const stencilAssetsAvailable: boolean = existsSync(repoStencilAssetFile());
+
+/** 加载母版资产（有资产才加载；返回是否可用）。 */
+export async function ensureTestStencils(): Promise<boolean> {
+    if (!stencilAssetsAvailable) return false;
+    await ensureStencilAssets({ assetFile: repoStencilAssetFile() });
+    return true;
 }
 
 // 统一供给：涉及 translate（真实母版）的测试文件经此就绪（vitest 每文件隔离，

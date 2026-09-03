@@ -3,7 +3,7 @@
 // 指纹判定、masterLibrary 读取闭环（stylesXmlFor）。注意：本文件不 import
 // tests/helpers.ts（helpers 会抢先 ensure，破坏"未就绪"用例）。
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, writeFileSync, cpSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, cpSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -19,8 +19,11 @@ import { stylesXmlFor } from '../src/vsdxdoc/masters/masterLibrary.js';
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const assetFile = path.join(repoRoot, 'assets', 'stencils', 'stencil-data.json');
 const visioDir = path.join(repoRoot, 'resources', 'visio');
+// 公开克隆不含模具文件（合规红线）→ 依赖真实资产的用例自动跳过
+const assetsPresent = existsSync(assetFile);
+const visioPresent = existsSync(path.join(visioDir, 'flowchart.vssx'));
 
-describe('stencilAssets 资产文件加载', () => {
+describe.skipIf(!assetsPresent)('stencilAssets 资产文件加载', () => {
     it('加载仓库资产：8 个内部 stencil 键齐备', async () => {
         resetStencilAssetsForTests();
         const source = await ensureStencilAssets({ assetFile });
@@ -32,11 +35,18 @@ describe('stencilAssets 资产文件加载', () => {
             expect(record[key]!.length).toBeGreaterThan(1000); // gzip(base64) 非空
         }
     });
+});
 
-    it('缺失文件 / 非法 JSON → [assets] 引导错误', async () => {
+describe('stencilAssets 负面路径（不依赖真实资产，任何环境可跑）', () => {
+    it('缺失文件 → [assets] 引导错误', async () => {
         resetStencilAssetsForTests();
         await expect(ensureStencilAssets({ assetFile: 'no-such-file.json' }))
             .rejects.toThrow(/\[assets\]/);
+        resetStencilAssetsForTests();
+    });
+
+    it('非法 JSON → [assets] 格式非法', async () => {
+        resetStencilAssetsForTests();
         const bad = path.join(tmpdir(), 'bad-assets-' + Date.now() + '.json');
         writeFileSync(bad, '{oops');
         try {
@@ -54,14 +64,16 @@ describe('stencilAssets 资产文件加载', () => {
     });
 });
 
-describe('stencilAssets 模具目录现场提取', () => {
-    it('指纹判定：已知母版名集合 → 内部名', () => {
+describe('指纹判定（纯函数，不依赖文件）', () => {
+    it('已知母版名集合 → 内部名；未识别 → null', () => {
         expect(probeStencilKind(['Rectangle', 'Circle', 'Diamond'])).toBe('basic_shape');
         expect(probeStencilKind(['Process', 'Decision', 'Subprocess', 'Dynamic connector']))
             .toBe('flowchart');
         expect(probeStencilKind(['Rectangle'])).toBeNull();
     });
+});
 
+describe.skipIf(!visioPresent)('stencilAssets 模具目录现场提取', () => {
     it('单文件提取（resources/visio 开发模具）', () => {
         const f = path.join(visioDir, 'flowchart.vssx');
         const { kind, encoded } = extractStencilFile(f);
@@ -80,10 +92,9 @@ describe('stencilAssets 模具目录现场提取', () => {
         ].sort().join(','));
         // 读取闭环：stylesXmlFor 经 record 解压可用
         expect(stylesXmlFor('flowchart')).toContain('<VisioStyles>');
-        // 恢复资产文件形态（供后续同进程用例）
-        await ensureStencilAssets({ assetFile });
+        // 恢复资产文件形态（供后续同进程用例；资产不存在时（混合态）跳过）
         resetStencilAssetsForTests();
-        await ensureStencilAssets({ assetFile });
+        if (assetsPresent) await ensureStencilAssets({ assetFile });
     });
 
     it('空目录 → 引导错误', async () => {
@@ -98,7 +109,7 @@ describe('stencilAssets 模具目录现场提取', () => {
     });
 });
 
-describe('stencilAssets 私自分发形态（asset 文件拷贝即用）', () => {
+describe.skipIf(!assetsPresent)('stencilAssets 私自分发形态（asset 文件拷贝即用）', () => {
     it('把资产文件复制到另一目录后仍可加载（私下分发语义）', async () => {
         resetStencilAssetsForTests();
         const dir = mkdtempSync(path.join(tmpdir(), 'priv-assets-'));
