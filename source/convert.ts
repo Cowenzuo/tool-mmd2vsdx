@@ -1,8 +1,8 @@
 // 编排门面：契约 A → 契约 B（按图型分派到各 diag 包；docs/redesign/01 包 app 职责）
 import type { ContractA, ContractB, XmlPart } from './contracts/index.js';
 import { part } from './contracts/index.js';
-import { CommonRenderer, buildPagesXml } from './diag/common.js';
-import { SeqRenderer, sequencePageSize } from './diag/sequence.js';
+import { CommonRenderer, buildPagesXml, kCanvasMargin } from './diag/common.js';
+import { SeqRenderer, sequenceContentBox } from './diag/sequence.js';
 import { ClassRenderer, classPageSize } from './diag/class.js';
 import { ErRenderer, erPageSize } from './diag/er.js';
 import { buildDocumentPart, buildOfficialDocumentPart, buildOfficialErDocumentPart, buildOfficialSequenceDocumentPart } from './common/styles/writer.js';
@@ -137,16 +137,18 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
     // 母版目录：引用与骨架统一（注释见 loadShapeCatalog）；显式传入优先。
     // 连接线母版来自 flowchart 官方模具（Dynamic connector），节点来自 basic_shape。
     const catalog = opts.stencil ?? loadShapeCatalog();
-    const cfg = { pxPerInch: opts.pxPerInch, stencil: catalog ?? undefined };
+    const cfg = { pxPerInch: opts.pxPerInch, stencil: catalog ?? undefined, pageMargin: kCanvasMargin };
     if (a.kind === 'sequence' && a.sequence) {
         const packed = new MasterPacker(catalog).pack(wantedSequenceMasters(a.sequence));
         parts.push(...packed.parts);
-        const { w, h } = sequencePageSize(a);
+        // 页面 = 内容外包围框 + 半线宽呼吸位（P-4 画布策略；呼吸位由 buildPagesXml 统一叠加）
+        const box = sequenceContentBox(a.sequence);
+        const m = kCanvasMargin;
+        const w = (box.maxX - box.minX) / 96;
+        const h = (box.maxY - box.minY) / 96;
         const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
-        // DrawingResizeType=2（不随图形缩放）：Visio 默认 1 会按打印纸倍数放大页面，
-        // 实测把 11.96×8.01IN 变成 23.80×11.69IN 并把图形整体平移——页面尺寸必须由我们决定。
         parts.push(buildPagesXml(a2, { ...cfg, drawingResizeType: '2' }));
-        parts.push(new SeqRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
+        parts.push(new SeqRenderer().render(a2, box.maxY + m * 96, opts.pxPerInch ?? 96, packed.masterIds, box.minX - m * 96));
         return { parts };
     }
     if (a.kind === 'class' && a.classModel) {

@@ -12,6 +12,7 @@
 //（temp/audit/class-instances.txt）；缓存值说明见 docs/redesign/07 第 8 节/比对清单。
 
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
+import { kCanvasMargin } from '../common/geometry/transform.js';
 import { kPageContentType, kPageUri } from '../common/xml/constants.js';
 import { part, type XmlPart, type ClassBox, type ClassModel, type ClassRelationKind } from '../contracts/index.js';
 
@@ -63,7 +64,7 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
     const pad = 0.08;
     const gapX = 1.2;
     const gapY = 0.9;
-    const margin = 0.5;
+    const margin = kCanvasMargin;           // 页面 = 内容盒 + 半线宽（P-4 画布策略）
     const cols = 2;
     // 官方内容公式盒高（成员槽 0.25IN/分隔线 1MM）
     const boxH = (c: ClassBox) => {
@@ -102,7 +103,7 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
                 top: (rowY.get(row) ?? 0) + h,
             });
         });
-        return { boxes, pageW: margin * 2 + w * cols + gapX * (cols - 1), pageH: rowBottom + margin };
+        return { boxes, ...boxExtent(boxes, margin) };
     }
 
     // ── mmd 比例布局 ──
@@ -130,7 +131,6 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
         bucket!.push(i);
     });
     for (const r of rows) r.sort((p, q) => p.g.x - q.g.x);
-    const maxCols = Math.max(...rows.map((r) => r.length));
     // 3) 行高 = 官方内容公式（行内最大）；行距 = mmd 中心距比例（转英寸），且 ≥ 官方 gapY 基数防重叠
     const rowCenters = yClusters.map((cl) => cl[0]!);
     let mmdRowGap = gapY;
@@ -172,9 +172,30 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
             bb.top = rowBottoms[ri]! + hRow;
         }
     }
-    const pageW = margin * 2 + w * maxCols + gapX * Math.max(0, maxCols - 1);
-    const pageH = bottom + margin;
-    return { boxes, pageW, pageH };
+    return { boxes, ...boxExtent(boxes, margin) };
+}
+
+/** 内容盒 = 实际放置的盒并集；同时把盒整体平移到 (margin, margin) 起点（页面严格贴合）。
+ *  返回内容尺寸；页面尺寸由 buildPagesXml 统一加 2×pageMargin（P-4 画布策略）。 */
+function boxExtent(boxes: Map<string, BoxGeom>, margin: number): { pageW: number; pageH: number } {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const b of boxes.values()) {
+        minX = Math.min(minX, b.x - b.w / 2);
+        minY = Math.min(minY, b.y - b.h / 2);
+        maxX = Math.max(maxX, b.x + b.w / 2);
+        maxY = Math.max(maxY, b.y + b.h / 2);
+    }
+    if (!Number.isFinite(minX)) return { pageW: 0, pageH: 0 };
+    const dx = margin - minX;
+    const dy = margin - minY;
+    if (dx !== 0 || dy !== 0) {
+        for (const b of boxes.values()) {
+            b.x += dx;
+            b.y += dy;
+            b.top += dy;
+        }
+    }
+    return { pageW: maxX - minX, pageH: maxY - minY };
 }
 
 interface Ctx {

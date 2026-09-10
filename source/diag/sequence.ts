@@ -52,6 +52,8 @@ interface Ctx {
     warnings: string[];
     pageHpx: number;
     pc: number; // pxPerInch
+    /** 内容盒左边界（px）：页面严格贴合内容时用于 x 平移。 */
+    x0: number;
     actorX: Map<string, number>;
 }
 
@@ -124,12 +126,13 @@ function pushConnects(ctx: Ctx, lineId: number, srcId: number, srcRow: number, d
     );
 }
 
-/** 页面 px → 英寸（顶部原点在页面顶端，y 轴向下；Visio 页坐标 y 向上）。 */
+/** 页面 px → 英寸（顶部原点在页面顶端，y 轴向下；Visio 页坐标 y 向上）。
+ *  x0/y0 = 内容外包围框的左边界/下边界（页面严格贴合内容，见 P-4 画布策略）。 */
 function yin(ctx: Ctx, yPx: number): number {
     return round((ctx.pageHpx - yPx) / ctx.pc);
 }
 function xin(ctx: Ctx, xPx: number): number {
-    return round(xPx / ctx.pc);
+    return round((xPx - ctx.x0) / ctx.pc);
 }
 /** 时间格行 k 的页面 Y（与生命线本地行 k 对齐：本地原点 = rowY(0) + 0.25）。 */
 function rowYin(ctx: Ctx, k: number): number {
@@ -141,11 +144,11 @@ function rowOf(yPx: number): number {
 }
 
 export class SeqRenderer {
-    render(a: { sequence?: SequenceModel }, pageHpx: number, pxPerInch = 96, masterIds: Map<string, number> = new Map()): XmlPart {
+    render(a: { sequence?: SequenceModel }, pageHpx: number, pxPerInch = 96, masterIds: Map<string, number> = new Map(), x0 = 0): XmlPart {
         const m = a.sequence ?? { actors: [], messages: [], activations: [], fragments: [] };
         const ctx: Ctx = {
             nextId: 1, shapes: [], connects: [], ids: new Map(), nameCount: new Map(),
-            masterIds, warnings: [], pageHpx, pc: pxPerInch,
+            masterIds, warnings: [], pageHpx, pc: pxPerInch, x0,
             actorX: new Map(m.actors.map((x) => [x.id, x.x])),
         };
         const root = makeElement('PageContents');
@@ -208,11 +211,7 @@ function writeSeq(ctx: Ctx, m: SequenceModel): void {
     // 标签带底边距首条内部消息线仍有 0.011IN。
     for (const frag of m.fragments) {
         const startRow = rowOf(frag.y);
-        let prevEnd = -1;
-        m.messages.forEach((msg, i) => {
-            if (!kMarkerKinds.has(msg.kind) && rows.start[i]! < startRow) prevEnd = Math.max(prevEnd, rows.end[i]!);
-        });
-        const raise = prevEnd === startRow - 1 ? 1 : 1.5;
+        const raise = fragmentRaise(m, rows, startRow);
         if (frag.kind === 'loop') writeFragment(ctx, 'Loop fragment', frag, raise);
         else if (frag.kind === 'opt') writeFragment(ctx, 'Optional fragment', frag, raise);
         else if (frag.kind === 'alt') writeAlternativeFragment(ctx, frag, raise);
@@ -235,6 +234,12 @@ const kMarkerKinds = new Set<string>([
     'break', 'breakend', 'rect', 'rectend',
 ]);
 
+/** 生命线页眉盒宽：母版是文本驱动公式（Sheet.6!Width），我们写显式值使产物自描述、
+ *  内容盒可精确计算；估算偏宽（宁可多不可裁字）。 */
+function headerWidth(label: string): number {
+    return round(Math.max(0.7086614173228346, noteWidth(label) + 0.1));
+}
+
 /** 生命线实例（官方代数）：PinX/PinY + [Actor: Height/LocPinY] + Control.Row_1.Y=-长度
  *  + Connection 行（时间格 Y=-(k+1)*0.25IN）+ 根 Geometry IX=0 + Text + 嵌套 MS6..9。 */
 function writeLifeline(ctx: Ctx, actor: SeqActor, originY: number, length: number, lastRow: number): void {
@@ -242,6 +247,7 @@ function writeLifeline(ctx: Ctx, actor: SeqActor, originY: number, length: numbe
     const masterId = ctx.masterIds.get(masterName) ?? 0;
     const id = ctx.nextId++;
     ctx.ids.set(actor.id, id);
+    const hdrW = headerWidth(actor.label);
     const el = newShape();
     setAttribute(el, 'NameU', sel(ctx, masterName, id));
     setAttribute(el, 'Type', 'Group');
@@ -249,10 +255,12 @@ function writeLifeline(ctx: Ctx, actor: SeqActor, originY: number, length: numbe
     el.children.push(
         cell('PinX', f6(xin(ctx, actor.x))),
         cell('PinY', f6(originY + kHdrHalf)),
+        // 页眉盒宽显式写死（母版公式文本驱动；写死才可审计、页面才贴合）
+        cell('Width', f6(hdrW)),
+        cell('LocPinX', f6(hdrW / 2)),
     );
-    if (actor.kind === 'actor') {
-        el.children.push(cell('Height', f6(kHdrH)), cell('LocPinY', f6(kHdrHalf), undefined, 'Height*0.5'));
-    }
+    // 页眉高度/锚点显式写死（object 母版是 Sheet.6!Height 公式；写死使产物自描述、可审计）
+    el.children.push(cell('Height', f6(kHdrH)), cell('LocPinY', f6(kHdrHalf), undefined, 'Height*0.5'));
     el.children.push(section('Control', [
         row(undefined, undefined, 'Row_1', [cell('Y', f6(-length))]),
     ]));
@@ -285,10 +293,17 @@ function writeLifeline(ctx: Ctx, actor: SeqActor, originY: number, length: numbe
     setAttribute(k9, 'MasterShape', '9');
     setAttribute(k9, 'Type', 'Shape');
     k9.children.push(
+        cell('PinX', f6(hdrW / 2), 'MM', 'Inh'),
         cell('PinY', f6(-length / 2), 'MM', 'Inh'),
         cell('Width', f6(length), 'MM', 'Inh'),
+        cell('Height', f6(length), 'MM', 'Inh'),
         cell('LocPinX', f6(length / 2), 'MM', 'Inh'),
-        cell('EndY', f6(-length), undefined, 'Inh'),
+        cell('LocPinY', f6(length / 2), 'MM', 'Inh'),
+        // 显式端点（1-D 形状）：审计/Visio 都按端点求真实 AABB，不依赖母版角度公式
+        cell('BeginX', f6(hdrW / 2), 'MM', 'Inh'),
+        cell('BeginY', '0', 'MM', 'Inh'),
+        cell('EndX', f6(hdrW / 2), 'MM', 'Inh'),
+        cell('EndY', f6(-length), 'MM', 'Inh'),
     );
     k9.children.push(section('Geometry', [
         row('LineTo', 2, undefined, [cell('X', f6(length), 'MM', 'Inh')]),
@@ -692,12 +707,78 @@ function writeOperands(ctx: Ctx, frag: SeqFragment, topRaise: number, skipFirst:
     }
 }
 
-export function sequencePageSize(a: { sequence?: SequenceModel }): { w: number; h: number } {
-    const m = a.sequence ?? { actors: [], messages: [], activations: [], fragments: [] };
-    const actors = Math.max(1, m.actors.length);
+/** 片段顶边上提量（格）：默认 1.5；若上方紧邻行就是已绘制消息（含自消息末行）则降为 1。
+ *  渲染器与内容盒共用——两处必须同源，否则页面会与实际绘制不一致。 */
+function fragmentRaise(m: SequenceModel, rows: { start: number[]; end: number[] }, startRow: number): number {
+    let prevEnd = -1;
+    m.messages.forEach((msg, i) => {
+        if (!kMarkerKinds.has(msg.kind) && rows.start[i]! < startRow) prevEnd = Math.max(prevEnd, rows.end[i]!);
+    });
+    return prevEnd === startRow - 1 ? 1 : 1.5;
+}
+
+/** 内容外包围框（px，y 向下）：参与者页眉/生命线 + 消息/自消息文字 + 片段 + 备注。
+ *  页面严格等于该盒（0 边距）；渲染器以 (x0=minX, pageHpx=maxY) 做坐标映射。 */
+export function sequenceContentBox(m: SequenceModel): { minX: number; minY: number; maxX: number; maxY: number } {
     const rows = sequenceRows(m.messages);
-    return {
-        w: (150 + 200 * (actors - 1) + 150) / 96,
-        h: (rowY(Math.max(rows.total, 1)) + 80) / 96,
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const acc = (x0: number, y0: number, x1: number, y1: number) => {
+        minX = Math.min(minX, x0); minY = Math.min(minY, y0);
+        maxX = Math.max(maxX, x1); maxY = Math.max(maxY, y1);
     };
+    const actorX = new Map(m.actors.map((a) => [a.id, a.x]));
+    // 页眉盒：宽≈文字宽（母版 Sheet.6!Width 由文本驱动），高 kHdrH，中心在 rowY(0)-24-半高
+    const hdrCy = rowY(0) - kRowStep * 96 - (kHdrH / 2) * 96;
+    const hdrHalf = (kHdrH / 2) * 96;
+    for (const a of m.actors) {
+        const half = (headerWidth(a.label) / 2) * 96;
+        acc(a.x - half, hdrCy - hdrHalf, a.x + half, hdrCy + hdrHalf);
+    }
+    // 生命线：长度 = (maxRow+2)×0.25IN，从页眉底向下
+    const maxRow = Math.max(0, rows.total - 1);
+    const length = Math.max(0.5, (maxRow + 2) * kRowStep);
+    const lineBottom = hdrCy + hdrHalf + length * 96;
+    for (const a of m.actors) acc(a.x - 2, hdrCy + hdrHalf, a.x + 2, lineBottom);
+    // 消息 / 自消息 / 备注
+    m.messages.forEach((msg, i) => {
+        if (kMarkerKinds.has(msg.kind)) return;
+        const x1 = actorX.get(msg.from) ?? 0;
+        const x2 = actorX.get(msg.to) ?? x1;
+        const y = rowY(rows.start[i]!);
+        if (msg.kind === 'note') {
+            const w = noteWidth(msg.label) * 96;
+            const cx = (x1 + x2) / 2;
+            const half = (0.3543307086614173 / 2) * 96;   // 官方 Note 高 8MM 下限
+            acc(cx - w / 2, y + 12 - half, cx + w / 2, y + 12 + half);
+            return;
+        }
+        if (msg.kind === 'self') {
+            const tw = noteWidth(msg.label) * 96;
+            acc(x1 - 4, y, x1 + kMsgH * 96 + tw + 8, y + 48);   // 自消息跨 2 格
+            return;
+        }
+        const lo = Math.min(x1, x2);
+        const hi = Math.max(x1, x2);
+        const halfH = msg.label ? 24 : (kMsgH / 2) * 96 + 4;    // 有文字时按文本高（0.2445IN）留边
+        acc(lo - 4, y - halfH, hi + 4, y + halfH);
+        if (msg.label) {
+            const tw = noteWidth(msg.label) * 96;
+            const cx = (lo + hi) / 2;
+            acc(cx - tw / 2, y - halfH, cx + tw / 2, y + halfH);
+        }
+    });
+    // 片段（rect 无视觉，跳过）
+    for (const frag of m.fragments) {
+        if (frag.kind === 'rect') continue;
+        const startRow = rowOf(frag.y);
+        const endRow = rowOf(frag.y + frag.height - 60);
+        const topY = rowY(startRow) - fragmentRaise(m, rows, startRow) * 24;
+        const bottomY = rowY(Math.max(endRow, startRow)) + 12;
+        acc(frag.x - frag.width / 2, topY, frag.x + frag.width / 2, bottomY);
+    }
+    if (minX > maxX) return { minX: 0, minY: 0, maxX: 96, maxY: 96 };
+    return { minX, minY, maxX, maxY };
 }

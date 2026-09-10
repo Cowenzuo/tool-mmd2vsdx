@@ -8,7 +8,7 @@
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kPageContentType, kPageUri, kPagesContentType, kPagesUri } from '../common/xml/constants.js';
 import { part, type ContractA, type ContractB, type XmlPart } from '../contracts/index.js';
-import { fmtInch, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
+import { fmtInch, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
 import { defaultSwitches, rectRows } from '../common/geometry/box.js';
 import { midPoint, setAtRef, spanX, spanY, trigger, walkGlue } from '../common/formula/writer.js';
 import { splitRuns } from '../common/text/runs.js';
@@ -30,8 +30,10 @@ export interface RenderOptions {
     masterIds?: Map<string, number>;
     /** pages.xml 的 DrawingResizeType：1=随图形自动缩放（Visio 默认，按打印纸倍数放大页面，
      *  实测会忽略 PageWidth/PageHeight）、2=不缩放（页面尺寸 = 我们算的尺寸）。
-     *  sequence 的页面公式精确且内容不出界，用 2 才能让 Visio 打开后页面尺寸与写入值一致。 */
+     *  **全部图型统一用 2**（P-4 画布策略）：页面严格等于内容外包围框。 */
     drawingResizeType?: string;
+    /** 页面边距（英寸，单侧）：默认 0（严格贴合内容）。 */
+    pageMargin?: number;
 }
 
 const kIn = (v: number) => fmtInch(v);
@@ -98,10 +100,14 @@ function writeRowIntentNode(r: RowIntent): XmlNode {
     return el;
 }
 
-/** 页面像素边界 → 英寸页面尺寸（外扩 0.25 英寸边际） */
+/** 画布呼吸位（英寸，单侧）：见 common/geometry/transform.ts kCanvasMargin。
+ *  P-4 画布策略：页面 = 内容盒 + 半线宽，保证最外圈线不被裁。 */
+export { kCanvasMargin };
+
+/** 页面像素边界 → 英寸页面尺寸（默认严格贴合内容 + 半线宽呼吸位）。 */
 function pageInchSize(a: ContractA, opts: RenderOptions): { w: number; h: number } {
     const k = opts.pxPerInch ?? 96;
-    const margin = 0.25;
+    const margin = opts.pageMargin ?? kCanvasMargin;
     return {
         w: pxSizeToInch(a.meta.bounds.maxX - a.meta.bounds.minX, { pxPerInch: k }) + margin * 2,
         h: pxSizeToInch(a.meta.bounds.maxY - a.meta.bounds.minY, { pxPerInch: k }) + margin * 2,
@@ -133,7 +139,7 @@ export function buildPagesXml(a: ContractA, opts: RenderOptions): XmlPart {
         cellNode('DrawingScaleType', '0'),
         cellNode('InhibitSnap', '0'),
         cellNode('UIVisibility', '0'),
-        cellNode('DrawingResizeType', opts.drawingResizeType ?? '1'),
+        cellNode('DrawingResizeType', opts.drawingResizeType ?? '2'),
         cellNode('PageShapeSplit', '1'),
     );
     p.children.push(sheet);
@@ -226,10 +232,11 @@ function connectionSection(w: number, h: number): XmlNode {
 /** 节点形状：有母版时最小实例（Master+Pin+文本），无母版时自足式。 */
 function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: number, opts: RenderOptions): XmlNode {
     const k = opts.pxPerInch ?? 96;
+    const m = opts.pageMargin ?? kCanvasMargin;
     const w = pxSizeToInch(s.width, { pxPerInch: k });
     const h = pxSizeToInch(s.height, { pxPerInch: k });
-    const x = pxToInch(s.x, { pxPerInch: k });
-    const y = (pageHpx - s.y) / k;
+    const x = pxToInch(s.x, { pxPerInch: k }) + m;
+    const y = (pageHpx - s.y) / k + m;
     const masterId = opts.masterIds?.get(shapeKindToMasterName(s.shapeKind)) ?? 0;
 
     const el = makeElement('Shape');
@@ -304,13 +311,14 @@ function writeConnectorNode(
     opts: RenderOptions,
 ): XmlNode {
     const k = opts.pxPerInch ?? 96;
+    const m = opts.pageMargin ?? kCanvasMargin;
     // V 缓存：WAYPOINTS 首末点（mermaid 真实贴附，打开后由 WALKGLUE 重算）；缺省用形状中心
     const wp0 = e.waypoints[0];
     const wpN = e.waypoints[e.waypoints.length - 1];
-    const bx = pxToInch(wp0?.x ?? srcShape?.x ?? 0, { pxPerInch: k });
-    const by = (pageHpx - (wp0?.y ?? srcShape?.y ?? 0)) / k;
-    const ex = pxToInch(wpN?.x ?? dstShape?.x ?? 0, { pxPerInch: k });
-    const ey = (pageHpx - (wpN?.y ?? dstShape?.y ?? 0)) / k;
+    const bx = pxToInch(wp0?.x ?? srcShape?.x ?? 0, { pxPerInch: k }) + m;
+    const by = (pageHpx - (wp0?.y ?? srcShape?.y ?? 0)) / k + m;
+    const ex = pxToInch(wpN?.x ?? dstShape?.x ?? 0, { pxPerInch: k }) + m;
+    const ey = (pageHpx - (wpN?.y ?? dstShape?.y ?? 0)) / k + m;
     const dx = ex - bx;
     const dy = ey - by;
 

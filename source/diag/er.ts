@@ -17,6 +17,7 @@
 //   End=(W-DXEnd,H)）；User.DYBegin/DXEnd=端点内缩缓存；端标记子形状 6/7（Begin 对）与 8/9（End 对）
 //   = 旋转 ∓45°/±135° 的 2.5MM 标记（PinY=Con±...；End 侧写 PinX/PinY 缓存，π 翻向时补 LocPin+EndAngle）。
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
+import { kCanvasMargin } from '../common/geometry/transform.js';
 import { kPageContentType, kPageUri } from '../common/xml/constants.js';
 import { part, type XmlPart, type ErModel, type ErEntity } from '../contracts/index.js';
 
@@ -61,7 +62,7 @@ function boxH(e: ErEntity): number {
 
 function layout(m: ErModel): { boxes: Map<string, BoxGeom>; pageW: number; pageH: number } {
     const w = kMemberW;
-    const margin = 0.5;
+    const margin = kCanvasMargin;           // 页面 = 内容盒 + 半线宽（P-4 画布策略）
     const boxes = new Map<string, BoxGeom>();
     const mmd = m.layout ?? undefined;
     const hasMmd = !!mmd && m.entities.every((e) => mmd[e.name] !== undefined && mmd[e.name]!.x !== undefined);
@@ -75,7 +76,7 @@ function layout(m: ErModel): { boxes: Map<string, BoxGeom>; pageW: number; pageH
             boxes.set(e.id, { x: margin + w / 2, y, w, h, top: y + h / 2, bottom: y - h / 2 });
             y += h + gap;
         }
-        return { boxes, pageW: margin * 2 + w, pageH: y + margin };
+        return { boxes, ...boxExtent(boxes, margin) };
     }
 
     // ── mmd 比例布局（同 class：行聚簇 + 行高官方公式 + 反转 y 轴）──
@@ -101,7 +102,6 @@ function layout(m: ErModel): { boxes: Map<string, BoxGeom>; pageW: number; pageH
         rows[rowIndex.get(idx) ?? 0]!.push(i);
     });
     for (const r of rows) r.sort((p, q) => p.g.x - q.g.x);
-    const maxCols = Math.max(...rows.map((r) => r.length));
     const rowCenters = yClusters.map((cl) => cl[0]!);
     let mmdRowGap = gapY;
     if (rowCenters.length > 1) {
@@ -141,9 +141,31 @@ function layout(m: ErModel): { boxes: Map<string, BoxGeom>; pageW: number; pageH
             bb.bottom = yBase - bb.h / 2;
         }
     }
-    const pageW = margin * 2 + w * maxCols + gapX * Math.max(0, maxCols - 1);
-    const pageH = bottom + margin;
-    return { boxes, pageW, pageH };
+    return { boxes, ...boxExtent(boxes, margin) };
+}
+
+/** 内容盒 = 实际放置的盒并集；同时把盒整体平移到 (margin, margin) 起点（页面严格贴合）。
+ *  返回内容尺寸；页面尺寸由 buildPagesXml 统一加 2×pageMargin（P-4 画布策略）。 */
+function boxExtent(boxes: Map<string, BoxGeom>, margin: number): { pageW: number; pageH: number } {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const b of boxes.values()) {
+        minX = Math.min(minX, b.x - b.w / 2);
+        minY = Math.min(minY, b.y - b.h / 2);
+        maxX = Math.max(maxX, b.x + b.w / 2);
+        maxY = Math.max(maxY, b.y + b.h / 2);
+    }
+    if (!Number.isFinite(minX)) return { pageW: 0, pageH: 0 };
+    const dx = margin - minX;
+    const dy = margin - minY;
+    if (dx !== 0 || dy !== 0) {
+        for (const b of boxes.values()) {
+            b.x += dx;
+            b.y += dy;
+            b.top += dy;
+            if (b.bottom !== undefined) b.bottom += dy;
+        }
+    }
+    return { pageW: maxX - minX, pageH: maxY - minY };
 }
 
 interface Ctx {
