@@ -1,0 +1,72 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<Masters xmlns='http://schemas.microsoft.com/office/visio/2012/main' xmlns:r='http://schemas.openxmlformats.org/officeDocument/2006/relationships' xml:space='preserve'><Master ID='2' NameU='Entity' IsCustomNameU='1' Name='实体' IsCustomName='1' Prompt='拖到绘图页上，以指定实体及其属性。' IconSize='1' AlignName='2' MatchByName='0' IconUpdate='1' UniqueID='{001A7159-0002-0000-8E40-00608CF305B2}' BaseID='{BC1566F4-F49F-4146-A17E-553DEFE9DE51}' PatternFlags='0' Hidden='0' MasterType='2'><PageSheet LineStyle='0' FillStyle='0' TextStyle='0'><Cell N='PageWidth' V='3.937007874015748' U='MM'/><Cell N='PageHeight' V='3.937007874015748' U='MM'/><Cell N='ShdwOffsetX' V='0.1181102362204724'/><Cell N='ShdwOffsetY' V='-0.1181102362204724'/><Cell N='PageScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingSizeType' V='0'/><Cell N='DrawingScaleType' V='0'/><Cell N='InhibitSnap' V='0'/><Cell N='PageLockReplace' V='0' U='BOOL'/><Cell N='PageLockDuplicate' V='0' U='BOOL'/><Cell N='UIVisibility' V='0'/><Cell N='ShdwType' V='0'/><Cell N='ShdwObliqueAngle' V='0'/><Cell N='ShdwScaleFactor' V='1'/><Cell N='DrawingResizeType' V='1'/><Cell N='ShapeKeywords' V='数据库,实体,数据,DB,UML,表格,统一,建模,语言'/></PageSheet><Icon>
+AAABAAEAICAQAAAAAADoAgAAFgAAACgAAAAgAAAAQAAAAAEABAAAAAAAgAIAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAACAAACAAAAAgIAAgAAAAIAAgACAgAAAgICAAMDAwAAAAP8AAP8AAAD//wD/AAAA/w
+D/AP//AAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAD//////////////////9wA///////////////////cAP///////////////
+///3AD//////////////////9wA///////////////////cAAAAAAAAAAAAAAAAAAAAAAD///////
+///////////9wA///////////////////cAOIiIiIiP///////////3AD//////////////////9w
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAD/////////////////////////////////////////////////////gAAAAYAAAAGAAAABgAAA
+AYAAAAGAAAABgAAAAIAAAACAAAAAgAAAAIAAAACAAAAB/////////////////////////////////
+////////////////////w==</Icon><Rel r:id='rId1'/></Master><Master ID='4' NameU='Primary Key Attribute' IsCustomNameU='1' Name='主键属性' IsCustomName='1' Prompt='拖到绘图页上，然后连接以指定实体的属性。' IconSize='1' AlignName='2' MatchByName='0' IconUpdate='1' UniqueID='{001ABAC6-0004-0000-8E40-00608CF305B2}' BaseID='{D4C82591-4EED-4622-9D82-D7576F925327}' PatternFlags='0' Hidden='0' MasterType='2'><PageSheet LineStyle='0' FillStyle='0' TextStyle='0'><Cell N='PageWidth' V='3.937007874015748' U='MM'/><Cell N='PageHeight' V='3.937007874015748' U='MM'/><Cell N='ShdwOffsetX' V='0.1181102362204724'/><Cell N='ShdwOffsetY' V='-0.1181102362204724'/><Cell N='PageScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingSizeType' V='0'/><Cell N='DrawingScaleType' V='0'/><Cell N='InhibitSnap' V='0'/><Cell N='PageLockReplace' V='0' U='BOOL'/><Cell N='PageLockDuplicate' V='0' U='BOOL'/><Cell N='UIVisibility' V='0'/><Cell N='ShdwType' V='0'/><Cell N='ShdwObliqueAngle' V='0'/><Cell N='ShdwScaleFactor' V='1'/><Cell N='DrawingResizeType' V='1'/><Cell N='ShapeKeywords' V='数据库,属性,数据,DB,UML'/></PageSheet><Icon>
+AAABAAEAICAQAAAAAADoAgAAFgAAACgAAAAgAAAAQAAAAAEABAAAAAAAgAIAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAACAAACAAAAAgIAAgAAAAIAAgACAgAAAgICAAMDAwAAAAP8AAP8AAAD//wD/AAAA/w
+D/AP//AAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////
+////AAiP/////////////////wAIiI//iIiIiI+If/////8ACI//////////////////AAiP/////
+////////////wAP//////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAD/////////////////////////////////////////////////////////////////////wAAA
+AcAAAAHAAAABwAAAAcAAAAHAAAAB/////////////////////////////////////////////////
+////////////////////w==</Icon><Rel r:id='rId2'/></Master><Master ID='5' NameU='Primary Key Separator' IsCustomNameU='1' Name='主键分隔符' IsCustomName='1' Prompt='拖到绘图页上，以划分实体的属性列表。' IconSize='1' AlignName='2' MatchByName='0' IconUpdate='1' UniqueID='{0032F931-0005-0000-8E40-00608CF305B2}' BaseID='{1FC2865A-3860-499C-A0A3-A600F7732545}' PatternFlags='0' Hidden='0' MasterType='2'><PageSheet LineStyle='0' FillStyle='0' TextStyle='0'><Cell N='PageWidth' V='3.937007874015748' U='MM'/><Cell N='PageHeight' V='3.937007874015748' U='MM'/><Cell N='ShdwOffsetX' V='0.1181102362204724'/><Cell N='ShdwOffsetY' V='-0.1181102362204724'/><Cell N='PageScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingSizeType' V='0'/><Cell N='DrawingScaleType' V='0'/><Cell N='InhibitSnap' V='0'/><Cell N='PageLockReplace' V='0' U='BOOL'/><Cell N='PageLockDuplicate' V='0' U='BOOL'/><Cell N='UIVisibility' V='0'/><Cell N='ShdwType' V='0'/><Cell N='ShdwObliqueAngle' V='0'/><Cell N='ShdwScaleFactor' V='1'/><Cell N='DrawingResizeType' V='1'/><Cell N='ShapeKeywords' V='数据库,分隔符,分隔线,属性,数据,DB,UML,统一,建模,语言'/></PageSheet><Icon>
+AAABAAEAICAQAAAAAADoAgAAFgAAACgAAAAgAAAAQAAAAAEABAAAAAAAgAIAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAACAAACAAAAAgIAAgAAAAIAAgACAgAAAgICAAMDAwAAAAP8AAP8AAAD//wD/AAAA/w
+D/AP//AAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////////////////A
+AAPD///////////////8PAAD/D//////////////w/wAA//D/////////////D/8AAP//D///////
+////8P//AAD///D//////////w///wAA////D/////////D///8AAP////D///////8P////AAD//
+///D//////w/////wAA//////D/////D/////8AAP//////D///8P//////AAD///////D//w////
+///wAA////////D/D///////8AAP////////AP////////AAD////////wD////////wAA///////
+/D/D///////8AAP//////8P//D///////AAD//////w////D//////wAA//////D/////D/////8A
+AP////8P//////D/////AAD////w////////D////wAA////D/////////D///8AAP//8P///////
+///D///AAD//w////////////D//wAA//D/////////////D/8AAP8P//////////////D/AADw//
+//////////////DwAAD/////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAD/////gAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAA
+AYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABg
+AAAAYAAAAGAAAAB/////w==</Icon><Rel r:id='rId3'/></Master><Master ID='6' NameU='Attribute' IsCustomNameU='1' Name='属性' IsCustomName='1' Prompt='拖到绘图页上，然后连接以指定实体的属性。' IconSize='1' AlignName='2' MatchByName='0' IconUpdate='1' UniqueID='{001B0DB8-0006-0000-8E40-00608CF305B2}' BaseID='{3D347274-269D-4143-AD0D-1F6013280E75}' PatternFlags='0' Hidden='0' MasterType='2'><PageSheet LineStyle='0' FillStyle='0' TextStyle='0'><Cell N='PageWidth' V='3.937007874015748' U='MM'/><Cell N='PageHeight' V='3.937007874015748' U='MM'/><Cell N='ShdwOffsetX' V='0.1181102362204724'/><Cell N='ShdwOffsetY' V='-0.1181102362204724'/><Cell N='PageScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingSizeType' V='0'/><Cell N='DrawingScaleType' V='0'/><Cell N='InhibitSnap' V='0'/><Cell N='PageLockReplace' V='0' U='BOOL'/><Cell N='PageLockDuplicate' V='0' U='BOOL'/><Cell N='UIVisibility' V='0'/><Cell N='ShdwType' V='0'/><Cell N='ShdwObliqueAngle' V='0'/><Cell N='ShdwScaleFactor' V='1'/><Cell N='DrawingResizeType' V='1'/><Cell N='ShapeKeywords' V='数据库,属性,数据,DB,UML,属性,列,统一,建模,语言'/></PageSheet><Icon>
+AAABAAEAICAQAAAAAADoAgAAFgAAACgAAAAgAAAAQAAAAAEABAAAAAAAgAIAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAACAAACAAAAAgIAAgAAAAIAAgACAgAAAgICAAMDAwAAAAP8AAP8AAAD//wD/AAAA/w
+D/AP//AAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////////////////A
+AAPD///////////////8PAAD/D//////////////w/wAA//D/////////////D/8AAP//D///////
+////8P//AAD///D//////////w///wAA////D/////////D///8AAP////D///////8P////AAD//
+///D//////w/////wAA//////D/////D/////8AAP//////D///8P//////AAD///////D//w////
+///wAA////////D/D///////8AAP////////AP////////AAD////////wD////////wAA///////
+/D/D///////8AAP//////8P//D///////AAD//////w////D//////wAA//////D/////D/////8A
+AP////8P//////D/////AAD////w////////D////wAA////D/////////D///8AAP//8P///////
+///D///AAD//w////////////D//wAA//D/////////////D/8AAP8P//////////////D/AADw//
+//////////////DwAAD/////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAD/////gAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAA
+AYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABgAAAAYAAAAGAAAABg
+AAAAYAAAAGAAAAB/////w==</Icon><Rel r:id='rId4'/></Master><Master ID='7' NameU='Relationship' IsCustomNameU='1' Name='关系' IsCustomName='1' Prompt='' IconSize='1' AlignName='2' MatchByName='0' IconUpdate='1' UniqueID='{099E90BC-0007-0000-8E40-00608CF305B2}' BaseID='{A495DC77-2E11-44B3-8562-CF0B860E47F3}' PatternFlags='0' Hidden='0' MasterType='541'><PageSheet LineStyle='0' FillStyle='0' TextStyle='0'><Cell N='PageWidth' V='3.937007874015748' U='MM'/><Cell N='PageHeight' V='3.937007874015748' U='MM'/><Cell N='ShdwOffsetX' V='0.1181102362204724'/><Cell N='ShdwOffsetY' V='-0.1181102362204724'/><Cell N='PageScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingScale' V='0.03937007874015748' U='MM'/><Cell N='DrawingSizeType' V='0'/><Cell N='DrawingScaleType' V='0'/><Cell N='InhibitSnap' V='0'/><Cell N='PageLockReplace' V='0' U='BOOL'/><Cell N='PageLockDuplicate' V='0' U='BOOL'/><Cell N='UIVisibility' V='0'/><Cell N='ShdwType' V='0'/><Cell N='ShdwObliqueAngle' V='0'/><Cell N='ShdwScaleFactor' V='1'/><Cell N='DrawingResizeType' V='1'/><Cell N='ShapeKeywords' V='数据库,关系,数据,DB,UML,统一,建模,语言,关系,连接'/><Section N='Layer'><Row IX='0'><Cell N='Name' V='连接线'/><Cell N='Color' V='255'/><Cell N='Status' V='0'/><Cell N='Visible' V='1'/><Cell N='Print' V='1'/><Cell N='Active' V='0'/><Cell N='Lock' V='0'/><Cell N='Snap' V='1'/><Cell N='Glue' V='1'/><Cell N='NameUniv' V='Connector'/><Cell N='ColorTrans' V='0'/></Row></Section></PageSheet><Icon>
+AAABAAEAICAQAAAAAADoAgAAFgAAACgAAAAgAAAAQAAAAAEABAAAAAAAgAIAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAACAAACAAAAAgIAAgAAAAIAAgACAgAAAgICAAMDAwAAAAP8AAP8AAAD//wD/AAAA/w
+D/AP//AAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAD////////////////////////////////+AAAB////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+////////////////////w==</Icon><Rel r:id='rId5'/></Master></Masters>

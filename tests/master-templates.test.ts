@@ -34,16 +34,26 @@ function loadPack(dir: string): Map<string, { masterType: string; file: string; 
 
 describe('M1 装配机制：官方母版模板', () => {
     it('四类模板模块：条目集合与官方包一致、内容逐字节等价、MasterType 正确', () => {
+        // class 模板库 = 官方 class 包（11 条：含 Rectangle/Dynamic connector 通用件）
+        //              ∪ class-all-in-one 包（16 条：全部类图模板，含 7 类线型母版）
+        // 两包合并为权威全集；条目与内容逐字节比对。
         for (const [dir, tpl] of [
             ['class', kClassTemplates],
             ['ER', kErTemplates],
             ['gantt', kGanttTemplates],
             ['sequence', kSequenceTemplates],
         ] as const) {
-            const pack = loadPack(dir);
-            expect(Object.keys(tpl).length, `${dir} 条目数`).toBe(pack.size);
+            const packs = dir === 'class'
+                ? (() => {
+                      const a = loadPack('class');
+                      const b = loadPack('class-all-in-one');
+                      for (const [k, v] of b) if (!a.has(k)) a.set(k, v);
+                      return a;
+                  })()
+                : loadPack(dir);
+            expect(Object.keys(tpl).length, `${dir} 条目数`).toBe(packs.size);
             for (const [nameU, entry] of Object.entries(tpl)) {
-                const official = pack.get(nameU);
+                const official = packs.get(nameU);
                 expect(official, `${dir}:${nameU} 官方条目存在`).toBeDefined();
                 expect(entry.masterType, `${dir}:${nameU} MasterType`).toBe(Number(official!.masterType));
                 expect(entry.contentXml, `${dir}:${nameU} 内容 verbatim`).toBe(official!.content);

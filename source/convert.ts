@@ -10,7 +10,7 @@ import { MindmapRenderer } from './diag/mindmap.js';
 import { ClassRenderer, classPageSize } from './diag/class.js';
 import { ErRenderer, erPageSize } from './diag/er.js';
 import { GanttRenderer, ganttPageSize } from './diag/gantt.js';
-import { buildDocumentPart } from './common/styles/writer.js';
+import { buildDocumentPart, buildOfficialDocumentPart } from './common/styles/writer.js';
 import { StyleRegistry } from './common/styles/model.js';
 import { injectPrStyles } from './common/styles/pr.js';
 import { buildConnectorStyleXml } from './common/styles/connector.js';
@@ -56,9 +56,16 @@ function wantedClassMasters(m: { classes: Array<{ stereotypes: string[]; attribu
     if (needsMember) push('Member');
     if (needsSep) push('Separator');
     for (const r of m.relations) {
-        if (r.kind === 'dependency') push('Dependency');
+        // 官方模板库（class-all-in-one）每类 mmd 关系线型一个独立母版（MasterType=541）：
+        // 继承→Inheritance、实现→Interface Realization、直接关联→Directed Association、
+        // 聚合→Aggregation、依赖→Dependency、复合→Composition、关联→Association。
+        // 与类/成员/分隔符等同级，不使用"单型+覆写"模拟（旧实现）。
+        if (r.kind === 'inheritance') push('Inheritance');
         else if (r.kind === 'realization') push('Interface Realization');
-        else if (r.kind === 'inheritance') push('Inheritance');
+        else if (r.kind === 'dependency') push('Dependency');
+        else if (r.kind === 'aggregation') push('Aggregation');
+        else if (r.kind === 'composition') push('Composition');
+        else if (r.kind === 'association') push('Directed Association');
     }
     return names;
 }
@@ -110,9 +117,13 @@ function wantedSequenceMasters(m: { actors: Array<{ kind: string }>; messages: A
 export function renderContract(a: ContractA, opts: ConvertOptions = {}): ContractB {
     const parts = [];
     const pageH = a.meta.bounds.maxY;
-    let docXml = buildDocumentPart(new StyleRegistry()).xml;
-    // Connector 样式（标准模板连接线独立样式；所有图型含连接线时注入，5.4.4"样式表跟随内容"）
-    if (!docXml.includes('NameU="Connector"')) {
+    // class：官方 document 基座（StyleSheets ID6=Theme 完整、ID7=Connector、Colors 9 条——母版
+    // 引用 LineStyle/FillStyle='7' 即官方 Connector 样式；旧合成样式表缺 Theme 致黑填充）。
+    // 其它图型：合成样式表 + 注入 Connector(ID5)（原有 5.4.4 语义保持不变）。
+    let docXml = a.kind === 'class'
+        ? buildOfficialDocumentPart().xml
+        : buildDocumentPart(new StyleRegistry()).xml;
+    if (a.kind !== 'class' && !docXml.includes('NameU="Connector"')) {
         docXml = docXml.replace('</StyleSheets>', buildConnectorStyleXml() + '\n</StyleSheets>');
     }
     // gantt：注入 pr 样式家族（gantt 专篇 2.2：24 枚）

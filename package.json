@@ -24,5 +24,10 @@
   "dependencies": {
     "mermaid": "10.9.8",
     "playwright": "1.61.1"
+  },
+  "main": "./dist/convert.js",
+  "exports": {
+    ".": "./dist/convert.js",
+    "./package.json": "./package.json"
   }
 }

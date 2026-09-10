@@ -349,8 +349,13 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                   stereotypes?: string[];
                   attributes?: Array<{ name?: string; visibility?: string }>;
                   operations?: Array<{ name?: string; visibility?: string }>;
+                  x?: number;
+                  y?: number;
+                  width?: number;
+                  height?: number;
               }>;
-              relations?: Array<{ from?: string; to?: string; label?: string; kind?: string }>;
+              relations?: Array<{ from?: string; to?: string; label?: string; kind?: string; fromEdge?: string; toEdge?: string }>;
+              layout?: Record<string, { x: number; y: number; width: number; height: number }>;
           }
         | undefined;
     if (classModel && classModel.classes && classModel.classes.length > 0) {
@@ -368,6 +373,11 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                     name: String(m.name ?? ''),
                     visibility: String(m.visibility ?? ''),
                 })),
+                // mmd 布局保比例：中心点/盒尺寸（行高不一致时仅用比例，位置另行计算）
+                x: num(c.x),
+                y: num(c.y),
+                width: num(c.width),
+                height: num(c.height),
             })),
             relations: (classModel.relations ?? []).map((r) => {
                 const k = String(r.kind ?? '');
@@ -375,9 +385,13 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                     from: String(r.from ?? ''),
                     to: String(r.to ?? ''),
                     label: String(r.label ?? ''),
-                    kind: (['dependency', 'inheritance', 'realization', 'unsupported'] as const).includes(k as never) ? (k as 'dependency' | 'inheritance' | 'realization' | 'unsupported') : 'unsupported',
+                    kind: (['dependency', 'inheritance', 'realization', 'aggregation', 'composition', 'association', 'unsupported'] as const).includes(k as never) ? (k as 'dependency' | 'inheritance' | 'realization' | 'aggregation' | 'composition' | 'association' | 'unsupported') : 'unsupported',
+                    // mmd 边选择（渲染端用边中点，不用 mmd 角点）
+                    fromEdge: r.fromEdge !== undefined ? String(r.fromEdge) : undefined,
+                    toEdge: r.toEdge !== undefined ? String(r.toEdge) : undefined,
                 };
             }),
+            layout: classModel.layout ?? undefined,
         };
     }
     const erModel = snap['erModel'] as

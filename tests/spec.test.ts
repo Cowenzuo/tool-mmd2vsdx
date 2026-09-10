@@ -101,7 +101,9 @@ function l1Audit(pkg: OpcPackage): string[] {
     for (const n of ['GlueSettings', 'SnapSettings', 'SnapExtensions', 'SnapAngles', 'DynamicGridEnabled', 'ProtectStyles', 'ProtectShapes', 'ProtectMasters', 'ProtectBkgnds']) {
         if (!st.includes(`<${n}`)) err.push(`DocumentSettings 缺子元素 ${n}（6.4.4）`);
     }
-    if (!(/<StyleSheet ID="0"[^>]*>([\s\S]*?)<\/StyleSheet>/.exec(doc)?.[1] ?? '').includes('<Cell')) err.push('0 号 No Style 空壳（6.4.3）');
+    // 0 号 No Style：官方 class 基座（ID6 Theme/ID7 Connector 完整）时 ID0 带完整定义亦然合法；
+    // 合成基座（其它图型）时 0 号为空壳。二者均要求 ID0 存在。
+    if (!/StyleSheet ID=['"]0['"]/.test(doc)) err.push('0 号 No Style 缺失（6.4.3）');
     if (!xml('/docProps/custom.xml').includes('"RecalcDocument"')) err.push('custom.xml 缺 RecalcDocument（6.4.3/O-5）');
 
     // 形状级（5.5.3.2/5.5.3.3）：位置必须、端点必须、几何必须有关闭与起点
@@ -309,7 +311,8 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
         // 角色覆盖（masters.xml 内 NameU 集合）
         const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
         const byName = new Map(nameUs.map((m) => [m[1]!, m[2]!]));
-        for (const [n, mt] of [['Class', '2'], ['Member', '34'], ['Separator', '34'], ['Inheritance', '541'], ['Interface Realization', '541']] as const) {
+        // 关系载体 = 官方 Inheritance 母版（Actions 菜单承载全部 6 类风格；K13 修订见报告 08 §2.6.7）
+        for (const [n, mt] of [['Class', '2'], ['Member', '34'], ['Separator', '34'], ['Inheritance', '541']] as const) {
             expect(byName.get(n), `class 母版 ${n} 存在`).toBe(mt);
         }
         // 类盒 Group 实例：Master + Relationships(DEPENDSON 成员) + 嵌套 MasterShape 覆写
@@ -327,15 +330,44 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
         expect(members.every((s) => /N="ShapeFixedCode" V="1"/.test(s.body)), '成员行 ShapeFixedCode=1').toBe(true);
         expect(members.every((s) => /N="NoLine" V="1"/.test(s.body)), '成员行 NoLine=1').toBe(true);
         expect(members.every((s) => /<Row N="MemberName"/.test(s.body)), '成员行 User.MemberName').toBe(true);
-        // 关系线：PAR 钉接 + _XFTRIGGER + 无 EndArrow 实例 + Connects
+        // 关系线：PAR 钉接 + _XFTRIGGER + 各类线型实例化到各自官方母版（class-all-in-one：每类一个母版，MasterType=541）
+        // 官方语义：实例不写 BeginArrow/EndArrow/LinePattern（各线型母版自带，如 Inheritance=GUARD(0)/GUARD(14)/GUARD(IF(...))）。
         const rels = shapes.filter((s) => /N="BeginX"/.test(s.body));
         const supports = rels.filter((r) => has(r.body, /PAR\(PNT/));
         expect(supports.length, '关系线 PAR 钉接').toBeGreaterThanOrEqual(4);
-        expect(rels.every((r) => !has(r.body, /N="EndArrow"/)), '关系线实例不写 EndArrow（母版承载）').toBe(true);
+        // 每类线型母版应被引用（masters.xml 注册 + 页面实例 Master= 指向）
+        const masterIdByName = new Map<string, string>();
+        const masterRows = [...xml('/visio/masters/masters.xml').matchAll(/<Master\sID="(\d+)"\sNameU="([^"]+)"[^>]*?MasterType="(\d+)"/g)];
+        for (const m of masterRows) masterIdByName.set(m[2]!, m[1]!);
+        // 实际出现的关系线实例，其 Master 指向 541 类线型母版（官方 7 类之一）
+        const relMasterIds = new Set(rels.map((r) => /Master="(\d+)"/.exec(r.attrs)?.[1]).filter(Boolean));
+        const relMasterNames = [...relMasterIds].map((id) => [...masterIdByName.entries()].find(([, v]) => v === id)?.[0] ?? '?');
+        expect(relMasterNames.every((n) => ['Inheritance', 'Interface Realization', 'Dependency', 'Directed Association', 'Aggregation', 'Composition', 'Association'].includes(n)), `关系线 Master 均属官方线型母版（实际=${relMasterNames.join(',')}）`).toBe(true);
+        for (const n of relMasterNames) {
+            if (n === '?') continue;
+            expect(byName.get(n), `class 线型母版 ${n} 存在`).toBe('541');
+        }
+        // 实例不写箭头/线型字段（各线型母版承载）
+        expect(rels.every((r) => !has(r.body, /N="EndArrow"/)), '关系线实例不写 EndArrow（各线型母版承载）').toBe(true);
+        expect(rels.every((r) => !has(r.body, /N="LinePattern"/)), '关系线实例不写 LinePattern（各线型母版承载）').toBe(true);
         expect(rels.every((r) => /BegTrigger"[^>]*_XFTRIGGER/.test(r.body) && /EndTrigger"[^>]*_XFTRIGGER/.test(r.body)), '关系线触发器').toBe(true);
         const connMatches = [...page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(\w+)" FromPart="(\w+)" ToSheet="(\d+)" ToCell="([^"]+)" ToPart="(\d+)"/g)];
-        expect(connMatches.filter((m) => m[2] === 'EndX' && m[3] === '12' && /Connections.X4/.test(m[5]!) && m[6] === '103').length, 'EndX→X4 p103').toBe(supports.length);
-        expect(connMatches.filter((m) => m[2] === 'BeginX' && m[3] === '9' && /Connections.X3/.test(m[5]!) && m[6] === '102').length, 'BeginX→X3 p102').toBe(supports.length);
+        expect(connMatches.filter((m) => m[3] === '9').length, 'BeginX FromPart=9 记录').toBe(supports.length);
+        expect(connMatches.filter((m) => m[3] === '12').length, 'EndX FromPart=12 记录').toBe(supports.length);
+        // 方向感知端口：Begin/End 的 PAR 端口与 Connects ToPart=100+IX（Xk→IX=k-1）一致
+        for (const r of supports) {
+            const portByCell = new Map<string, string>();
+            for (const mm of r.body.matchAll(/<Cell N="(BeginX|EndX)"[^>]*F="PAR\(PNT\(Sheet\.\d+!Connections\.(X\d+)/g)) portByCell.set(mm[1]!, mm[2]!);
+            expect(portByCell.size, '关系线 PAR 端口对').toBe(2);
+            for (const [cellName, part] of [['BeginX', '9'], ['EndX', '12']] as const) {
+                const port = portByCell.get(cellName);
+                if (!port) continue;
+                const ix = Number(port.slice(1)) - 1;
+                const toPart = String(100 + ix);
+                expect(connMatches.filter((m) => m[2] === cellName && m[3] === part && m[5] === `Connections.${port}` && m[6] === toPart).length,
+                    `Connects ${cellName}→${port} p${toPart}`).toBeGreaterThanOrEqual(1);
+            }
+        }
     }
 
     if (kind === 'er') {

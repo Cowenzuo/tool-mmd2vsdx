@@ -79,7 +79,7 @@
                         return { ok: true, data: window.__mmdExtractXY(dbDiagram) };
                     }
                     if (diagramType === 'classDiagram' && typeof window.__mmdExtractClass === 'function') {
-                        return { ok: true, data: window.__mmdExtractClass(dbDiagram) };
+                        return { ok: true, data: window.__mmdExtractClass(dbDiagram, svgEl) };
                     }
                     if (diagramType === 'er' && typeof window.__mmdExtractER === 'function') {
                         return { ok: true, data: window.__mmdExtractER(dbDiagram) };

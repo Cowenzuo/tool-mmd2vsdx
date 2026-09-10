@@ -19,8 +19,8 @@ const kInsetRel = 0.07687385795284207;    // 关系线内缩缓存（ER 样本�
 const kTipRel = 0.1464709820853771;       // 关系 Begin 角子形状 PinY 缓存（MM，向点内）
 const kTipX2 = 2.658318747582445;         // 关系 End 角子形状 PinX 缓存（MM）
 const kTipY2 = 2.389731257987676;         // 关系 End 角子形状 PinY 缓存（MM）
+const kMemberW = 2.559055118110236;       // 属性行宽 = 盒宽（官方 ER 样本实测 65MM 的英寸值）
 
-const MM = 25.4;
 const f6 = (v: number) => String(Math.round(v * 1e6) / 1e6);
 
 /** 布局（单列纵向链；单位 IN）。 */
@@ -189,29 +189,31 @@ function writeModel(ctx: Ctx, m: ErModel): void {
         for (const k of [k6, k7, k8]) kids.children.push(k);
         box.children.push(kids);
 
+        // 官方序列：盒在前、其属性行在后（属性行画在盒之上，形成整体）
+        ctx.shapes.push(box);
+
         // 属性行：主键 → 分隔线 → 普通属性（ItemIndex 1/2/3+…，官方样本序）
         const memberIds: number[] = [];
         let y = g.y + g.h / 2 - 0.6 - 0.125;
         let itemIndex = 1;
         for (const at of e.attributes.filter((x) => x.primaryKey)) {
-            memberIds.push(writeAttrRow(ctx, true, boxId, n8, g.x, y, g.w - 0.1, at, itemIndex));
+            memberIds.push(writeAttrRow(ctx, true, boxId, n8, g.x, y, at, itemIndex));
             y -= 0.25;
             itemIndex += 1;
         }
         if (e.attributes.some((x) => x.primaryKey) && e.attributes.some((x) => !x.primaryKey)) {
-            writePkSeparator(ctx, boxId, n8, g.x, y, g.w - 0.1);
+            writePkSeparator(ctx, boxId, n8, g.x, y);
             y -= 0.25;
             itemIndex += 1;
         }
         for (const at of e.attributes.filter((x) => !x.primaryKey)) {
-            memberIds.push(writeAttrRow(ctx, false, boxId, n8, g.x, y, g.w - 0.1, at, itemIndex));
+            memberIds.push(writeAttrRow(ctx, false, boxId, n8, g.x, y, at, itemIndex));
             y -= 0.25;
             itemIndex += 1;
         }
         const relCell = cell('Relationships', '0', undefined,
-            `SUM(DEPENDSON(${n6},${memberIds.map((id) => `Sheet.${id}!SheetRef()`).join(',')}))`);
+            `SUM(DEPENDSON(2,${memberIds.map((id) => `Sheet.${id}!SheetRef()`).join(',')}))`);
         box.children[4] = relCell;
-        ctx.shapes.push(box);
     }
     for (const r of m.relations) {
         const src = ctx.ids.get(r.from);
@@ -239,12 +241,14 @@ function connectRec(fromSheet: number, fromCell: string, fromPart: number, toShe
 }
 
 /** 属性行实例（PK/普通；官方模式：LISTSHEETREF + ItemIndex + 几何 X 行；PK 行 ObjType=1；
- *  普通行带 DarkerColor/DarkColor/BackFillColor/BackLineColor + Character/Paragraph 行）。 */
-function writeAttrRow(ctx: Ctx, isPk: boolean, boxId: number, n8Id: number, cx: number, y: number, w: number, at: ErEntity['attributes'][number], itemIndex: number): number {
+ *  普通行带 DarkerColor/DarkColor/BackFillColor/BackLineColor + Character/Paragraph 行）。
+ *  单位语义（同 class 实测）：单元格 V 数值 = 页内英寸值，U='MM' 仅为母版单位标签——
+ *  ER 官方样本 属性行 Width V=2.559055118110236（=盒宽 65MM 的英寸值）。 */
+function writeAttrRow(ctx: Ctx, isPk: boolean, boxId: number, _n8Id: number, cx: number, y: number, at: ErEntity['attributes'][number], itemIndex: number): number {
+    void _n8Id;
     const masterName = isPk ? 'Primary Key Attribute' : 'Attribute';
     const masterId = ctx.masterIds.get(masterName) ?? 0;
     const id = ctx.nextId++;
-    const wmm = f6(w * MM);
     const text = `${at.type} ${at.name}${at.primaryKey ? ' PK' : ''}`.trim();
     const el = newShapeNode();
     setAttribute(el, 'ID', String(id));
@@ -252,13 +256,13 @@ function writeAttrRow(ctx: Ctx, isPk: boolean, boxId: number, n8Id: number, cx: 
     setAttribute(el, 'Type', 'Group');
     if (masterId > 0) setAttribute(el, 'Master', String(masterId));
     el.children.push(
-        cell('PinX', f6(cx)),
-        cell('PinY', f6(y)),
-        cell('Width', wmm, 'MM', 'IFERROR(LISTSHEETREF()!Controls.ROW_1-User.ContainerMargin*2,User.UserWidth)'),
-        cell('LocPinX', f6(w * MM / 2), 'MM', 'Inh'),
-        cell('Relationships', '0', undefined, `SUM(DEPENDSON(${n8Id},Sheet.${boxId}!SheetRef()))`),
+        cell('PinX', String(cx)),
+        cell('PinY', String(y)),
+        cell('Width', String(kMemberW), 'MM', 'IFERROR(LISTSHEETREF()!Controls.ROW_1-User.ContainerMargin*2,User.UserWidth)'),
+        cell('LocPinX', String(kMemberW / 2), 'MM', 'Inh'),
+        cell('Relationships', '0', undefined, `SUM(DEPENDSON(5,Sheet.${boxId}!SheetRef()))`),
         cell('ShapeFixedCode', '1'),
-        cell('TxtWidth', wmm, 'MM', 'Inh'),
+        cell('TxtWidth', String(kMemberW), 'MM', 'Inh'),
     );
     if (isPk) el.children.push(cell('ObjType', '1'));
     el.children.push(section('User', [
@@ -280,11 +284,11 @@ function writeAttrRow(ctx: Ctx, isPk: boolean, boxId: number, n8Id: number, cx: 
         el.children.push(section('Character', [row(undefined, 0, undefined, [cell('Color', '0', undefined, 'Inh')])]));
     }
     el.children.push(section('Connection', [
-        row('Connection', 1, undefined, [cell('X', wmm, 'MM', 'Inh')]),
+        row('Connection', 1, undefined, [cell('X', String(kMemberW), 'MM', 'Inh')]),
     ]));
     el.children.push(section('Geometry', [
-        row('LineTo', 2, undefined, [cell('X', wmm, 'MM', 'Inh')]),
-        row('LineTo', 3, undefined, [cell('X', wmm, 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('X', String(kMemberW), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', String(kMemberW), 'MM', 'Inh')]),
     ]));
     el.children.push(textEl(text));
     ctx.shapes.push(el);
@@ -292,28 +296,28 @@ function writeAttrRow(ctx: Ctx, isPk: boolean, boxId: number, n8Id: number, cx: 
 }
 
 /** 主键分隔线实例（官方模式：ContainerMargin + 几何 IX2）。 */
-function writePkSeparator(ctx: Ctx, boxId: number, n8Id: number, cx: number, y: number, w: number): void {
+function writePkSeparator(ctx: Ctx, boxId: number, _n8Id: number, cx: number, y: number): void {
+    void _n8Id;
     const masterId = ctx.masterIds.get('Primary Key Separator') ?? 0;
     const id = ctx.nextId++;
-    const wmm = f6(w * MM);
     const el = newShapeNode();
     setAttribute(el, 'ID', String(id));
     setAttribute(el, 'NameU', sel(ctx, 'Primary Key Separator', id));
     setAttribute(el, 'Type', 'Shape');
     if (masterId > 0) setAttribute(el, 'Master', String(masterId));
     el.children.push(
-        cell('PinX', f6(cx)),
-        cell('PinY', f6(y)),
-        cell('Width', wmm, 'MM', 'IFERROR(LISTSHEETREF()!Controls.ROW_1-User.ContainerMargin*2,48MM)'),
-        cell('LocPinX', f6(w * MM / 2), 'MM', 'Inh'),
-        cell('Relationships', '0', undefined, `SUM(DEPENDSON(${n8Id},Sheet.${boxId}!SheetRef()))`),
+        cell('PinX', String(cx)),
+        cell('PinY', String(y)),
+        cell('Width', String(kMemberW), 'MM', 'IFERROR(LISTSHEETREF()!Controls.ROW_1-User.ContainerMargin*2,48MM)'),
+        cell('LocPinX', String(kMemberW / 2), 'MM', 'Inh'),
+        cell('Relationships', '0', undefined, `SUM(DEPENDSON(5,Sheet.${boxId}!SheetRef()))`),
         cell('ShapeFixedCode', '1'),
     );
     el.children.push(section('User', [
         userRow('ContainerMargin', '0', undefined, 'IFERROR(LISTSHEETREF()!User.MSVSDCONTAINERMARGIN,0)'),
     ]));
     el.children.push(section('Geometry', [
-        row('LineTo', 2, undefined, [cell('X', wmm, 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('X', String(kMemberW), 'MM', 'Inh')]),
     ]));
     ctx.shapes.push(el);
 }

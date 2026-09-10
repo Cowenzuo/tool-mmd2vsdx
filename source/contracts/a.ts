@@ -129,20 +129,37 @@ export interface ClassBox {
     stereotypes: string[];
     attributes: ClassMember[];
     operations: ClassMember[];
+    /** mmd 布局（保比例）：中心 + 盒尺寸（px）；行高不一致，仅用于相对位置。 */
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
 }
 
-export type ClassRelationKind = 'dependency' | 'inheritance' | 'realization' | 'unsupported';
+export interface ClassLayoutItem {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+export type ClassRelationKind = 'dependency' | 'inheritance' | 'realization' | 'aggregation' | 'composition' | 'association' | 'unsupported';
 
 export interface ClassRelation {
     from: string;
     to: string;
     label: string;
     kind: ClassRelationKind;
+    /** mmd 边选择（left/right/top/bottom）：渲染端取盒边中点连接；缺则按轴优选取边。 */
+    fromEdge?: string;
+    toEdge?: string;
 }
 
 export interface ClassModel {
     classes: ClassBox[];
     relations: ClassRelation[];
+    /** mmd 布局全集（类名 → 中心/尺寸），缺失则不启用比例布局。 */
+    layout?: Record<string, ClassLayoutItem>;
 }
 
 // ── er 扩展块 ──
