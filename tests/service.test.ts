@@ -117,7 +117,7 @@ describe('service：批量', () => {
             { file: 'from-file.mmd' },
         ], 'batch-out');
         expect(r.total).toBe(3);
-        expect(r.ok).toBe(2);
+        expect(r.succeeded).toBe(2);
         expect(r.failed).toBe(1);
         expect(r.results[1]?.ok).toBe(false);
         expect(r.results[1]?.error?.code).toBe('parse_error');

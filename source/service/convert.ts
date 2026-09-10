@@ -52,7 +52,7 @@ export interface BatchItemResult {
 export interface BatchReceipt {
     outDir: string;
     total: number;
-    ok: number;
+    succeeded: number;
     failed: number;
     results: BatchItemResult[];
 }
@@ -159,8 +159,8 @@ export async function convertBatch(
             results.push({ index, ok: false, error: toServiceError(e).info() });
         }
     }
-    const ok = results.filter((r) => r.ok).length;
-    return { outDir: dir, total: results.length, ok, failed: results.length - ok, results };
+    const succeeded = results.filter((r) => r.ok).length;
+    return { outDir: dir, total: results.length, succeeded, failed: results.length - succeeded, results };
 }
 
 /** 同名冲突时加序号，保证同一批内文件名唯一。 */

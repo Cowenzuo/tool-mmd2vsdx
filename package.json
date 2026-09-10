@@ -26,8 +26,12 @@
     "playwright": "1.61.1"
   },
   "main": "./dist/convert.js",
+  "bin": {
+    "mmd2vsdx": "./bin/mmd2vsdx.mjs"
+  },
   "exports": {
     ".": "./dist/convert.js",
+    "./service": "./dist/service/index.js",
     "./package.json": "./package.json"
   }
 }
