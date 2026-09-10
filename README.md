@@ -63,9 +63,9 @@ npm run build
 - `docs/bench.md` — 性能冒烟基线
 - `docs/architecture/` — 架构文档（模块结构/数据流/审核报告/结构图）
 - `docs/research/` — Visio 产物内部结构研究（逐图类型解包剖析，实证认知库）
-- `docs/archived/` — 过程文件与历史参考（移植规划/源工程文档，**v1.0 定版后移除**）
-- `resources/test-examples/` — 验收样本三件套（mmd-input 源稿 /
-  svg-json-medium 浏览器快照 / vsdx-output 金标准参照）
+- 历史参考材料已随 git 历史保留（原 docs/archived 区已移除）
+- `resources/test-examples/` — 验收输入与产物：mmd-input 源稿 /
+  svg-json-medium 浏览器快照 / vsdx-output 产物（旧实现基线已移除）
 - `resources/visio-template|binary/` — 官方模具与提取物（仅本地开发用，不入库）
 
 ## 状态

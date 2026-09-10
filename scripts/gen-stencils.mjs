@@ -6,16 +6,13 @@
  *   visio/masters/masters.xml、visio/masters/_rels/masters.xml.rels、
  *   rels 引用的 masterN.xml、document.xml 中的 StyleSheets/Colors/FaceNames
  *   （包为 <VisioStyles> 根），每模具压缩为 gzip(base64(JSON)) 资产，写入
- *   src/vsdxdoc/masters/stencilData.ts。
+ *   resources/visio-binary/stencil-data.json。
  *
  * 说明：
  *   - 本脚本自包含（不含 ZIP 三方库）：内嵌轻量 zip 读取（EOCD+中央目录+
- *     inflateRawSync），与 src/opcpkg/zipArchive.ts 同源语义、仅服务读取；
- *   - 产物 stencil-data.json 提交仓库（开发资产，resources/visio-binary/）。运行时
- *     "资产供应"设计（docs/architecture 03 §G-9 落地）：npm 包不随分此资产——
- *     目标机首次转换自动搜寻本机 Visio 官方模具现场提取，或经
- *     --stencil-dir（模具目录）/ --stencil-asset（本产物文件，私自分发形态）
- *     显式导入；本产物同时供开发/CI/测试加载；
+ *     inflateRawSync），仅服务读取；
+ *   - 产物 stencil-data.json 只供本地开发/测试加载（运行期读取见
+ *     source/common/masters/assets.ts）；官方模具原件与提取物不随分发（合规红线）；
  *   - 用法：node scripts/gen-stencils.mjs [visio_dir] [out_json]
  * 默认 visio_dir=resources/visio-template，out=resources/visio-binary/stencil-data.json
  */
@@ -127,8 +124,8 @@ for (const f of files) {
 mkdirSync(path.dirname(outFile), { recursive: true });
 const json = JSON.stringify(data);
 // 资产文件 = 纯 JSON：key=stencil 名，value=gzip(base64(JSON{mastersXml, relsXml?,
-// contents:{fileName:xml}, stylesXml?}))。运行时由 src/vsdxdoc/masters/stencilAssets.ts
-// 读取（包不分发此文件；本产物 = 开发/CI/私自分发形态 B）。
+// contents:{fileName:xml}, stylesXml?}))。运行时由 source/common/masters/assets.ts
+// 读取（包不分发此文件；本产物 = 开发/CI 用）。
 writeFileSync(outFile, json + '\n');
 const total = Buffer.byteLength(json);
 console.log(`written ${outFile} (${total} bytes ≈ ${Math.round(total / 1024)} KB)`);

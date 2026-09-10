@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// check-architecture.mjs — 分层依赖守门（结构红线可执行化）
+// check-architecture.mjs — 新结构分层依赖守门（结构红线可执行化）
 // 用法：node scripts/check-architecture.mjs（package.json: check:arch）
 //
-// 规则 = 分层白名单矩阵（与 docs/architecture/00-模块结构与边界.md §一 一致）：
-//   - 组粒度：cli / app / vsdxdoc 六子包(vxt|translate|docmodel|render|masters|serialize)
-//     / mmdtransform / snapshot / opcpkg / xml / core；
+// 规则 = 分组白名单（与 docs/architecture/00-模块结构与边界.md §依赖规则 一致）：
+//   - 组粒度：source/ 顶层一目录一组（convert 为编排入口组）；
 //   - 同组互引一律放行；跨组边必须在白名单内；
-//   - 白名单方向即架构方向：反向边（如 render→translate）与越层边（core 被依赖方
-//     反向依赖业务层等）都会在这里被拦下（exit 1）。
+//   - 白名单方向即架构方向：契约层只被依赖；common/xml/opc 为共用与基础；
+//     diag-* 只允许依赖 契约+公用+基础；编排入口 convert 允许依赖一切（人不依赖 convert）；
+//   - 测试文件（*.test.ts）走门面组合，不参与依赖红线。
 // 维护：架构调整须同时更新本文件白名单与架构文档（先审后放行，勿静默扩权）。
 
 import fs from 'node:fs';
@@ -15,49 +15,51 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const srcDir = path.resolve(here, '..', 'src');
+const srcDir = path.resolve(here, '..', 'source');
 
 /** 依赖白名单（目标组 ← 源组；条目含义 = "源组允许依赖目标组"）。 */
 const kAllowed = new Set([
-    // 入口/编排
-    'cli>app',
-    'app>core', 'app>mmdtransform', 'app>opcpkg', 'app>vxt',
-    'app>masters', // 资产运行时供应门面（stencilAssets：configureStencils/懒加载）
-    // 业务层内部子包
-    'translate>docmodel', 'translate>masters', 'translate>opcpkg',
-    'translate>render', 'translate>serialize', 'translate>xml', 'translate>core',
-    'docmodel>core', 'docmodel>masters', 'docmodel>opcpkg', 'docmodel>xml',
-    'render>core', 'render>docmodel', 'render>masters', 'render>xml',
-    'masters>core', 'masters>opcpkg', 'masters>xml',
-    'serialize>core', 'serialize>docmodel', 'serialize>opcpkg', 'serialize>xml',
-    'vxt>core', 'vxt>serialize', 'vxt>translate',
-    // IR 与容器/基础
-    'mmdtransform>core', 'mmdtransform>snapshot',
-    'snapshot>core',
-    'opcpkg>core', 'opcpkg>xml',
+    // 入口/编排（仅 convert；无人依赖 convert）
+    'convert>contracts', 'convert>common', 'convert>xml', 'convert>opc', 'convert>parser',
+    'convert>diag-common', 'convert>diag-pie', 'convert>diag-quadrant', 'convert>diag-git',
+    'convert>diag-sequence', 'convert>diag-mindmap', 'convert>diag-c4', 'convert>diag-xy',
+    'convert>diag-class', 'convert>diag-er', 'convert>diag-gantt',
+    'convert>xml-parts', 'convert>squeeze',
+    // 解析层：只进契约与公用
+    'parser>contracts', 'parser>common',
+    // 转义层各包：契约 + 公用 + 基础
+    'diag-common>contracts', 'diag-common>common', 'diag-common>xml',
+    'diag-pie>contracts', 'diag-pie>common', 'diag-pie>xml',
+    'diag-quadrant>contracts', 'diag-quadrant>common', 'diag-quadrant>xml',
+    'diag-git>contracts', 'diag-git>common', 'diag-git>xml',
+    'diag-sequence>contracts', 'diag-sequence>common', 'diag-sequence>xml',
+    'diag-mindmap>contracts', 'diag-mindmap>common', 'diag-mindmap>xml',
+    'diag-class>contracts', 'diag-class>common', 'diag-class>xml',
+    'diag-er>contracts', 'diag-er>common', 'diag-er>xml',
+    'diag-gantt>contracts', 'diag-gantt>common', 'diag-gantt>xml',
+    // 打包层
+    'xml-parts>contracts', 'xml-parts>xml', 'xml-parts>opc',
+    'squeeze>contracts', 'squeeze>opc',
+    // 基础层
+    'opc>xml',
+    // 公用库（形状/母版/样式写手）：契约 + 基础
+    'common>contracts', 'common>xml',
 ]);
 
 function groupOf(p) {
     const r = path.relative(srcDir, p).replaceAll('\\', '/');
-    if (r === 'cli.ts') return 'cli';
-    if (r.startsWith('app/')) return 'app';
-    if (r.startsWith('vsdxdoc/')) {
-        const rest = r.slice('vsdxdoc/'.length);
-        const i = rest.indexOf('/');
-        return i < 0 ? 'vxt' : rest.slice(0, i);
-    }
     const top = r.split('/')[0];
     if (top === undefined) throw new Error('unmapped: ' + r);
-    return top;
+    return top.replace(/\.ts$/, '');
 }
 
-// ── 收集 src/**/*.ts 的相对 import 边 ──
+// ── 收集 source/**/*.ts（非测试）的相对 import 边 ──
 const files = [];
 (function walk(d) {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
         const p = path.join(d, e.name);
         if (e.isDirectory()) walk(p);
-        else if (e.name.endsWith('.ts')) files.push(p);
+        else if (e.name.endsWith('.ts') && !e.name.endsWith('.test.ts')) files.push(p);
     }
 })(srcDir);
 
