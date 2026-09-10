@@ -29,9 +29,16 @@
   "bin": {
     "mmd2vsdx": "./bin/mmd2vsdx.mjs"
   },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": "./dist/convert.js",
     "./service": "./dist/service/index.js",
+    "./dist/*": "./dist/*",
     "./package.json": "./package.json"
   }
 }
