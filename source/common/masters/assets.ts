@@ -6,6 +6,10 @@
 // relsXml），其中 ID/NameU/文件名由构建期填充。
 
 import { kMasterTemplates, type MasterTemplateSet } from './templates.js';
+import { kClassTemplates, type TypeMasterEntry } from './templates/class.js';
+import { kErTemplates } from './templates/er.js';
+import { kGanttTemplates } from './templates/gantt.js';
+import { kSequenceTemplates } from './templates/sequence.js';
 
 export interface StencilRecord {
     mastersXml: string;
@@ -55,20 +59,26 @@ export function findMasterInCatalog(catalog: MasterCatalog, nameU: string): Sten
     return null;
 }
 
-/** 构建默认目录：节点记录（basic 家族 5 种）+ 连接线记录（flowchart 家族 1 种）。 */
+/** 构建默认目录：节点记录（basic 家族 5 种）+ 连接线记录（flowchart 家族 1 种）
+ *  + 专用图型类型记录（class/ER/gantt/sequence，取自官方模板解压包 verbatim，
+ *  见 templates/ 下的生成模块；文件序号防撞：1/50/100/150/200/250）。 */
 export function buildMasterCatalog(): MasterCatalog | null {
     const nodeRec = buildRecord(filterNodes(kMasterTemplates), kMasterTemplates.bsRelsXml, 1);
     const connRec = buildRecord(filterConnector(kMasterTemplates), kMasterTemplates.fcRelsXml, 50);
-    const records = [nodeRec, connRec].filter((r): r is StencilRecord => r !== null);
+    const classRec = buildRecord(kClassTemplates, '', 100);
+    const erRec = buildRecord(kErTemplates, '', 150);
+    const ganttRec = buildRecord(kGanttTemplates, '', 200);
+    const seqRec = buildRecord(kSequenceTemplates, '', 250);
+    const records = [nodeRec, connRec, classRec, erRec, ganttRec, seqRec].filter((r): r is StencilRecord => r !== null);
     return records.length === 0 ? null : { records };
 }
 
-/** 过滤出节点模板（5 种 basic 家族，不含连接线）。 */
-function filterNodes(t: MasterTemplateSet): Record<string, { contentXml: string }> {
-    const out: Record<string, { contentXml: string }> = {};
+/** 过滤出节点模板（5 种 basic 家族，不含连接线；MasterType=2）。 */
+function filterNodes(t: MasterTemplateSet): Record<string, TypeMasterEntry> {
+    const out: Record<string, TypeMasterEntry> = {};
     for (const [name, e] of Object.entries(t.entries)) {
         if (name === 'Dynamic connector') continue;
-        out[name] = e;
+        out[name] = { masterType: 2, contentXml: e.contentXml };
     }
     return out;
 }
@@ -77,7 +87,7 @@ function filterNodes(t: MasterTemplateSet): Record<string, { contentXml: string 
  *  rId 连续——目录条目由本函数构建，不沿用原始 rId/文件名）。
  *  @param startIndex 内容文件名起始序号（跨记录目录防撞名：连接线记录从 50 起）。 */
 export function buildRecord(
-    entries: Record<string, { contentXml: string }>,
+    entries: Record<string, TypeMasterEntry>,
     _relsHead?: string,
     startIndex = 1,
 ): StencilRecord | null {
@@ -91,9 +101,10 @@ export function buildRecord(
     let fileIndex = startIndex;
     for (const name of names) {
         const e = entries[name]!;
+        const masterType = e.masterType ?? 2;
         const fileName = `master${fileIndex++}.xml`;
         const relId = `rId${relIndex++}`;
-        const entry = `<Master ID="${id}" NameU="${escapeXml(name)}" IsCustomNameU="1" Name="${escapeXml(name)}" IsCustomName="1" BaseID="{F7290A45-E3AD-11D2-AE4F-006008C9F5A9}" PatternFlags="0" Hidden="0" MasterType="2"><PageSheet LineStyle="0" FillStyle="0" TextStyle="0"><Cell N="PageWidth" V="3.937007874015748" U="MM"/><Cell N="PageHeight" V="3.937007874015748" U="MM"/><Cell N="PageScale" V="0.03937007874015748" U="MM"/><Cell N="DrawingScale" V="0.03937007874015748" U="MM"/></PageSheet><Rel r:id="${relId}"/></Master>`;
+        const entry = `<Master ID="${id}" NameU="${escapeXml(name)}" IsCustomNameU="1" Name="${escapeXml(name)}" IsCustomName="1" BaseID="{F7290A45-E3AD-11D2-AE4F-006008C9F5A9}" PatternFlags="0" Hidden="0" MasterType="${masterType}"><PageSheet LineStyle="0" FillStyle="0" TextStyle="0"><Cell N="PageWidth" V="3.937007874015748" U="MM"/><Cell N="PageHeight" V="3.937007874015748" U="MM"/><Cell N="PageScale" V="0.03937007874015748" U="MM"/><Cell N="DrawingScale" V="0.03937007874015748" U="MM"/></PageSheet><Rel r:id="${relId}"/></Master>`;
         masters.push(entry);
         contents[fileName] = e.contentXml;
         rels.push(`<Relationship Id="${relId}" Type="http://schemas.microsoft.com/visio/2010/relationships/master" Target="${fileName}"/>`);
@@ -110,11 +121,11 @@ function escapeXml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** 过滤出连接线模板（Dynamic connector 单枚）。 */
-function filterConnector(t: MasterTemplateSet): Record<string, { contentXml: string }> {
-    const out: Record<string, { contentXml: string }> = {};
+/** 过滤出连接线模板（Dynamic connector 单枚；MasterType=541）。 */
+function filterConnector(t: MasterTemplateSet): Record<string, TypeMasterEntry> {
+    const out: Record<string, TypeMasterEntry> = {};
     const e = t.entries['Dynamic connector'];
-    if (e) out['Dynamic connector'] = e;
+    if (e) out['Dynamic connector'] = { masterType: 541, contentXml: e.contentXml };
     return out;
 }
 

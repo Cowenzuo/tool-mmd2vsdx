@@ -60,17 +60,17 @@ function mustParts(pkg: OpcPackage): string[] {
 }
 
 /** 栈式 Shape 解析（嵌套 Group 子形状正确配对；避免被嵌套 Shape 切割）。 */
-function parseAllShapes(page: string): Array<{ id: string; attrs: string; body: string }> {
-    const out: Array<{ id: string; attrs: string; body: string }> = [];
-    const stack: Array<{ id: string; attrs: string; start: number }> = [];
+function parseAllShapes(page: string): Array<{ id: string; attrs: string; body: string; nested?: boolean }> {
+    const out: Array<{ id: string; attrs: string; body: string; nested?: boolean }> = [];
+    const stack: Array<{ id: string; attrs: string; start: number; nested: boolean }> = [];
     const re = /<Shape\sID="(\d+)"([^>]*)>|<\/Shape>/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(page))) {
         if (m[0] === '</Shape>') {
             const top = stack.pop();
-            if (top) out.push({ id: top.id, attrs: top.attrs, body: page.slice(top.start, m.index) });
+            if (top) out.push({ id: top.id, attrs: top.attrs, body: page.slice(top.start, m.index), nested: top.nested });
         } else {
-            stack.push({ id: m[1]!, attrs: m[2]!, start: re.lastIndex });
+            stack.push({ id: m[1]!, attrs: m[2]!, start: re.lastIndex, nested: stack.length > 0 });
         }
     }
     return out;
@@ -107,26 +107,40 @@ function l1Audit(pkg: OpcPackage): string[] {
     // 形状级（5.5.3.2/5.5.3.3）：位置必须、端点必须、几何必须有关闭与起点
     const shapes = parseAllShapes(page);
     const masterXmls = [...pkg.listUris().filter((u) => /^\/visio\/masters\/master\d+\.xml$/.test(u)).map((u) => xml(u))];
+    // 母版 ID → MasterType（Link lines/Activation 等 MT=1 一维家族走母版自足语义，无 GlueType）
+    const mtById = new Map<string, string>();
+    for (const m of xml('/visio/masters/masters.xml').matchAll(/<Master ID="(\d+)"[^>]*MasterType="(\d+)"/g)) mtById.set(m[1]!, m[2]!);
     for (const s of shapes) {
+        const isNested = s.nested === true;
+        const isMasterInst = /Master="\d+"/.test(s.attrs);
+        const refId = /Master="(\d+)"/.exec(s.attrs)?.[1] ?? '';
+        const refMasterMt = mtById.get(refId) ?? '';
+        const coveredByMaster = (pattern: RegExp) => masterXmls.some((m) => pattern.test(m));
+        const glueLessFamily = refMasterMt === '1'; // Link lines / Activation：官方母版无 GlueType
         for (const cell of ['PinX', 'PinY']) {
-            if (!s.body.includes(`N="${cell}"`)) err.push(`Shape ${s.id} 缺 ${cell}（5.5.3.2 实例位置必填）`);
+            if (isNested) continue; // 嵌套 MasterShape 覆写：位置由母版承载，实例只写差异行（官方样本）
+            if (!s.body.includes(`N="${cell}"`) && !(isMasterInst && coveredByMaster(new RegExp(`N=['"]${cell}['"]`)))) {
+                err.push(`Shape ${s.id} 缺 ${cell}（5.5.3.2 实例位置必填，母版实例可承载）`);
+            }
         }
         if (/N="BeginX"/.test(s.body)) {
             for (const cell of ['BeginY', 'EndX', 'EndY']) {
                 if (!s.body.includes(`N="${cell}"`)) err.push(`Shape ${s.id}（1-D）缺 ${cell}（5.5.3.3）`);
             }
-            // GlueType/ObjType 可能随母版（basic-5：实例只有 Master=；母版承载行为组）
-            if (!s.body.includes('N="GlueType"') && !masterXmls.some((m) => /GlueType" V="2"/.test(m))) {
+            // GlueType/ObjType 随母版（basic-5：实例只有 Master=；母版承载行为组；
+            // 取值因母版而异——连接线 2、Link lines 4；MT=1 家族官方母版无 GlueType → 豁免）
+            if (!glueLessFamily && !s.body.includes('N="GlueType"') && !masterXmls.some((m) => /N=['"]GlueType['"]/.test(m))) {
                 err.push(`Shape ${s.id}（1-D）缺 GlueType（实例或母版，5.5.3.3）`);
             }
-            if (!s.body.includes('N="ObjType"') && !masterXmls.some((m) => /ObjType" V="2"/.test(m))) {
+            if (!s.body.includes('N="ObjType"') && !masterXmls.some((m) => /N=['"]ObjType['"]/.test(m))) {
                 err.push(`Shape ${s.id}（1-D）缺 ObjType（实例或母版，5.5.3.3）`);
             }
         }
         const isLine = /N="BeginX"/.test(s.body);
         const hasGeom = /<Section N="Geometry"/.test(s.body);
         if (hasGeom) {
-            if (!s.body.includes('<Row T="MoveTo"')) err.push(`Shape ${s.id} 几何缺 MoveTo 起点行（5.4.3.3）`);
+            const moveOk = isNested || s.body.includes('<Row T="MoveTo"') || (isMasterInst && coveredByMaster(/<Row T=['"]MoveTo['"]/));
+            if (!moveOk) err.push(`Shape ${s.id} 几何缺 MoveTo 起点行（5.4.3.3，母版实例可承载）`);
             const lineTos = (s.body.match(/<Row T="LineTo"/g) ?? []).length;
             const hasArc = /EllipticalArcTo|ArcTo/.test(s.body);
             if (isLine) {
@@ -134,8 +148,10 @@ function l1Audit(pkg: OpcPackage): string[] {
             } else if (hasArc) {
                 // 圆/扇形/圆角：以弧行闭合（EllipticalArcTo 体系），不要求 IX5（5.4.3.3 只针对直角矩形）
             } else if (lineTos >= 3) {
-                // 直角矩形轮廓：最后一行显式闭合（F=Geometry1.X1 / IX5 回起点）
+                // 直角矩形轮廓：最后一行显式闭合（F=Geometry1.X1 / IX5 回起点）；
+                // 母版实例豁免（官方 Entity/Class 盒实例仅写差异行，闭合由母版承载）
                 if (
+                    !isMasterInst &&
                     !s.body.includes('Geometry1.X1') &&
                     !/<Cell N="X" V="0" U="MM" F="Geometry1\.X1"/.test(s.body) &&
                     !/<Row T="LineTo" IX="5"/.test(s.body)
@@ -284,94 +300,154 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
     }
 
     if (kind === 'class') {
-        // class 专篇 2.2/2.3：类盒 Group 行为字段；3.2/3.3：成员行容器公式；4.2：关系母版语义
-        const groups = shapes.filter((s) => /Type="Group"/.test(s.attrs));
-        if (groups.length === 0) err.push('class 无 Group 类盒（专篇 2）');
-        for (const g of groups) {
-            for (const c of ['ObjType', 'ShapePlaceStyle', 'LockWidth', 'LockHeight', 'LockRotate', 'NoObjHandles']) {
-                if (!g.body.includes(`N="${c}"`)) err.push(`class 组 ${g.id} 缺 ${c}（2.2）`);
-            }
-            if (!has(g.body, /<Section N="User">[\s\S]*WidthMin/)) err.push(`class 组 ${g.id} 缺 User.WidthMin（2.2）`);
-            if (!has(g.body, /<Section N="Control">[\s\S]*Row_1/)) err.push(`class 组 ${g.id} 缺 Control Row_1（2.2）`);
-            if (!has(g.body, /<Section N="Geometry"[^>]*>[\s\S]*EllipticalArcTo/)) err.push(`class 组 ${g.id} 几何缺 EllipticalArcTo 圆角（2.2）`);
-            const connRows = (g.body.match(/<Row T="Connection" IX="(\d+)"/g) ?? []).length;
-            if (connRows !== 4) err.push(`class 组 ${g.id} 连接行为 ${connRows}（应为 4：左/右/下/上，专篇 2.4/W-11）`);
-            const nested = /<Shapes>/.test(g.body) ? true : false;
-            if (!nested) err.push(`class 组 ${g.id} 缺嵌套子形状（2.2 最小实例）`);
+        // 母版实例化口径（docs/redesign/07 准则）：每语义角色 Master= 引用 ≥1；
+        // 实例 = 最小差异（Relationships SUM(DEPENDSON)、TxtPinY Inh、User/Control/Connection/Geometry
+        // 覆写 + 嵌套 MasterShape 覆写）；行为组（ObjType/几何/箭头）由母版承载；
+        // 关系线双端 PAR 钉接 + _XFTRIGGER + Connects ToPart=100+IX；EndArrow 不写实例。
+        const masterRefs = [...page.matchAll(/<Shape[^>]*Master="(\d+)"/g)].map((m) => m[1]);
+        expect(masterRefs.length, 'Master 引用数 ≥ 官方样本 27').toBeGreaterThanOrEqual(27);
+        // 角色覆盖（masters.xml 内 NameU 集合）
+        const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
+        const byName = new Map(nameUs.map((m) => [m[1]!, m[2]!]));
+        for (const [n, mt] of [['Class', '2'], ['Member', '34'], ['Separator', '34'], ['Inheritance', '541'], ['Interface Realization', '541']] as const) {
+            expect(byName.get(n), `class 母版 ${n} 存在`).toBe(mt);
         }
-        const members = shapes.filter((s) => !/Master="\d+"/.test(s.attrs) && has(s.body, /N="TxtWidth"/) === false);
-        for (const m of shapes) {
-            if (has(m.body, /<Text>/) && !/Type="Group"/.test(m.attrs) && !m.body.includes('TxtWidth') && !/Dynamic|connector/i.test(m.attrs)) {
-                // 成员行应有容器回指（3.2/3.3）
-                if (!has(m.body, /LISTSHEETREF|DEPENDSON|ShapeFixedCode|GlueType/) && !/Master="/.test(m.attrs)) {
-                    err.push(`class 成员行 ${m.id} 缺容器公式（LISTSHEETREF/DEPENDSON/ShapeFixedCode/GlueType，专篇 3.2/3.3）`);
-                }
-            }
-        }
-        // 关系：应带 UML 语义（4.2/4.3 虚/实 + EndArrow + Trigger）
+        // 类盒 Group 实例：Master + Relationships(DEPENDSON 成员) + 嵌套 MasterShape 覆写
+        const groups = shapes.filter((s) => /Type="Group"/.test(s.attrs) && /Master="\d+"/.test(s.attrs));
+        expect(groups.length, '类盒 Group 实例数').toBeGreaterThanOrEqual(5);
+        const groupsWithDep = groups.filter((g) => /\bSUM\(DEPENDSON\b/.test(g.body));
+        expect(groupsWithDep.length, '类盒 Relationships SUM(DEPENDSON) 数（=类盒数）').toBeGreaterThanOrEqual(5);
+        expect(groups.filter((g) => !/\bSUM\(DEPENDSON\b/.test(g.body)).every((g) => /N="BeginX"/.test(g.body)), '无 DEPENDSON 的 Group=关系线').toBe(true);
+        expect(groups.every((g) => /MasterShape="6"/.test(g.body) && /MasterShape="9"/.test(g.body)), '嵌套 MasterShape 6..9 覆写').toBe(true);
+        expect(groupsWithDep.every((g) => /N="TxtPinY"[^>]*F="Inh"/.test(g.body)), '类盒 TxtPinY Inh').toBe(true);
+        expect(groupsWithDep.every((g) => /<Row N="EntityName"/.test(g.body)), '类盒 User.EntityName').toBe(true);
+        // 成员行：Member 母版实例 + LISTSHEETREF 家族 + User 行族（分隔线行另计，无 NoLine）
+        const members = shapes.filter((s) => has(s.body, /LISTSHEETREF/) && /<Row N="MemberName"/.test(s.body));
+        expect(members.length, '成员行 LISTSHEETREF 数').toBeGreaterThanOrEqual(20);
+        expect(members.every((s) => /N="ShapeFixedCode" V="1"/.test(s.body)), '成员行 ShapeFixedCode=1').toBe(true);
+        expect(members.every((s) => /N="NoLine" V="1"/.test(s.body)), '成员行 NoLine=1').toBe(true);
+        expect(members.every((s) => /<Row N="MemberName"/.test(s.body)), '成员行 User.MemberName').toBe(true);
+        // 关系线：PAR 钉接 + _XFTRIGGER + 无 EndArrow 实例 + Connects
         const rels = shapes.filter((s) => /N="BeginX"/.test(s.body));
-        for (const r of rels) {
-            if (!has(r.body, /N="EndArrow"/)) err.push(`class 关系 ${r.id} 缺 EndArrow（4.3 12/14）`);
-            if (!has(r.body, /N="BegTrigger"/) || !has(r.body, /N="EndTrigger"/)) err.push(`class 关系 ${r.id} 缺 Beg/EndTrigger（4.2）`);
-        }
-        void members;
+        const supports = rels.filter((r) => has(r.body, /PAR\(PNT/));
+        expect(supports.length, '关系线 PAR 钉接').toBeGreaterThanOrEqual(4);
+        expect(rels.every((r) => !has(r.body, /N="EndArrow"/)), '关系线实例不写 EndArrow（母版承载）').toBe(true);
+        expect(rels.every((r) => /BegTrigger"[^>]*_XFTRIGGER/.test(r.body) && /EndTrigger"[^>]*_XFTRIGGER/.test(r.body)), '关系线触发器').toBe(true);
+        const connMatches = [...page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(\w+)" FromPart="(\w+)" ToSheet="(\d+)" ToCell="([^"]+)" ToPart="(\d+)"/g)];
+        expect(connMatches.filter((m) => m[2] === 'EndX' && m[3] === '12' && /Connections.X4/.test(m[5]!) && m[6] === '103').length, 'EndX→X4 p103').toBe(supports.length);
+        expect(connMatches.filter((m) => m[2] === 'BeginX' && m[3] === '9' && /Connections.X3/.test(m[5]!) && m[6] === '102').length, 'BeginX→X3 p102').toBe(supports.length);
     }
 
     if (kind === 'er') {
-        const groups = shapes.filter((s) => /Type="Group"/.test(s.attrs));
-        for (const g of groups) {
-            if (shapes.indexOf(g) < 100 && has(g.body, /N="TxtWidth"/) && !has(g.body, /<Section N="User">[\s\S]*msvShapeCategories/)) {
-                err.push(`er 实体组 ${g.id} 缺 User 注册行（2.2：msvShapeCategories/msvSDListItemMaster）`);
-            }
+        // 母版实例化口径：Entity/属性行/分隔线/关系全部 Master= 实例；
+        // 容器注册行（msvSDListItemMaster USE("Primary Key Attribute")）由母版承载；
+        // 属性行 ItemIndex 行序、PK 行 ObjType=1；关系线双端 PAR + Connects。
+        const masterRefs = [...page.matchAll(/<Shape[^>]*Master="(\d+)"/g)].map((m) => m[1]);
+        expect(masterRefs.length, 'Master 引用数 ≥ 官方样本 17').toBeGreaterThanOrEqual(17);
+        const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
+        const byName = new Map(nameUs.map((m) => [m[1]!, m[2]!]));
+        for (const [n, mt] of [['Entity', '2'], ['Primary Key Attribute', '2'], ['Primary Key Separator', '2'], ['Attribute', '2'], ['Relationship', '541']] as const) {
+            expect(byName.get(n), `er 母版 ${n} 存在`).toBe(mt);
         }
-        // 实体容器注册（2.2）：至少一个组带 msvSDListItemMaster USE（允许分组；规格=每实体容器）
-        const containerReg = [...page.matchAll(/<Row N="msvSDListItemMaster1"[\s\S]*?USE\(/g)];
-        if (containerReg.length === 0) err.push('er 实体无 msvSDListItemMaster USE 注册（2.2）');
-        // 主键/普通属性行区分（3.2：PrimaryKey BOOL + AttributeName=SHAPETEXT + 2 子形状 + 2 连接行）
-        const attrRow = [...page.matchAll(/<Row N="PrimaryKey"[\s\S]*?<Cell N="Value" V="(\d)"/g)];
-        if (attrRow.length === 0) err.push('er 属性行缺 PrimaryKey 标记（3.2）');
-        for (const m of page.matchAll(/<Row N="AttributeName"[\s\S]*?SHAPETEXT/g)) void m;
-        if (!/SHAPETEXT\(TheText\)/.test(page)) err.push('er 属性行缺 AttributeName=SHAPETEXT（3.2）');
-        // 关系（4.2）：User 段
-        for (const r of shapes.filter((s) => /N="BeginX"/.test(s.body))) {
-            if (!has(r.body, /Row N="RelationshipName"/)) err.push(`er 关系 ${r.id} 缺 User.RelationshipName（4.2）`);
-            if (!has(r.body, /Row N="Identifying"/)) err.push(`er 关系 ${r.id} 缺 User.Identifying（4.2）`);
-        }
+        // 母版内容承载列表项注册（官方 Entity 母版 User.msvSDListItemMaster USE）
+        const masterContents = pkg.listUris().filter((u) => /^\/visio\/masters\/master\d+\.xml$/.test(u)).map((u) => xml(u));
+        expect(masterContents.some((m) => /USE\("Primary Key Attribute"\)/.test(m)), 'Entity 母版列表项注册 USE("Primary Key Attribute")').toBe(true);
+        // 实体 Group 实例（容器特征：嵌套 MasterShape 6..8 覆写且无 BeginX；属性行组/关系组另计）
+        const groups = shapes.filter((s) => /Type="Group"/.test(s.attrs) && /MasterShape="6"/.test(s.body) && !/N="BeginX"/.test(s.body));
+        expect(groups.length, '实体 Group 实例数').toBeGreaterThanOrEqual(7);
+        expect(groups.every((g) => /\bSUM\(DEPENDSON\b/.test(g.body)), '实体 Relationships SUM(DEPENDSON)').toBe(true);
+        expect(groups.every((g) => /MasterShape="8"/.test(g.body)), '嵌套 MasterShape 6..8 覆写').toBe(true);
+        expect(groups.every((g) => /N="TxtPinY"[^>]*F="Inh"/.test(g.body)), '实体 TxtPinY Inh').toBe(true);
+        // 属性行：LISTSHEETREF + ItemIndex + PK ObjType=1
+        const attrRows = shapes.filter((s) => has(s.body, /LISTSHEETREF/) && /<Row N="ItemIndex"/.test(s.body));
+        expect(attrRows.length, '属性行（LISTSHEETREF+ItemIndex）').toBeGreaterThanOrEqual(20);
+        expect(attrRows.some((s) => /N="ObjType" V="1"/.test(s.body)), 'PK 属性行 ObjType=1').toBe(true);
+        expect(attrRows.every((s) => /<Row N="ContainerMargin"/.test(s.body)), '属性行 ContainerMargin').toBe(true);
+        // 关系线：PAR 钉接 + 触发器 + 无 EndArrow + Connects
+        const rels = shapes.filter((s) => /N="BeginX"/.test(s.body));
+        expect(rels.some((r) => has(r.body, /PAR\(PNT/)), '关系线 PAR 钉接').toBe(true);
+        expect(rels.every((r) => !has(r.body, /N="EndArrow"/)), '关系线实例不写 EndArrow（母版承载）').toBe(true);
+        const connMatches = [...page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(\w+)" FromPart="(\w+)" ToSheet="(\d+)" ToCell="([^"]+)" ToPart="(\d+)"/g)];
+        expect(connMatches.filter((m) => m[2] === 'EndX' && m[3] === '12' && /Connections.X4/.test(m[5]!) && m[6] === '103').length, 'EndX→X4 p103').toBe(rels.length);
+        expect(connMatches.filter((m) => m[2] === 'BeginX' && m[3] === '9' && /Connections.X3/.test(m[5]!) && m[6] === '102').length, 'BeginX→X3 p102').toBe(rels.length);
+        const err = [] as string[];
+        void err;
     }
 
     if (kind === 'gantt') {
-        // 2.2：pr 样式家族 24 枚（ID 8-31）
+        // 母版实例化口径（docs/redesign/07 准则）：10 枚母版全部引用；Task bar/Milestone
+        // 为 Group 母版实例（母版 8 子形状 1301/1265 cell 承载；实例 User/Property 数据族）；
+        // 标尺格 Field 段在实例（官方：数据→Field 引用链）；pr 样式家族 24 枚由 document.xml 注入。
+        const masterRefs = [...page.matchAll(/<Shape[^>]*Master="(\d+)"/g)].map((m) => m[1]);
+        expect(masterRefs.length, 'Master 引用数（样本规模相关，≥40）').toBeGreaterThanOrEqual(40);
+        expect(new Set(masterRefs).size, '角色覆盖 ≥8 种母版').toBeGreaterThanOrEqual(8);
+        const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
+        const byName = new Map(nameUs.map((m) => [m[1]!, m[2]!]));
+        for (const [n, mt] of [
+            ['Gantt Chart frame', '2'], ['Column', '2'], ['Sec scale cell', '2'], ['Pri scale cell', '2'],
+            ['Non working time', '2'], ['Row', '2'], ['Task bar', '2'], ['Text Entry', '2'], ['Milestone', '2'], ['Link lines', '1'],
+        ] as const) {
+            expect(byName.get(n), `gantt 母版 ${n} 存在`).toBe(mt);
+        }
+        // pr 样式家族（document.xml 注入，历史断言保留）
         const pr = (doc.match(/NameU="pr /g) ?? []).length;
         if (pr < 24) err.push(`gantt pr 样式家族 ${pr}/24（2.2/2.5）`);
-        // 3.2：标尺格 Field 段
-        if (!/<Section N="Field">/.test(page)) err.push('gantt 无 Field 段（3.2 标尺/文本条目数据来源）');
-        // 4.2：任务条命名连接行 + Property 段 + 8 子形状
-        if (!/LeftSide|RightSide/.test(page)) err.push('gantt 任务条无 LeftSide/RightSide 命名连接行（4.2/g-1）');
-        if (!/<Section N="Property">/.test(page)) err.push('gantt 无 Property 段（4.2/g-2）');
-        const barGroups = shapes.filter((s) => /Type="Group"/.test(s.attrs));
-        for (const g of barGroups) {
-            const kids = (g.body.match(/<Shape ID="/g) ?? []).length;
-            if (kids < 8) err.push(`gantt 任务条组 ${g.id} 子形状 ${kids}/8（4.1）`);
-        }
+        // 实例关键面：Row/标尺/任务条/里程碑/连接线
+        expect(/<Section N="Field">/.test(page), 'gantt 标尺/文本 Field 段').toBe(true);
+        const rows = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /<Row N="HeaderWidth"/.test(s.body));
+        expect(rows.length, 'Row 实例数').toBeGreaterThanOrEqual(6);
+        const bars = shapes.filter((s) => /Type="Group"/.test(s.attrs) && /Master="\d+"/.test(s.attrs) && /<Row N="ScaledStartPos"/.test(s.body));
+        expect(bars.length, 'Task bar/Milestone 实例数').toBeGreaterThanOrEqual(7);
+        expect(bars.every((b) => /<Row N="GCChartGUID"/.test(b.body)), '任务条 GCChartGUID 数据行').toBe(true);
+        expect(bars.every((b) => /<Section N="Property">/.test(b.body)), '任务条 Property 段').toBe(true);
+        expect(bars.some((b) => /MasterShape/.test(b.body)), 'Task bar 嵌套子形状覆写').toBe(true);
+        if (!/LeftSide|RightSide/.test(page)) err.push('gantt 命名连接行缺失（Link lines 钉接）');
+        // Link lines：PAR 命名连接行钉接（1-D BeginX PAR 定义）
+        const links = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /N="BeginX"[^>]*PAR\(PNT/.test(s.body));
+        expect(links.length, 'Link lines 实例数').toBeGreaterThanOrEqual(1);
+        expect(links.every((l) => /RightSide/.test(l.body)), 'Link lines PAR 命名行钉接').toBe(true);
+        void err;
     }
 
     if (kind === 'sequence') {
-        // 2.2/2.5：生命线 100 时间点连接行（Controls.Row_1/IF/MODULUS/6.35MM 步长）
-        const lifelines = shapes.filter((s) => /Type="Group"/.test(s.attrs));
-        for (const g of lifelines) {
-            const rows = (g.body.match(/<Row T="Connection" IX="(\d+)"/g) ?? []).length;
-            if (rows < 100 && !/Cont|Row_1/.test(g.body)) err.push(`sequence 生命线 ${g.id} 连接行 ${rows}（应 100 时间格，2.2/s-5）`);
-            if (!/<Cell N="X"[^>]*F="Controls\.Row_1"/.test(g.body)) err.push(`sequence 生命线 ${g.id} X 公式缺 Controls.Row_1（2.2）`);
+        // 母版实例化口径：生命线/激活/消息/片段全部 Master= 实例；
+        // 生命线实例只写用到的 Connection 行 Y 缓存（F=Inh），母版承载 100 行公式；
+        // 消息双端 PAR(PNT(...Connections.Xk))、ToPart 扩到时间格（100+IX）。
+        const masterRefs = [...page.matchAll(/<Shape[^>]*Master="(\d+)"/g)].map((m) => m[1]);
+        expect(masterRefs.length, 'Master 引用数（样本规模相关，≥7）').toBeGreaterThanOrEqual(7);
+        const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
+        const byName = new Map(nameUs.map((m) => [m[1]!, m[2]!]));
+        for (const [n, mt] of [['Object lifeline', '2'], ['Message', '29'], ['Return Message', '29']] as const) {
+            expect(byName.get(n), `sequence 母版 ${n} 存在`).toBe(mt);
         }
-        // 3.2：激活 1-D + 锁高（s-4）；消息 EndArrow/LinePattern（3.2 四类）
-        for (const s of shapes.filter((x) => /N="BeginX"/.test(x.body))) {
-            if (has(s.body, /N="FillForegnd"/) && !has(s.body, /N="LockHeight"/)) err.push(`sequence 激活条 ${s.id} 缺 LockHeight（s-4）`);
+        for (const [n, mt] of [['Actor lifeline', '2'], ['Activation', '1'], ['Loop fragment', '2'], ['Optional fragment', '2']] as const) {
+            if (byName.has(n)) expect(byName.get(n), `sequence 母版 ${n} MasterType`).toBe(mt);
         }
-        if (!/N="EndArrow"/.test(page)) err.push('sequence 消息缺 EndArrow（3.2 四类编码）');
-        if (!/N="LinePattern" V="2"/.test(page)) err.push('sequence 缺返回消息 LinePattern=2（3.2/3.3）');
-        // 2.3：ToPart 扩到时间格高行号（消息粘时间点）
-        const maxPart = Math.max(0, ...[...page.matchAll(/ToPart="(\d+)"/g)].map((m) => Number(m[1])));
-        if (maxPart <= 103) err.push(`sequence ToPart 最高 ${maxPart}（应到 100+ 时间格，2.3）`);
+        // 生命线：实例 Connection 行 Y 缓存（母版承载 100 行定义）
+        const lifelines = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /Controls\.Row_1/.test(s.body) === false && /N="Row_1"/.test(s.body) === false);
+        void lifelines;
+        const rows14 = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /<Row T="Connection" IX="14"/.test(s.body));
+        expect(rows14.length, '生命线 Connection IX14 起（时间格行）').toBeGreaterThanOrEqual(2);
+        expect(rows14.every((s) => /<Section N="Control">/.test(s.body)), '生命线 Control 段').toBe(true);
+        // 消息：PAR 钉接 + 触发器 + Connects ToPart≥104 + 同格行号（激活条无触发器，另计）
+        const msgs = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /N="BeginX"[^>]*PAR\(PNT/.test(s.body) && /TextPosition/.test(s.body));
+        expect(msgs.length, '消息 PAR 钉接数').toBeGreaterThanOrEqual(3);
+        expect(msgs.every((s) => /_XFTRIGGER/.test(s.body)), '消息触发器').toBe(true);
+        const connMatches = [...page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(\w+)" FromPart="(\w+)" ToSheet="(\d+)" ToCell="([^"]+)" ToPart="(\d+)"/g)];
+        expect(connMatches.every((m) => Number(m[6]!) >= 104), 'Connects ToPart 时间格（≥104）').toBe(true);
+        expect(connMatches.filter((m) => m[2] === 'BeginX' && m[3] === '9').length, 'BeginX FromPart=9').toBeGreaterThanOrEqual(3);
+        // 激活条（样本 15-2 有）
+        if (/Activation/.test(xml('/visio/masters/masters.xml'))) {
+            const acts = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /N="BeginX"/.test(s.body) && !/_XFTRIGGER/.test(s.body));
+            expect(acts.length, '激活条实例数').toBeGreaterThanOrEqual(1);
+        }
+        // 片段（样本 15-2 有 loop）
+        if (/Loop fragment/.test(xml('/visio/masters/masters.xml'))) {
+            const frags = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /MasterShape="6"/.test(s.body));
+            expect(frags.length, '片段实例数').toBeGreaterThanOrEqual(1);
+        }
+        const err = [] as string[];
+        void err;
     }
 
     if (kind === 'noSpec') {

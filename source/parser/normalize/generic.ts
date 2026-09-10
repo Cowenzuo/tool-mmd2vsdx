@@ -369,12 +369,15 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                     visibility: String(m.visibility ?? ''),
                 })),
             })),
-            relations: (classModel.relations ?? []).map((r) => ({
-                from: String(r.from ?? ''),
-                to: String(r.to ?? ''),
-                label: String(r.label ?? ''),
-                kind: r.kind === 'realization' ? 'realization' : 'inheritance',
-            })),
+            relations: (classModel.relations ?? []).map((r) => {
+                const k = String(r.kind ?? '');
+                return {
+                    from: String(r.from ?? ''),
+                    to: String(r.to ?? ''),
+                    label: String(r.label ?? ''),
+                    kind: (['dependency', 'inheritance', 'realization', 'unsupported'] as const).includes(k as never) ? (k as 'dependency' | 'inheritance' | 'realization' | 'unsupported') : 'unsupported',
+                };
+            }),
         };
     }
     const erModel = snap['erModel'] as

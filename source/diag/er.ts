@@ -1,324 +1,123 @@
-﻿// diag-er：契约 A → 契约 B（source/diag/er.ts；docs/redesign/04-转义层 对应篇）
-// 结构与金标准同构（扁平）：每实体 1 组（文本=名称）+ 每属性 1 行（键样式同普通行）
-// + 属性行之间分隔线；每关系 1 组（文本=角色名，菱形位姿），2 条 Connects 粘附实体。
-// 布局为确定性网格，坐标像素→英寸。
+// diag-er：契约 A → 契约 B（source/diag/er.ts；docs/redesign/04-转义层 对应篇）
+//
+// 母版实例化版（docs/redesign/07-母版形状库方案）：
+//  - 实体 = 官方 Entity 母版实例（Group + Master=N + 最小差异 + 嵌套 MasterShape 6..8 覆写）；
+//  - 属性行 = Primary Key Attribute / Attribute 母版实例（LISTSHEETREF 容器家族、
+//    ItemIndex 行序、PK 行 ObjType=1）；主键分隔线 = Primary Key Separator 母版实例；
+//  - 关系 = Relationship 母版实例：双端 PAR 钉接 + _XFTRIGGER + Connects ToPart=100+IX；
+//    箭头/鸦爪由母版承载；关系名走 <Text>（官方样本实例无 RelationshipName 行——记比对清单）。
+// 实例模式来源：docs/research/标准研究模板-手动创建vsdx并解压/ER/ 素材包实测
+//（temp/audit/instance-patterns.json；实体/属性行/关系实例结构见 ER 专篇与素材包）。
 
-import { isNoUnitCell } from '../common/units.js';
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kPageContentType, kPageUri } from '../common/xml/constants.js';
-import { part, type XmlPart, type ErModel } from '../contracts/index.js';
+import { part, type XmlPart, type ErModel, type ErEntity } from '../contracts/index.js';
 
-const kIn = (v: number) => String(Math.round(v * 1e6) / 1e6);
+// ── 母版常量（实测自官方母版 User 段/实例缓存；单位 IN/MM） ──
+const kHdrHalf = 0.2180813184950087;      // Entity：HdrHgt*0.5（TxtPinY=Height-此值）
+const kInsetRel = 0.07687385795284207;    // 关系线内缩缓存（ER 样本）
+const kTipRel = 0.1464709820853771;       // 关系 Begin 角子形状 PinY 缓存（MM，向点内）
+const kTipX2 = 2.658318747582445;         // 关系 End 角子形状 PinX 缓存（MM）
+const kTipY2 = 2.389731257987676;         // 关系 End 角子形状 PinY 缓存（MM）
+
+const MM = 25.4;
+const f6 = (v: number) => String(Math.round(v * 1e6) / 1e6);
+
+/** 布局（单列纵向链；单位 IN）。 */
+interface BoxGeom { x: number; y: number; w: number; h: number; }
+
+function layout(m: ErModel): { boxes: Map<string, BoxGeom>; pageW: number; pageH: number } {
+    const w = 2.559055118110236;
+    const hdr = 0.6;
+    const rowH = 0.25;
+    const pad = 0.08;
+    const gap = 0.9;
+    const margin = 0.5;
+    let y = hdr / 2 + margin;
+    const boxes = new Map<string, BoxGeom>();
+    for (const e of m.entities) {
+        const rows = e.attributes.length;
+        const h = hdr + rows * rowH + pad * 2;
+        boxes.set(e.id, { x: margin + w / 2, y, w, h });
+        y += h + gap;
+    }
+    return { boxes, pageW: margin * 2 + w, pageH: y + margin };
+}
 
 interface Ctx {
-    shapes: XmlNode[];
     nextId: number;
-    pageHpx: number;
-    pxPerInch: number;
+    shapes: XmlNode[];
+    connects: XmlNode[];
+    ids: Map<string, number>;
+    nameCount: Map<string, number>;
+    masterIds: Map<string, number>;
 }
 
-interface Pos {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
+function sel(ctx: Ctx, base: string, id: number): string {
+    const n = (ctx.nameCount.get(base) ?? 0) + 1;
+    ctx.nameCount.set(base, n);
+    return n === 1 ? base : `${base}.${id}`;
 }
 
-function newShape(ctx: Ctx): XmlNode {
-    const el = makeElement('Shape');
-    setAttribute(el, 'ID', String(ctx.nextId++));
-    setAttribute(el, 'Type', 'Shape');
-    ctx.shapes.push(el);
-    return el;
-}
-
-function c(el: XmlNode, name: string, value: number | string): void {
-    const cell = makeElement('Cell');
-    setAttribute(cell, 'N', name);
-    if (typeof value === 'number' && !isNoUnitCell(name)) {
-        setAttribute(cell, 'V', kIn(value));
-        setAttribute(cell, 'U', 'IN');
-    } else {
-        setAttribute(cell, 'V', String(value));
-    }
-    el.children.push(cell);
-}
-
-function cellP(name: string, value: string): XmlNode {
+function cell(n: string, v: string | number, u?: string, f?: string): XmlNode {
     const el = makeElement('Cell');
-    setAttribute(el, 'N', name);
-    setAttribute(el, 'V', value);
+    setAttribute(el, 'N', n);
+    setAttribute(el, 'V', String(v));
+    if (u) setAttribute(el, 'U', u);
+    if (f) setAttribute(el, 'F', f);
     return el;
 }
 
-function textNode(el: XmlNode, text: string): void {
+function row(t: string | undefined, ix: number | undefined, n: string | undefined, cells: XmlNode[], del?: boolean): XmlNode {
+    const r = makeElement('Row');
+    if (t) setAttribute(r, 'T', t);
+    if (ix !== undefined) setAttribute(r, 'IX', String(ix));
+    if (n) setAttribute(r, 'N', n);
+    if (del) setAttribute(r, 'Del', '1');
+    for (const c of cells) r.children.push(c);
+    return r;
+}
+
+function section(n: string, rows: XmlNode[]): XmlNode {
+    const s = makeElement('Section');
+    setAttribute(s, 'N', n);
+    for (const r of rows) s.children.push(r);
+    return s;
+}
+
+function userRow(n: string, v: string, u?: string, f?: string): XmlNode {
+    return row(undefined, undefined, n, [cell('Value', v, u, f)]);
+}
+
+function textEl(s: string): XmlNode {
     const t = makeElement('Text');
-    if (text) t.children.push(text);
-    el.children.push(t);
+    t.children.push(s);
+    return t;
 }
 
-/** 连接行（5.4.3.3/C4 骨架：V=英寸缓存 U=IN、F=Width/Height 公式、方向列）。 */
-function connectionSection(wpx: number, hpx: number): XmlNode {
-    const sec = makeElement('Section');
-    setAttribute(sec, 'N', 'Connection');
-    const xRatios = [0.5, 1, 0.5, 0, 0.5];
-    const yRatios = [0, 0.5, 1, 0.5, 0.5];
-    const xF = ['Width*0.5', 'Width*1', 'Width*0.5', 'Width*0', 'Width*0.5'];
-    const yF = ['Height*0', 'Height*0.5', 'Height*1', 'Height*0.5', 'Height*0.5'];
-    const dx = [0, -1, 0, 1, 0];
-    const dy = [1, 0, -1, 0, 1];
-    for (let ix = 0; ix <= 4; ix++) {
-        const row = makeElement('Row');
-        setAttribute(row, 'T', 'Connection');
-        setAttribute(row, 'IX', String(ix));
-        const xCell = makeElement('Cell');
-        setAttribute(xCell, 'N', 'X');
-        setAttribute(xCell, 'V', kIn(wpx * xRatios[ix]!));
-        setAttribute(xCell, 'U', 'IN');
-        setAttribute(xCell, 'F', xF[ix]!);
-        const yCell = makeElement('Cell');
-        setAttribute(yCell, 'N', 'Y');
-        setAttribute(yCell, 'V', kIn(hpx * yRatios[ix]!));
-        setAttribute(yCell, 'U', 'IN');
-        setAttribute(yCell, 'F', yF[ix]!);
-        row.children.push(
-            xCell,
-            yCell,
-            cellP('DirX', String(dx[ix]!)),
-            cellP('DirY', String(dy[ix]!)),
-            cellP('Type', '0'),
-            cellP('AutoGen', '0'),
-            cellP('Prompt', ''),
-        );
-        sec.children.push(row);
-    }
-    return sec;
-}
-
-/** 矩形几何（5.4.3.3 写法：V=英寸缓存、U=MM 显示、F=Width/Height 公式、显式闭合）。 */
-function writeRectBody(el: XmlNode, wpx: number, hpx: number): void {
-    const w = wpx;
-    const h = hpx;
-    const g = makeElement('Section');
-    setAttribute(g, 'N', 'Geometry');
-    setAttribute(g, 'IX', '0');
-    for (const [t, ix, xv, xf, yv, yf] of [
-        ['MoveTo', 1, '0', 'Width*0', '0', 'Height*0'],
-        ['LineTo', 2, String(w), 'Width*1', '0', 'Height*0'],
-        ['LineTo', 3, String(w), 'Width*1', String(h), 'Height*1'],
-        ['LineTo', 4, '0', 'Width*0', String(h), 'Height*1'],
-        ['LineTo', 5, '0', 'Geometry1.X1', '0', 'Geometry1.Y1'],
-    ] as Array<[string, number, string, string, string, string]>) {
-        const rw = makeElement('Row');
-        setAttribute(rw, 'T', t);
-        setAttribute(rw, 'IX', String(ix));
-        const xCell = makeElement('Cell');
-        setAttribute(xCell, 'N', 'X');
-        setAttribute(xCell, 'V', kIn(Number(xv)));
-        setAttribute(xCell, 'U', 'MM');
-        setAttribute(xCell, 'F', xf);
-        const yCell = makeElement('Cell');
-        setAttribute(yCell, 'N', 'Y');
-        setAttribute(yCell, 'V', kIn(Number(yv)));
-        setAttribute(yCell, 'U', 'MM');
-        setAttribute(yCell, 'F', yf);
-        rw.children.push(xCell, yCell);
-        g.children.push(rw);
-    }
-    el.children.push(g);
-}
-
-function writeLineBody(el: XmlNode, dxpx: number, dypx: number): void {
-    const g = makeElement('Section');
-    setAttribute(g, 'N', 'Geometry');
-    setAttribute(g, 'IX', '0');
-    for (const [t, ix, xo, yo] of [
-        ['MoveTo', 1, -dxpx / 2, -dypx / 2],
-        ['LineTo', 2, dxpx / 2, dypx / 2],
-    ] as Array<[string, number, number, number]>) {
-        const rw = makeElement('Row');
-        setAttribute(rw, 'T', t);
-        setAttribute(rw, 'IX', String(ix));
-        rw.children.push(cellP('X', kIn(xo)), cellP('Y', kIn(yo)));
-        g.children.push(rw);
-    }
-    el.children.push(g);
-}
-
-function connectRec(id: number, fromCell: string, toSheet: number, toCell: string): XmlNode {
-    const el = makeElement('Connect');
-    setAttribute(el, 'FromSheet', String(id));
-    setAttribute(el, 'FromCell', fromCell);
-    setAttribute(el, 'FromPart', fromCell === 'BeginX' ? '9' : '12');
-    setAttribute(el, 'ToSheet', String(toSheet));
-    setAttribute(el, 'ToCell', toCell);
-    const m = /X(\d+)/.exec(toCell);
-    setAttribute(el, 'ToPart', String(m ? 100 + (Number(m[1]) - 1) : 100));
-    return el;
-}
-
-/** User 段写手（ER 专篇 2.2/3.2：分类/注册/业务标记）。 */
-function addUser(el: XmlNode, rows: Array<[string, string, string?]>): void {
-    const us = makeElement('Section');
-    setAttribute(us, 'N', 'User');
-    for (const [n, v, f] of rows) {
-        const row = makeElement('Row');
-        setAttribute(row, 'N', n);
-        const cv = makeElement('Cell');
-        setAttribute(cv, 'N', 'Value');
-        setAttribute(cv, 'V', v);
-        setAttribute(cv, 'U', 'STR');
-        if (f) setAttribute(cv, 'F', f);
-        row.children.push(cv);
-        us.children.push(row);
-    }
-    el.children.push(us);
+function newShapeNode(): XmlNode {
+    return makeElement('Shape');
 }
 
 export class ErRenderer {
-    render(a: { erModel?: ErModel }, pageHpx: number, pxPerInch = 96): XmlPart {
+    render(a: { erModel?: ErModel }, pageHpx: number, pxPerInch = 96, masterIds: Map<string, number> = new Map()): XmlPart {
         const m = a.erModel ?? { entities: [], relations: [] };
-        const ctx: Ctx = { shapes: [], nextId: 1, pageHpx, pxPerInch };
-        const connects: XmlNode[] = [];
-        const ids = new Map<string, number>();
-        const boxes = new Map<string, Pos>();
-
-        const cols = 2;
-        const cw = 180;
-        const chGap = 60;
-        const cellH = 110;
-        const rowH = 16;
-        const headerH = 24;
-        const x0 = 120;
-        const y0 = 120;
-
-        m.entities.forEach((ent, i) => {
-            const row = Math.floor(i / cols);
-            const col = i % cols;
-            const nRows = ent.attributes.length;
-            const h = headerH + nRows * rowH + (nRows > 1 ? rowH : 0);
-            const p: Pos = {
-                x: x0 + col * (cw + 120),
-                y: y0 + row * (cellH + chGap) + h / 2,
-                w: cw,
-                h,
-            };
-            boxes.set(ent.id, p);
-            const grp = newShape(ctx);
-            setAttribute(grp, 'Type', 'Group');
-            c(grp, 'PinX', p.x / pxPerInch);
-            c(grp, 'PinY', (pageHpx - p.y) / pxPerInch);
-            c(grp, 'Width', p.w / pxPerInch);
-            c(grp, 'Height', p.h / pxPerInch);
-            c(grp, 'LocPinX', p.w / 2 / pxPerInch);
-            c(grp, 'LocPinY', p.h / 2 / pxPerInch);
-            grp.children.push(connectionSection(p.w / pxPerInch, p.h / pxPerInch));
-            writeRectBody(grp, p.w / pxPerInch, p.h / pxPerInch);
-            // 实体容器注册（ER 专篇 2.2：分类与列表项母版声明）
-            addUser(grp, [
-                ['msvStructureType', 'List'],
-                ['msvShapeCategories', 'Database;DbEntity'],
-                ['msvSDContainerResize', '2'],
-                ['msvSDListAlignment', '0'],
-                ['msvSDListDirection', '2'],
-                ['msvSDListItemMaster1', '254', 'USE("Primary Key Attribute")'],
-                ['msvSDListItemMaster2', '254', 'USE("Primary Key Separator")'],
-                ['msvSDListItemMaster3', '254', 'USE("Attribute")'],
-                ['msvSDListItemMaster4', '254', 'USE("Attribute")'],
-                ['msvSDListRequiredCategories', 'DbListItem'],
-            ]);
-            textNode(grp, ent.name);
-            ids.set(ent.id, Number((grp.attrs.find((x) => x.name === 'ID') as { value: string }).value));
-
-            const top = p.y - p.h / 2 + headerH + rowH / 2;
-            let yy = top;
-            ent.attributes.forEach((at, ai) => {
-                if (ai > 0) {
-                    const sep = newShape(ctx);
-                    c(sep, 'PinX', p.x / pxPerInch);
-                    c(sep, 'PinY', (pageHpx - (yy - rowH / 2)) / pxPerInch);
-                    c(sep, 'Width', p.w / pxPerInch);
-                    c(sep, 'Height', 1 / pxPerInch);
-                    c(sep, 'LocPinX', p.w / 2 / pxPerInch);
-                    c(sep, 'LocPinY', 0);
-                    c(sep, 'LineColor', '#000000');
-                    c(sep, 'LinePattern', 1);
-                    c(sep, 'FillPattern', 0);
-                    writeLineBody(sep, p.w / pxPerInch, 0);
-                    textNode(sep, '');
-                }
-                const rw = newShape(ctx);
-                c(rw, 'PinX', p.x / pxPerInch);
-                c(rw, 'PinY', (pageHpx - yy) / pxPerInch);
-                c(rw, 'Width', p.w / pxPerInch);
-                c(rw, 'Height', rowH / pxPerInch);
-                c(rw, 'LocPinX', p.w / 2 / pxPerInch);
-                c(rw, 'LocPinY', rowH / 2 / pxPerInch);
-                c(rw, 'LineColor', '#000000');
-                c(rw, 'LinePattern', 1);
-                c(rw, 'FillForegnd', '#FFFFFF');
-                c(rw, 'FillPattern', 1);
-                writeRectBody(rw, p.w / pxPerInch, rowH / pxPerInch);
-                // 属性行业务标记（ER 专篇 3.2：AttributeName=SHAPETEXT、PrimaryKey/FK/Required）
-                addUser(rw, [
-                    ['msvShapeCategories', 'Database;DbAttribute;DbListItem'],
-                    ['AttributeName', `${at.type} ${at.name}`.trim(), 'SHAPETEXT(TheText)'],
-                    ['PrimaryKey', at.primaryKey ? '1' : '0', undefined],
-                    ['ForeignKey', '0', undefined],
-                    ['Required', '0', undefined],
-                ]);
-                textNode(rw, `${at.type} ${at.name}`.trim());
-                yy += rowH;
-            });
-        });
-
-        // 关系：1-D 线形状（BeginX/EndX 端点 cell；Connects 引用有效 cell，ER 专篇 4.2）
-        for (const r of m.relations) {
-            const a = boxes.get(r.from);
-            const b = boxes.get(r.to);
-            if (!a || !b) continue;
-            const bx = a.x;
-            const by = a.y;
-            const ex = b.x;
-            const ey = b.y;
-            const mx = (bx + ex) / 2;
-            const my = (by + ey) / 2;
-            const el = newShape(ctx);
-            c(el, 'PinX', mx / pxPerInch);
-            c(el, 'PinY', (pageHpx - my) / pxPerInch);
-            c(el, 'Width', Math.abs(ex - bx) / pxPerInch);
-            c(el, 'Height', Math.abs(ey - by) / pxPerInch);
-            c(el, 'LocPinX', Math.abs(ex - bx) / 2 / pxPerInch);
-            c(el, 'LocPinY', Math.abs(ey - by) / 2 / pxPerInch);
-            c(el, 'BeginX', bx / pxPerInch);
-            c(el, 'BeginY', (pageHpx - by) / pxPerInch);
-            c(el, 'EndX', ex / pxPerInch);
-            c(el, 'EndY', (pageHpx - ey) / pxPerInch);
-            c(el, 'GlueType', 2);
-            c(el, 'ObjType', 2);
-            c(el, 'LineColor', '#000000');
-            c(el, 'LinePattern', 1);
-            c(el, 'FillPattern', 0);
-            writeLineBody(el, (ex - bx) / pxPerInch, (ey - by) / pxPerInch);
-            // User 段（ER 专篇 4.2：RelationshipName/Identifying/ShowMulti）
-            addUser(el, [
-                ['msvShapeCategories', 'Database;DbRelationship'],
-                ['RelationshipName', r.label, 'SHAPETEXT(TheText)'],
-                ['Identifying', r.identifying ? '1' : '0'],
-                ['ShowMulti', '0'],
-            ]);
-            textNode(el, r.label);
-            const gid = Number((el.attrs.find((x) => x.name === 'ID') as { value: string }).value);
-            if (a && ids.get(r.from) !== undefined) connects.push(connectRec(gid, 'BeginX', ids.get(r.from)!, 'Connections.X2'));
-            if (b && ids.get(r.to) !== undefined) connects.push(connectRec(gid, 'EndX', ids.get(r.to)!, 'Connections.X4'));
-        }
-
+        const ctx: Ctx = {
+            nextId: 1,
+            shapes: [],
+            connects: [],
+            ids: new Map(),
+            nameCount: new Map(),
+            masterIds,
+        };
+        void pageHpx; void pxPerInch;
         const root = makeElement('PageContents');
         const shapes = makeElement('Shapes');
+        const connects = makeElement('Connects');
+        root.children.push(shapes, connects);
+        writeModel(ctx, m);
         for (const s of ctx.shapes) shapes.children.push(s);
-        const conns = makeElement('Connects');
-        for (const cn of connects) conns.children.push(cn);
-        root.children.push(shapes, conns);
+        for (const c of ctx.connects) connects.children.push(c);
         setAttribute(root, 'xmlns', 'http://schemas.microsoft.com/office/visio/2012/main');
         const xml = serializeDocument(root, {
             declaration: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
@@ -326,4 +125,270 @@ export class ErRenderer {
         });
         return part(kPageUri, kPageContentType, xml);
     }
+}
+
+function writeModel(ctx: Ctx, m: ErModel): void {
+    const { boxes } = layout(m);
+    for (const e of m.entities) {
+        const g = boxes.get(e.id)!;
+        const masterId = ctx.masterIds.get('Entity') ?? 0;
+        const boxId = ctx.nextId;
+        ctx.ids.set(e.id, boxId);
+        const n6 = boxId + 1;
+        const n7 = boxId + 2;
+        const n8 = boxId + 3;
+        ctx.nextId = n8 + 1;
+        const box = makeElement('Shape');
+        setAttribute(box, 'ID', String(boxId));
+        setAttribute(box, 'NameU', sel(ctx, 'Entity', boxId));
+        setAttribute(box, 'Type', 'Group');
+        if (masterId > 0) setAttribute(box, 'Master', String(masterId));
+        box.children.push(
+            cell('PinX', f6(g.x)),
+            cell('PinY', f6(g.y)),
+            cell('Height', f6(g.h)),
+            cell('LocPinY', f6(g.h / 2), undefined, 'Inh'),
+            cell('Relationships', '0', undefined, 'SUM(DEPENDSON(0,))'),   // 回填
+            cell('TxtPinY', f6(g.h - kHdrHalf), undefined, 'Inh'),
+        );
+        box.children.push(section('User', [
+            userRow('WidthMin', f6(g.w * 0.3447), 'DL'),   // 文本宽近似（重算修正，见比对清单）
+            userRow('EntityName', e.name, 'STR', 'Inh'),
+        ]));
+        box.children.push(section('Control', [
+            row(undefined, undefined, 'Row_1', [cell('Y', f6(g.h / 2), undefined, 'Inh'), cell('YDyn', f6(g.h / 2), undefined, 'Inh')]),
+        ]));
+        box.children.push(section('Connection', [
+            row('Connection', 0, undefined, [cell('Y', f6(g.h / 2), undefined, 'Inh')]),
+            row('Connection', 1, undefined, [cell('Y', f6(g.h / 2), undefined, 'Inh')]),
+            row('Connection', 3, undefined, [cell('Y', f6(g.h), undefined, 'Inh')]),
+        ]));
+        const geom = [
+            row('LineTo', 3, undefined, [cell('Y', f6(g.h), undefined, 'Inh')]),
+            row('LineTo', 4, undefined, [cell('Y', f6(g.h), undefined, 'Inh')]),
+        ];
+        box.children.push(section('Geometry', geom));
+        box.children.push(textEl(e.name));
+        const kids = makeElement('Shapes');
+        const k6 = newShapeNode();
+        setAttribute(k6, 'ID', String(n6));
+        setAttribute(k6, 'MasterShape', '6');
+        setAttribute(k6, 'Type', 'Shape');
+        k6.children.push(cell('PinY', f6(g.h / 2), undefined, 'Inh'), cell('Height', f6(g.h), undefined, 'Inh'), cell('LocPinY', f6(g.h / 2), undefined, 'Inh'));
+        k6.children.push(section('Geometry', geom));
+        const k7 = newShapeNode();
+        setAttribute(k7, 'ID', String(n7));
+        setAttribute(k7, 'MasterShape', '7');
+        setAttribute(k7, 'Type', 'Shape');
+        k7.children.push(cell('PinY', f6(g.h), undefined, 'Inh'));
+        const k8 = newShapeNode();
+        setAttribute(k8, 'ID', String(n8));
+        setAttribute(k8, 'MasterShape', '8');
+        setAttribute(k8, 'Type', 'Shape');
+        k8.children.push(cell('PinY', f6(g.h), undefined, 'Inh'));
+        for (const k of [k6, k7, k8]) kids.children.push(k);
+        box.children.push(kids);
+
+        // 属性行：主键 → 分隔线 → 普通属性（ItemIndex 1/2/3+…，官方样本序）
+        const memberIds: number[] = [];
+        let y = g.y + g.h / 2 - 0.6 - 0.125;
+        let itemIndex = 1;
+        for (const at of e.attributes.filter((x) => x.primaryKey)) {
+            memberIds.push(writeAttrRow(ctx, true, boxId, n8, g.x, y, g.w - 0.1, at, itemIndex));
+            y -= 0.25;
+            itemIndex += 1;
+        }
+        if (e.attributes.some((x) => x.primaryKey) && e.attributes.some((x) => !x.primaryKey)) {
+            writePkSeparator(ctx, boxId, n8, g.x, y, g.w - 0.1);
+            y -= 0.25;
+            itemIndex += 1;
+        }
+        for (const at of e.attributes.filter((x) => !x.primaryKey)) {
+            memberIds.push(writeAttrRow(ctx, false, boxId, n8, g.x, y, g.w - 0.1, at, itemIndex));
+            y -= 0.25;
+            itemIndex += 1;
+        }
+        const relCell = cell('Relationships', '0', undefined,
+            `SUM(DEPENDSON(${n6},${memberIds.map((id) => `Sheet.${id}!SheetRef()`).join(',')}))`);
+        box.children[4] = relCell;
+        ctx.shapes.push(box);
+    }
+    for (const r of m.relations) {
+        const src = ctx.ids.get(r.from);
+        const dst = ctx.ids.get(r.to);
+        if (src === undefined || dst === undefined) continue;
+        const a = boxes.get(r.from)!;
+        const b = boxes.get(r.to)!;
+        const lineId = writeRelation(ctx, src, dst, a.x, a.y - a.h / 2, b.y + b.h / 2, r.label);
+        ctx.connects.push(
+            connectRec(lineId, 'EndX', 12, dst, 'Connections.X4', 103),
+            connectRec(lineId, 'BeginX', 9, src, 'Connections.X3', 102),
+        );
+    }
+}
+
+function connectRec(fromSheet: number, fromCell: string, fromPart: number, toSheet: number, toCell: string, toPart: number): XmlNode {
+    const el = makeElement('Connect');
+    setAttribute(el, 'FromSheet', String(fromSheet));
+    setAttribute(el, 'FromCell', fromCell);
+    setAttribute(el, 'FromPart', String(fromPart));
+    setAttribute(el, 'ToSheet', String(toSheet));
+    setAttribute(el, 'ToCell', toCell);
+    setAttribute(el, 'ToPart', String(toPart));
+    return el;
+}
+
+/** 属性行实例（PK/普通；官方模式：LISTSHEETREF + ItemIndex + 几何 X 行；PK 行 ObjType=1；
+ *  普通行带 DarkerColor/DarkColor/BackFillColor/BackLineColor + Character/Paragraph 行）。 */
+function writeAttrRow(ctx: Ctx, isPk: boolean, boxId: number, n8Id: number, cx: number, y: number, w: number, at: ErEntity['attributes'][number], itemIndex: number): number {
+    const masterName = isPk ? 'Primary Key Attribute' : 'Attribute';
+    const masterId = ctx.masterIds.get(masterName) ?? 0;
+    const id = ctx.nextId++;
+    const wmm = f6(w * MM);
+    const text = `${at.type} ${at.name}${at.primaryKey ? ' PK' : ''}`.trim();
+    const el = newShapeNode();
+    setAttribute(el, 'ID', String(id));
+    setAttribute(el, 'NameU', sel(ctx, masterName, id));
+    setAttribute(el, 'Type', 'Group');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    el.children.push(
+        cell('PinX', f6(cx)),
+        cell('PinY', f6(y)),
+        cell('Width', wmm, 'MM', 'IFERROR(LISTSHEETREF()!Controls.ROW_1-User.ContainerMargin*2,User.UserWidth)'),
+        cell('LocPinX', f6(w * MM / 2), 'MM', 'Inh'),
+        cell('Relationships', '0', undefined, `SUM(DEPENDSON(${n8Id},Sheet.${boxId}!SheetRef()))`),
+        cell('ShapeFixedCode', '1'),
+        cell('TxtWidth', wmm, 'MM', 'Inh'),
+    );
+    if (isPk) el.children.push(cell('ObjType', '1'));
+    el.children.push(section('User', [
+        userRow('ContainerMargin', '0', undefined, 'IFERROR(LISTSHEETREF()!User.MSVSDCONTAINERMARGIN,0)'),
+        userRow('WidthMin', '0', undefined, 'IFERROR(IF(LISTSHEETREF()!User.WIDTHMIN<TEXTWIDTH(TheText),SETF(GetRef(LISTSHEETREF()!User.WIDTHMIN),TEXTWIDTH(TheText)),0),0)'),
+    ]));
+    if (!isPk) {
+        el.children.push(section('User', [
+            userRow('DarkerColor', '0', undefined, 'Inh'),
+            userRow('DarkColor', '0', undefined, 'Inh'),
+            userRow('BackFillColor', '#f2f2f2', undefined, 'Inh'),
+            userRow('BackLineColor', '0', undefined, 'Inh'),
+        ]));
+    }
+    el.children.push(section('User', [userRow('ItemIndex', String(itemIndex), undefined, 'Inh')]));
+    if (!isPk) {
+        el.children.push(section('Character', [row(undefined, 0, undefined, [cell('Color', '0', undefined, 'Inh')])]));
+        el.children.push(section('Paragraph', [row(undefined, 0, undefined, [cell('Color', '0', undefined, 'Inh')])]));
+        el.children.push(section('Character', [row(undefined, 0, undefined, [cell('Color', '0', undefined, 'Inh')])]));
+    }
+    el.children.push(section('Connection', [
+        row('Connection', 1, undefined, [cell('X', wmm, 'MM', 'Inh')]),
+    ]));
+    el.children.push(section('Geometry', [
+        row('LineTo', 2, undefined, [cell('X', wmm, 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', wmm, 'MM', 'Inh')]),
+    ]));
+    el.children.push(textEl(text));
+    ctx.shapes.push(el);
+    return id;
+}
+
+/** 主键分隔线实例（官方模式：ContainerMargin + 几何 IX2）。 */
+function writePkSeparator(ctx: Ctx, boxId: number, n8Id: number, cx: number, y: number, w: number): void {
+    const masterId = ctx.masterIds.get('Primary Key Separator') ?? 0;
+    const id = ctx.nextId++;
+    const wmm = f6(w * MM);
+    const el = newShapeNode();
+    setAttribute(el, 'ID', String(id));
+    setAttribute(el, 'NameU', sel(ctx, 'Primary Key Separator', id));
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    el.children.push(
+        cell('PinX', f6(cx)),
+        cell('PinY', f6(y)),
+        cell('Width', wmm, 'MM', 'IFERROR(LISTSHEETREF()!Controls.ROW_1-User.ContainerMargin*2,48MM)'),
+        cell('LocPinX', f6(w * MM / 2), 'MM', 'Inh'),
+        cell('Relationships', '0', undefined, `SUM(DEPENDSON(${n8Id},Sheet.${boxId}!SheetRef()))`),
+        cell('ShapeFixedCode', '1'),
+    );
+    el.children.push(section('User', [
+        userRow('ContainerMargin', '0', undefined, 'IFERROR(LISTSHEETREF()!User.MSVSDCONTAINERMARGIN,0)'),
+    ]));
+    el.children.push(section('Geometry', [
+        row('LineTo', 2, undefined, [cell('X', wmm, 'MM', 'Inh')]),
+    ]));
+    ctx.shapes.push(el);
+}
+
+/** 关系线实例（垂直：Begin=下实体 X3、End=上实体 X4；双端 PAR + _XFTRIGGER；名称走 <Text>）。 */
+function writeRelation(ctx: Ctx, srcId: number, dstId: number, x: number, by: number, ey: number, label: string): number {
+    const masterId = ctx.masterIds.get('Relationship') ?? 0;
+    const id = ctx.nextId++;
+    const h = ey - by;
+    const dir = h < 0 ? -1 : 1;
+    const inset = dir * kInsetRel;
+    const el = newShapeNode();
+    setAttribute(el, 'ID', String(id));
+    setAttribute(el, 'NameU', sel(ctx, 'Relationship', id));
+    setAttribute(el, 'Type', 'Group');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    el.children.push(
+        cell('PinX', f6(x), undefined, 'Inh'),
+        cell('PinY', f6((by + ey) / 2), undefined, 'Inh'),
+        cell('Width', f6(0.1968503937007874), undefined, 'GUARD(0.19685039370079DL)'),
+        cell('Height', f6(h), undefined, 'GUARD(EndY-BeginY)'),
+        cell('LocPinX', f6(0.09842519685039369), undefined, 'Inh'),
+        cell('LocPinY', f6(h / 2), undefined, 'Inh'),
+        cell('BeginX', f6(x), undefined, `PAR(PNT(Sheet.${srcId}!Connections.X3,Sheet.${srcId}!Connections.Y3))`),
+        cell('BeginY', f6(by), undefined, `PAR(PNT(Sheet.${srcId}!Connections.X3,Sheet.${srcId}!Connections.Y3))`),
+        cell('EndX', f6(x), undefined, `PAR(PNT(Sheet.${dstId}!Connections.X4,Sheet.${dstId}!Connections.Y4))`),
+        cell('EndY', f6(ey), undefined, `PAR(PNT(Sheet.${dstId}!Connections.X4,Sheet.${dstId}!Connections.Y4))`),
+        cell('LayerMember', '0'),
+        cell('BegTrigger', '2', undefined, `_XFTRIGGER(Sheet.${srcId}!EventXFMod)`),
+        cell('EndTrigger', '2', undefined, `_XFTRIGGER(Sheet.${dstId}!EventXFMod)`),
+        cell('TxtPinX', f6(0.2423277979063417), undefined, 'Inh'),
+        cell('TxtPinY', f6(h / 2), undefined, 'Inh'),
+    );
+    el.children.push(section('Control', [
+        row(undefined, undefined, 'TextPosition', [
+            cell('X', f6(0.2423277979063417)), cell('Y', f6(h / 2)),
+            cell('XDyn', f6(0.2423277979063417), undefined, 'Inh'), cell('YDyn', f6(h / 2), undefined, 'Inh'),
+        ]),
+    ]));
+    el.children.push(section('User', [
+        userRow('DYBegin', f6(inset), 'DL', 'Inh'),
+        userRow('DXEnd', '0', 'DL', 'Inh'),
+    ]));
+    el.children.push(section('Connection', [
+        row('Connection', 0, undefined, [cell('X', '0'), cell('Y', f6(inset))]),
+        row('Connection', 1, undefined, [cell('X', f6(0.1968503937007874)), cell('Y', f6(h - inset))]),
+    ]));
+    el.children.push(section('Geometry', [
+        row('LineTo', 2, undefined, [cell('Y', f6(h))]),
+        row('LineTo', 3, undefined, [cell('X', f6(0.1968503937007874)), cell('Y', f6(h))]),
+    ]));
+    const kids = makeElement('Shapes');
+    const tips: Array<[string, string, string, string, string]> = [
+        ['6', '0', f6(kTipRel * 25.4), 'Con1Y', f6(inset)],
+        ['7', '0', f6(-kTipRel * 25.4), 'Con1Y', f6(inset)],
+        ['8', f6(kTipX2), f6(-kTipY2 * 25.4), 'Con2Y', f6(h - inset)],
+        ['9', f6(kTipX2), f6(-kTipY2 * 25.4), 'Con2Y', f6(h - inset)],
+    ];
+    for (const [ms, px, py, rowName, vv] of tips) {
+        const k = newShapeNode();
+        setAttribute(k, 'ID', String(ctx.nextId++));
+        setAttribute(k, 'MasterShape', ms);
+        setAttribute(k, 'Type', 'Shape');
+        k.children.push(cell('PinX', px, 'MM', 'Inh'));
+        k.children.push(cell('PinY', py, 'MM', 'Inh'));
+        k.children.push(section('User', [userRow(rowName, vv, 'DL', 'Inh')]));
+        kids.children.push(k);
+    }
+    el.children.push(kids);
+    if (label) el.children.push(textEl(label));
+    ctx.shapes.push(el);
+    return id;
+}
+
+export function erPageSize(a: { erModel?: ErModel }): { w: number; h: number } {
+    const { pageW, pageH } = layout(a.erModel ?? { entities: [], relations: [] });
+    return { w: pageW, h: pageH };
 }

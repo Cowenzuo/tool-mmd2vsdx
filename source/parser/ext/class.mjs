@@ -40,12 +40,22 @@
             var rels = (typeof d.getRelations === 'function' ? d.getRelations() : []) || [];
             for (var r of rels) {
                 if (!r || !r.id1 || !r.id2) continue;
+                var t2 = r.relation && r.relation.type2;
                 var lt = r.relation && r.relation.lineType;
+                // 官方母版映射（mermaid 10.9 实证：type2 0=AGGREGATION/1=EXTENSION/2=COMPOSITION/3=DEPENDENCY/4=LOLLIPOP；
+                // lineType 0=实线/1=虚线）：
+                //  --|>  solid EXTENSION → inheritance；..|>  dashed EXTENSION → realization；
+                //  ..>   dashed DEPENDENCY → dependency；-->（solid）与 --o/--*（聚合/组合）无官方母版 → unsupported。
+                var kind = null;
+                if (t2 === 1 && lt === 0) kind = 'inheritance';
+                else if (t2 === 1 && lt === 1) kind = 'realization';
+                else if (t2 === 3 && lt === 1) kind = 'dependency';
+                else kind = 'unsupported';
                 relations.push({
                     from: String(r.id1),
                     to: String(r.id2),
                     label: '',
-                    kind: lt === 1 ? 'realization' : 'inheritance'
+                    kind: kind
                 });
             }
         } catch (e) { relations = []; }

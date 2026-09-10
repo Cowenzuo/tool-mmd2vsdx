@@ -1,466 +1,135 @@
-﻿// diag-gantt：契约 A → 契约 B（source/diag/gantt.ts；docs/redesign/04-转义层 对应篇）
-// 结构与金标准同构（73 形状模型）：1 底板 + 6 表头标签 + 1 表头线 + 14 日格 +
-// 2 列分隔线 + 8 行号 + 7 任务条 + 1 里程碑 + 1 追加标记 + 32 行单元。
-// 布局为确定性网格，坐标像素→英寸；行/列参数与金标准同数量级。
+// diag-gantt：契约 A → 契约 B（source/diag/gantt.ts；docs/redesign/04-转义层 对应篇）
+//
+// 母版实例化版（docs/redesign/07-母版形状库方案）：
+//  - Gantt Chart frame / Column(ID) / Sec-Pri 标尺格 / Non working time / Row /
+//    Task bar / Milestone / Text Entry / Link lines 全按官方母版实例结构（Master=N + 差异 cell）；
+//  - 数据联动 GUID 行（GC*GUID）为官方保存态必需，UUID 生成属官方逻辑；
+//  - 实例公式（Sheet.N 引用、User.Scalar/ScaleStart…）按官方原文，行序 ID 引用运行时替换；
+//  - 未核项（Column 日期列集合语义、Link lines 几何行族）见 docs/redesign/07 比对清单/待核清单。
+// 实例模式来源：docs/research/标准研究模板-手动创建vsdx并解压/gantt/ 素材包实测
+//（temp/audit/gantt-instances.txt）。
 
-import { isNoUnitCell } from '../common/units.js';
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kPageContentType, kPageUri } from '../common/xml/constants.js';
-import { part, type XmlPart, type GanttModel } from '../contracts/index.js';
+import { part, type XmlPart, type GanttModel, type GanttTask } from '../contracts/index.js';
 
-const kIn = (v: number) => String(Math.round(v * 1e6) / 1e6);
+const f6 = (v: number) => String(Math.round(v * 1e6) / 1e6);
+const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+});
+const chartUuid = () => uuid().toUpperCase();
+
+// ── 官方几何/缩放常量（素材包实测；IN） ──
+const kDayW = 0.2491777135453005;         // 单日宽（Scalar）
+const kHeaderH = 0.4921259842519685;      // 表头高
+const kRowH = 0.2952755905511811;         // 行高
+const kChartLeft = 1.2;                   // 图区左
+const kChartTop = 0.25;                   // 表头顶
+const kColW = 0.2460629921259843;         // ID 列宽
+const kBarH = 0.2952755905511811;         // 任务条高
+
+function serialToP(n: number): { d: number; y: number; m: number } {
+    const date = new Date((n + 25569) * 86400000);
+    return { d: date.getUTCDate(), y: date.getUTCFullYear(), m: date.getUTCMonth() };
+}
+function fmtMonth(n: number): string {
+    const p = serialToP(n);
+    return `${p.y}年 ${String(p.m + 1).padStart(2, '0')}月`;
+}
+function fmtYmd(n: number): string {
+    const p = serialToP(n);
+    return `${p.y}/${p.m + 1}/${p.d}`;
+}
+function serialFromYmd(y: number, mo: number, d: number): number {
+    return Math.floor((Date.UTC(y, mo - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+}
+function daysInMonth(y: number, mo: number): number {
+    return new Date(Date.UTC(y, mo, 0)).getUTCDate();
+}
+function weekdayOf(n: number): number {
+    return new Date((n + 25569) * 86400000).getUTCDay();
+}
 
 interface Ctx {
-    shapes: XmlNode[];
     nextId: number;
-    pageHpx: number;
-    pxPerInch: number;
+    shapes: XmlNode[];
+    connects: XmlNode[];
+    masterIds: Map<string, number>;
+    chartUuid: string;
+    rowIds: number[];
+    barIds: Map<string, number>;
 }
 
-function newShape(ctx: Ctx): XmlNode {
-    const el = makeElement('Shape');
-    setAttribute(el, 'ID', String(ctx.nextId++));
-    setAttribute(el, 'Type', 'Shape');
-    ctx.shapes.push(el);
-    return el;
-}
-
-function c(el: XmlNode, name: string, value: number | string): void {
-    const cell = makeElement('Cell');
-    setAttribute(cell, 'N', name);
-    if (typeof value === 'number' && !isNoUnitCell(name)) {
-        setAttribute(cell, 'V', kIn(value));
-        setAttribute(cell, 'U', 'IN');
-    } else {
-        setAttribute(cell, 'V', String(value));
-    }
-    el.children.push(cell);
-}
-
-function cellP(name: string, value: string): XmlNode {
+function cell(n: string, v: string | number, u?: string, f?: string): XmlNode {
     const el = makeElement('Cell');
-    setAttribute(el, 'N', name);
-    setAttribute(el, 'V', value);
+    setAttribute(el, 'N', n);
+    setAttribute(el, 'V', String(v));
+    if (u) setAttribute(el, 'U', u);
+    if (f) setAttribute(el, 'F', f);
     return el;
 }
 
-function textNode(el: XmlNode, text: string): void {
+function row(t: string | undefined, ix: number | undefined, n: string | undefined, cells: XmlNode[], del?: boolean): XmlNode {
+    const r = makeElement('Row');
+    if (t) setAttribute(r, 'T', t);
+    if (ix !== undefined) setAttribute(r, 'IX', String(ix));
+    if (n) setAttribute(r, 'N', n);
+    if (del) setAttribute(r, 'Del', '1');
+    for (const c of cells) r.children.push(c);
+    return r;
+}
+
+function section(n: string, rows: XmlNode[]): XmlNode {
+    const s = makeElement('Section');
+    setAttribute(s, 'N', n);
+    for (const r of rows) s.children.push(r);
+    return s;
+}
+
+function userRow(n: string, v: string, u?: string, f?: string): XmlNode {
+    return row(undefined, undefined, n, [cell('Value', v, u, f)]);
+}
+
+function textEl(s: string): XmlNode {
     const t = makeElement('Text');
-    if (text) t.children.push(text);
-    el.children.push(t);
+    t.children.push(s);
+    return t;
 }
 
-/** 矩形几何（5.4.3.3 写法：V=英寸缓存 U=MM、F=Width/Height 公式、显式闭合）；参数为英寸。 */
-function writeRectBody(el: XmlNode, wpx: number, hpx: number): void {
-    const w = wpx;
-    const h = hpx;
-    const g = makeElement('Section');
-    setAttribute(g, 'N', 'Geometry');
-    setAttribute(g, 'IX', '0');
-    for (const [t, ix, xv, xf, yv, yf] of [
-        ['MoveTo', 1, '0', 'Width*0', '0', 'Height*0'],
-        ['LineTo', 2, String(w), 'Width*1', '0', 'Height*0'],
-        ['LineTo', 3, String(w), 'Width*1', String(h), 'Height*1'],
-        ['LineTo', 4, '0', 'Width*0', String(h), 'Height*1'],
-        ['LineTo', 5, '0', 'Geometry1.X1', '0', 'Geometry1.Y1'],
-    ] as Array<[string, number, string, string, string, string]>) {
-        const rw = makeElement('Row');
-        setAttribute(rw, 'T', t);
-        setAttribute(rw, 'IX', String(ix));
-        const xc = makeElement('Cell');
-        setAttribute(xc, 'N', 'X');
-        setAttribute(xc, 'V', kIn(Number(xv)));
-        setAttribute(xc, 'U', 'MM');
-        setAttribute(xc, 'F', xf);
-        const yc = makeElement('Cell');
-        setAttribute(yc, 'N', 'Y');
-        setAttribute(yc, 'V', kIn(Number(yv)));
-        setAttribute(yc, 'U', 'MM');
-        setAttribute(yc, 'F', yf);
-        rw.children.push(xc, yc);
-        g.children.push(rw);
-    }
-    el.children.push(g);
+function newShape(): XmlNode {
+    return makeElement('Shape');
 }
 
-/** 线段几何（6.2.4：无 F 无 U，局部英寸字面量）。 */
-function writeLineBody(el: XmlNode, dxpx: number, dypx: number): void {
-    const g = makeElement('Section');
-    setAttribute(g, 'N', 'Geometry');
-    setAttribute(g, 'IX', '0');
-    for (const [t, ix, xo, yo] of [
-        ['MoveTo', 1, -dxpx / 2, -dypx / 2],
-        ['LineTo', 2, dxpx / 2, dypx / 2],
-    ] as Array<[string, number, number, number]>) {
-        const rw = makeElement('Row');
-        setAttribute(rw, 'T', t);
-        setAttribute(rw, 'IX', String(ix));
-        rw.children.push(cellP('X', kIn(xo)), cellP('Y', kIn(yo)));
-        g.children.push(rw);
-    }
-    el.children.push(g);
+function addShape(ctx: Ctx, el: XmlNode): number {
+    const id = ctx.nextId++;
+    // ID 恒为首属性（规范解析/审计以 `<Shape ID=` 开头定位）
+    el.attrs = [{ name: 'ID', value: String(id) }, ...el.attrs.filter((a) => a.name !== 'ID')];
+    ctx.shapes.push(el);
+    return id;
+}
+
+/** 图表总宽（ID 列 + 日期轴；IN）。 */
+function chartWidth(m: GanttModel): number {
+    return kColW + (m.endSerial - m.startSerial + 1) * kDayW + 0.2;
+}
+
+function axisEnd(m: GanttModel): number {
+    return kChartLeft + (m.endSerial - m.startSerial + 1) * kDayW;
 }
 
 export class GanttRenderer {
-    render(a: { gantt?: GanttModel }, pageHpx: number, pxPerInch = 96): XmlPart {
-        const g: GanttModel = a.gantt ?? { title: '', dateFormat: '', startSerial: 0, endSerial: 0, sections: [], tasks: [] };
-        const ctx: Ctx = { shapes: [], nextId: 1, pageHpx, pxPerInch };
-
-        const rows = g.tasks;
-        const rowGap = 28;
-        const headerH = 24;
-        const dayW = 24;
-        const nameW = 150;
-        const colX = 24; // 行号列宽
-        const dayX0 = colX + nameW + 3 * dayW + 8;
-        const startSerial = g.startSerial;
-        const tasks = rows.filter((t) => t.milestone !== true);
-        const milestones = rows.filter((t) => t.milestone === true);
-        const dayCount = Math.max(g.endSerial - g.startSerial + 2, rows.length ? 8 : 1);
-
-        const rowY = (i: number) => headerH + 8 + rowGap * (i + 0.5);
-        const chartW = dayX0 + dayCount * dayW + 40;
-        const chartH = headerH + 8 + rowGap * rows.length + 20;
-        const chartX0 = 20;
-
-        // 1 底板
-        const bg = newShape(ctx);
-        c(bg, 'PinX', chartX0 + chartW / 2 / pxPerInch);
-        c(bg, 'PinY', (pageHpx - chartH / 2) / pxPerInch);
-        c(bg, 'Width', chartW / pxPerInch);
-        c(bg, 'Height', chartH / pxPerInch);
-        c(bg, 'LocPinX', chartW / 2 / pxPerInch);
-        c(bg, 'LocPinY', chartH / 2 / pxPerInch);
-        c(bg, 'LineColor', '#000000');
-        c(bg, 'LinePattern', 1);
-        c(bg, 'FillForegnd', '#FFFFFF');
-        c(bg, 'FillPattern', 1);
-        writeRectBody(bg, chartW / pxPerInch, chartH / pxPerInch);
-        textNode(bg, '');
-
-        // 2 表头标签 ×6（5 个有文本 + 1 个空白宽格）
-        const headers: Array<[string, number]> = [
-            ['ID', 24],
-            ['任务名称', nameW],
-            ['开始时间', dayW * 2],
-            ['完成', dayW * 2],
-            ['持续时间', dayW * 4],
-            ['', dayCount * dayW],
-        ];
-        let hx = chartX0;
-        for (const [label, w] of headers) {
-            const el = newShape(ctx);
-            c(el, 'PinX', (hx + w / 2) / pxPerInch);
-            c(el, 'PinY', (pageHpx - headerH / 2) / pxPerInch);
-            c(el, 'Width', w / pxPerInch);
-            c(el, 'Height', headerH / pxPerInch);
-            c(el, 'LocPinX', w / 2 / pxPerInch);
-            c(el, 'LocPinY', headerH / 2 / pxPerInch);
-            c(el, 'LineColor', '#000000');
-            c(el, 'LinePattern', 1);
-            c(el, 'FillForegnd', '#FFFFFF');
-            c(el, 'FillPattern', 1);
-            writeRectBody(el, w / pxPerInch, headerH / pxPerInch);
-            textNode(el, label);
-            hx += w;
-        }
-
-        // 3 表头线（数据区上沿）
-        const hline = newShape(ctx);
-        c(hline, 'PinX', (chartX0 + dayX0 + dayCount * dayW / 2) / pxPerInch);
-        c(hline, 'PinY', (pageHpx - (headerH + 1)) / pxPerInch);
-        c(hline, 'Width', (dayCount * dayW) / pxPerInch);
-        c(hline, 'Height', 1 / pxPerInch);
-        c(hline, 'LocPinX', dayCount * dayW / 2 / pxPerInch);
-        c(hline, 'LocPinY', 0);
-        c(hline, 'LineColor', '#000000');
-        c(hline, 'LinePattern', 1);
-        c(hline, 'FillPattern', 0);
-        writeLineBody(hline, dayCount * dayW / pxPerInch, 0);
-        textNode(hline, '');
-
-        // 4 日格 ×dayCount（表头下的小格；Field 段提供日期值——gantt 专篇 3.2）
-        const kExcelEpoch = 25569; // 1970-01-01 的 Excel 序列（1899-12-30=0）
-        for (let i = 0; i < dayCount; i++) {
-            const el = newShape(ctx);
-            const x = chartX0 + dayX0 + i * dayW + dayW / 2;
-            c(el, 'PinX', x / pxPerInch);
-            c(el, 'PinY', (pageHpx - headerH) / pxPerInch);
-            c(el, 'Width', dayW / pxPerInch);
-            c(el, 'Height', 1 / pxPerInch);
-            c(el, 'LocPinX', dayW / 2 / pxPerInch);
-            c(el, 'LocPinY', 0);
-            c(el, 'LineColor', '#000000');
-            c(el, 'LinePattern', 1);
-            c(el, 'FillPattern', 0);
-            writeLineBody(el, dayW / pxPerInch, 0);
-            const dateStr = new Date((startSerial + i - kExcelEpoch) * 86400000).toISOString().slice(0, 10);
-            const fld = makeElement('Section');
-            setAttribute(fld, 'N', 'Field');
-            const frow = makeElement('Row');
-            setAttribute(frow, 'IX', '1');
-            frow.children.push(cellP('Value', dateStr));
-            fld.children.push(frow);
-            el.children.push(fld);
-            textNode(el, '');
-        }
-
-        // 5 列分隔线 ×2（数据区内，跨度=正文高度）
-        const bodyTop = headerH + 4;
-        const bodyH = chartH - bodyTop - 8;
-        for (const dayIdx of [2, Math.max(2, Math.floor(dayCount * 0.7))]) {
-            const el = newShape(ctx);
-            const x = chartX0 + dayX0 + dayIdx * dayW;
-            c(el, 'PinX', x / pxPerInch);
-            c(el, 'PinY', (pageHpx - (bodyTop + bodyH / 2)) / pxPerInch);
-            c(el, 'Width', 1 / pxPerInch);
-            c(el, 'Height', bodyH / pxPerInch);
-            c(el, 'LocPinX', 0);
-            c(el, 'LocPinY', bodyH / 2 / pxPerInch);
-            c(el, 'LineColor', '#000000');
-            c(el, 'LinePattern', 1);
-            c(el, 'FillPattern', 0);
-            writeLineBody(el, 0, bodyH / pxPerInch);
-            textNode(el, '');
-        }
-
-        // 6 行号 ×rows（1..N）
-        for (let i = 0; i < rows.length; i++) {
-            const el = newShape(ctx);
-            c(el, 'PinX', (chartX0 + colX / 2) / pxPerInch);
-            c(el, 'PinY', (pageHpx - rowY(i)) / pxPerInch);
-            c(el, 'Width', colX / pxPerInch);
-            c(el, 'Height', rowGap / pxPerInch);
-            c(el, 'LocPinX', colX / 2 / pxPerInch);
-            c(el, 'LocPinY', rowGap / 2 / pxPerInch);
-            c(el, 'LinePattern', 0);
-            c(el, 'FillPattern', 0);
-            textNode(el, String(i + 1));
-        }
-
-        // 7 任务条 ×nTasks（组：起止按日跨度；命名连接行/Property/8 子形状——gantt 专篇 4.1/4.2）
-        for (const t of tasks) {
-            if (t.startSerial === null || t.startSerial === undefined) continue;
-            const i = rows.indexOf(t);
-            const x = chartX0 + dayX0 + (t.startSerial - startSerial) * dayW + dayW / 2;
-            const w = Math.max(t.duration * dayW, dayW) - 2;
-            const el = newShape(ctx);
-            setAttribute(el, 'Type', 'Group');
-            c(el, 'PinX', x / pxPerInch);
-            c(el, 'PinY', (pageHpx - rowY(i)) / pxPerInch);
-            c(el, 'Width', w / pxPerInch);
-            c(el, 'Height', (rowGap - 4) / pxPerInch);
-            c(el, 'LocPinX', w / 2 / pxPerInch);
-            c(el, 'LocPinY', (rowGap - 4) / 2 / pxPerInch);
-            c(el, 'LineColor', '#000000');
-            c(el, 'LinePattern', 1);
-            c(el, 'FillForegnd', '#DCDCDC');
-            c(el, 'FillPattern', 1);
-            writeRectBody(el, w / pxPerInch, (rowGap - 4) / pxPerInch);
-            // 命名连接行（gantt 专篇 4.3：LeftSide.X/RightSide.X；ToPart 100/101）
-            const conn = makeElement('Section');
-            setAttribute(conn, 'N', 'Connection');
-            for (const [n, xf, dir] of [
-                ['LeftSide', 'Width*0', '1'],
-                ['RightSide', 'Width*1', '-1'],
-            ] as Array<[string, string, string]>) {
-                const crow = makeElement('Row');
-                setAttribute(crow, 'T', 'Connection');
-                setAttribute(crow, 'N', n);
-                crow.children.push(
-                    cellP('X', kIn(xf === 'Width*0' ? 0 : w / pxPerInch)),
-                    cellP('Y', kIn((rowGap - 4) / 2 / pxPerInch)),
-                    cellP('DirX', dir),
-                    cellP('DirY', '0'),
-                    cellP('Type', '0'),
-                    cellP('AutoGen', '0'),
-                    cellP('Prompt', ''),
-                );
-                conn.children.push(crow);
-            }
-            el.children.push(conn);
-            // Property 段（gantt 专篇 4.3/g-2）
-            const prop = makeElement('Section');
-            setAttribute(prop, 'N', 'Property');
-            const prow = makeElement('Row');
-            setAttribute(prow, 'N', 'TaskName');
-            prow.children.push(cellP('Value', t.name));
-            prop.children.push(prow);
-            el.children.push(prop);
-            // 8 子形状（gantt 专篇 4.1：时间条/进度/符号/文字占位）
-            const kids = makeElement('Shapes');
-            for (let kk = 0; kk < 8; kk++) {
-                const k = makeElement('Shape');
-                setAttribute(k, 'ID', String(ctx.nextId++));
-                const kw = 0.08;
-                const kx = (kk - 3.5) * 0.12;
-                k.children.push(
-                    cellP('PinX', kIn(x / pxPerInch + kx)),
-                    cellP('PinY', kIn((pageHpx - rowY(i)) / pxPerInch)),
-                    cellP('Width', kIn(kw)),
-                    cellP('Height', kIn((rowGap - 6) / pxPerInch)),
-                    cellP('LocPinX', kIn(kw / 2)),
-                    cellP('LocPinY', kIn((rowGap - 6) / 2 / pxPerInch)),
-                    cellP('LineColor', '#000000'),
-                    cellP('LinePattern', '1'),
-                    cellP('FillForegnd', '#FFFFFF'),
-                    cellP('FillPattern', '1'),
-                );
-                const kg = makeElement('Section');
-                setAttribute(kg, 'N', 'Geometry');
-                setAttribute(kg, 'IX', '0');
-                for (const [t, ix, xo, yo] of [
-                    ['MoveTo', 1, -kw / 2, -(rowGap - 6) / 2 / pxPerInch],
-                    ['LineTo', 2, kw / 2, -(rowGap - 6) / 2 / pxPerInch],
-                    ['LineTo', 3, kw / 2, (rowGap - 6) / 2 / pxPerInch],
-                    ['LineTo', 4, -kw / 2, (rowGap - 6) / 2 / pxPerInch],
-                    ['LineTo', 5, -kw / 2, -(rowGap - 6) / 2 / pxPerInch],
-                ] as Array<[string, number, number, number]>) {
-                    const rw = makeElement('Row');
-                    setAttribute(rw, 'T', t);
-                    setAttribute(rw, 'IX', String(ix));
-                    rw.children.push(cellP('X', kIn(xo)), cellP('Y', kIn(yo)));
-                    kg.children.push(rw);
-                }
-                k.children.push(kg);
-                kids.children.push(k);
-            }
-            el.children.push(kids);
-            textNode(el, '');
-        }
-
-        // 8 里程碑（0d → 小方块；与任务条同集团：8 子形状 + 命名连接行 + Property——4.1/4.5）
-        for (const t of milestones) {
-            if (t.startSerial === null || t.startSerial === undefined) continue;
-            const i = rows.indexOf(t);
-            const x = chartX0 + dayX0 + (t.startSerial - startSerial) * dayW + dayW / 2;
-            const el = newShape(ctx);
-            setAttribute(el, 'Type', 'Group');
-            const mw = 10 / pxPerInch;
-            const mh = 10 / pxPerInch;
-            c(el, 'PinX', x / pxPerInch);
-            c(el, 'PinY', (pageHpx - rowY(i)) / pxPerInch);
-            c(el, 'Width', mw);
-            c(el, 'Height', mh);
-            c(el, 'LocPinX', mw / 2);
-            c(el, 'LocPinY', mh / 2);
-            c(el, 'LineColor', '#000000');
-            c(el, 'LinePattern', 1);
-            c(el, 'FillForegnd', '#FFFFFF');
-            c(el, 'FillPattern', 1);
-            writeRectBody(el, mw, mh);
-            const conn = makeElement('Section');
-            setAttribute(conn, 'N', 'Connection');
-            for (const [n, xv, dir] of [
-                ['LeftSide', '0', '1'],
-                ['RightSide', mw, '-1'],
-            ] as Array<[string, string, string]>) {
-                const crow = makeElement('Row');
-                setAttribute(crow, 'T', 'Connection');
-                setAttribute(crow, 'N', n);
-                crow.children.push(
-                    cellP('X', kIn(Number(xv))),
-                    cellP('Y', kIn(mh / 2)),
-                    cellP('DirX', dir),
-                    cellP('DirY', '0'),
-                    cellP('Type', '0'),
-                    cellP('AutoGen', '0'),
-                    cellP('Prompt', ''),
-                );
-                conn.children.push(crow);
-            }
-            el.children.push(conn);
-            const prop = makeElement('Section');
-            setAttribute(prop, 'N', 'Property');
-            const prow = makeElement('Row');
-            setAttribute(prow, 'N', 'TaskName');
-            prow.children.push(cellP('Value', t.name));
-            prop.children.push(prow);
-            el.children.push(prop);
-            const kids = makeElement('Shapes');
-            for (let kk = 0; kk < 8; kk++) {
-                const k = makeElement('Shape');
-                setAttribute(k, 'ID', String(ctx.nextId++));
-                k.children.push(
-                    cellP('PinX', kIn(x / pxPerInch + (kk - 3.5) * 0.05)),
-                    cellP('PinY', kIn((pageHpx - rowY(i)) / pxPerInch)),
-                    cellP('Width', kIn(0.04)),
-                    cellP('Height', kIn(0.04)),
-                    cellP('LocPinX', kIn(0.02)),
-                    cellP('LocPinY', kIn(0.02)),
-                    cellP('LineColor', '#000000'),
-                    cellP('LinePattern', '1'),
-                    cellP('FillForegnd', '#FFFFFF'),
-                    cellP('FillPattern', '1'),
-                );
-                const kg = makeElement('Section');
-                setAttribute(kg, 'N', 'Geometry');
-                setAttribute(kg, 'IX', '0');
-                for (const [tt, ix, xo, yo] of [
-                    ['MoveTo', 1, -0.02, -0.02],
-                    ['LineTo', 2, 0.02, -0.02],
-                    ['LineTo', 3, 0.02, 0.02],
-                    ['LineTo', 4, -0.02, 0.02],
-                    ['LineTo', 5, -0.02, -0.02],
-                ] as Array<[string, number, number, number]>) {
-                    const rw = makeElement('Row');
-                    setAttribute(rw, 'T', tt);
-                    setAttribute(rw, 'IX', String(ix));
-                    rw.children.push(cellP('X', kIn(xo)), cellP('Y', kIn(yo)));
-                    kg.children.push(rw);
-                }
-                k.children.push(kg);
-                kids.children.push(k);
-            }
-            el.children.push(kids);
-            textNode(el, '');
-        }
-
-        // 9 追加标记（最后一个任务条右缘下侧的小标记）
-        if (tasks.length > 0) {
-            const last = tasks[tasks.length - 1]!;
-            const i = rows.indexOf(last);
-            const x = chartX0 + dayX0 + (last.startSerial - startSerial) * dayW + last.duration * dayW + 12;
-            const el = newShape(ctx);
-            c(el, 'PinX', x / pxPerInch);
-            c(el, 'PinY', (pageHpx - (rowY(i) + rowGap / 2)) / pxPerInch);
-            c(el, 'Width', 8 / pxPerInch);
-            c(el, 'Height', 6 / pxPerInch);
-            c(el, 'LocPinX', 4 / pxPerInch);
-            c(el, 'LocPinY', 3 / pxPerInch);
-            c(el, 'LineColor', '#000000');
-            c(el, 'LinePattern', 1);
-            c(el, 'FillForegnd', '#FFFFFF');
-            c(el, 'FillPattern', 1);
-            writeRectBody(el, 8 / pxPerInch, 6 / pxPerInch);
-            textNode(el, '');
-        }
-
-        // 10 行单元 ×rows×4（名称 + 3 数据小格）
-        for (let i = 0; i < rows.length; i++) {
-            const xs = [chartX0 + colX, chartX0 + colX + nameW, chartX0 + colX + nameW + dayW, chartX0 + colX + nameW + 2 * dayW];
-            const ws = [nameW, dayW, dayW, dayW];
-            for (let k = 0; k < 4; k++) {
-                const el = newShape(ctx);
-                c(el, 'PinX', (xs[k]! + ws[k]! / 2) / pxPerInch);
-                c(el, 'PinY', (pageHpx - rowY(i)) / pxPerInch);
-                c(el, 'Width', ws[k]! / pxPerInch);
-                c(el, 'Height', (rowGap - 2) / pxPerInch);
-                c(el, 'LocPinX', ws[k]! / 2 / pxPerInch);
-                c(el, 'LocPinY', (rowGap - 2) / 2 / pxPerInch);
-                c(el, 'LineColor', '#000000');
-                c(el, 'LinePattern', 1);
-                c(el, 'FillForegnd', '#FFFFFF');
-                c(el, 'FillPattern', 1);
-                writeRectBody(el, ws[k]! / pxPerInch, (rowGap - 2) / pxPerInch);
-                textNode(el, '');
-            }
-        }
-
+    render(a: { gantt?: GanttModel }, pageHpx: number, pxPerInch = 96, masterIds: Map<string, number> = new Map()): XmlPart {
+        const m = a.gantt ?? { title: '', dateFormat: 'YYYY-MM-DD', startSerial: 0, endSerial: 0, sections: [], tasks: [] };
+        const ctx: Ctx = { nextId: 1, shapes: [], connects: [], masterIds, chartUuid: chartUuid(), rowIds: [], barIds: new Map() };
+        void pageHpx; void pxPerInch;
         const root = makeElement('PageContents');
         const shapes = makeElement('Shapes');
+        const connects = makeElement('Connects');
+        root.children.push(shapes, connects);
+        writeChart(ctx, m);
         for (const s of ctx.shapes) shapes.children.push(s);
-        root.children.push(shapes, makeElement('Connects'));
+        for (const c of ctx.connects) connects.children.push(c);
         setAttribute(root, 'xmlns', 'http://schemas.microsoft.com/office/visio/2012/main');
         const xml = serializeDocument(root, {
             declaration: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
@@ -468,4 +137,554 @@ export class GanttRenderer {
         });
         return part(kPageUri, kPageContentType, xml);
     }
+}
+
+export function ganttPageSize(a: { gantt?: GanttModel }): { w: number; h: number } {
+    const m = a.gantt ?? { title: '', dateFormat: '', startSerial: 0, endSerial: 0, sections: [], tasks: [] };
+    const rows = Math.max(1, m.tasks.length);
+    return {
+        w: kChartLeft + chartWidth(m) + 0.5,
+        h: kChartTop + kHeaderH * 2 + rows * kRowH + 0.9,
+    };
+}
+
+function writeChart(ctx: Ctx, m: GanttModel): void {
+    const nDays = m.endSerial - m.startSerial + 1;
+    addShape(ctx, writeFrame(ctx, m, nDays));     // 1 号（Sheet.1）恒为 frame
+    addShape(ctx, writeColumn(ctx, m));           // 2 号（Sheet.2）恒为 ID 列
+    // 标尺：Sec=自然月段；Pri=日格
+    let cursor = m.startSerial;
+    while (cursor <= m.endSerial) {
+        const p = serialToP(cursor);
+        const monthStart = serialFromYmd(p.y, p.m + 1, 1);
+        const monthEnd = serialFromYmd(p.y, p.m + 1, daysInMonth(p.y, p.m + 1));
+        const runStart = Math.max(cursor, monthStart);
+        const runEnd = Math.min(m.endSerial, monthEnd);
+        if (runStart <= runEnd) addShape(ctx, writeScaleCell(ctx, m, 'Sec', runStart, runEnd - runStart + 1));
+        cursor = monthEnd + 1;
+    }
+    let day = 0;
+    while (day < nDays) {
+        addShape(ctx, writeScaleCell(ctx, m, 'Pri', m.startSerial + day, 1));
+        day += 1;
+    }
+    // 非工作时段：连续周末段
+    let runStart = -1;
+    let runLen = 0;
+    day = 0;
+    while (day < nDays) {
+        const wd = weekdayOf(m.startSerial + day);
+        if (wd === 6 || wd === 0) {
+            if (runStart < 0) runStart = day;
+            runLen += 1;
+        } else if (runLen > 0) {
+            addShape(ctx, writeNonWorking(ctx, m, runStart, runLen));
+            runStart = -1;
+            runLen = 0;
+        }
+        day += 1;
+    }
+    if (runLen > 0) addShape(ctx, writeNonWorking(ctx, m, runStart, runLen));
+    // 行 + 任务条 + 里程碑 + Text Entry；Link lines 最后
+    m.tasks.forEach((t, i) => {
+        const rowId = addShape(ctx, writeRow(ctx, m, t, i));
+        ctx.rowIds.push(rowId);
+        const barId = t.milestone ? addShape(ctx, writeMilestone(ctx, m, t, i)) : addShape(ctx, writeTaskBar(ctx, m, t, i));
+        ctx.barIds.set(`${t.name}#${i}`, barId);
+        addShape(ctx, writeTextEntry(ctx, m, t, i, 'duration'));
+        addShape(ctx, writeTextEntry(ctx, m, t, i, 'end'));
+    });
+    m.tasks.forEach((t, i) => {
+        for (const dep of t.dependsOn) {
+            const fromIdx = m.tasks.findIndex((x) => x.name === dep);
+            if (fromIdx < 0) continue;
+            const fromBar = ctx.barIds.get(`${dep}#${fromIdx}`);
+            const toBar = ctx.barIds.get(`${t.name}#${i}`);
+            if (fromBar !== undefined && toBar !== undefined) addShape(ctx, writeLinkLine(ctx, m, fromBar, toBar));
+        }
+    });
+}
+
+function writeFrame(ctx: Ctx, m: GanttModel, nDays: number): XmlNode {
+    const masterId = ctx.masterIds.get('Gantt Chart frame') ?? 0;
+    const width = chartWidth(m);
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Gantt Chart frame');
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    el.children.push(
+        cell('PinX', f6(kChartLeft + width / 2)),
+        cell('PinY', f6(kChartTop + kHeaderH)),
+        cell('Width', f6(width), 'MM'),
+        cell('Height', f6(kHeaderH), 'MM'),
+        cell('LocPinY', f6(kHeaderH), 'MM', 'Inh'),
+        cell('LayerMember', '1'),
+    );
+    el.children.push(section('User', [
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCModelGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('WorkingDays', '0;1;1;1;1;1;0;', 'STR'),
+        userRow('DayStartTime', '8'),
+        userRow('LastColGUID', uuid().toUpperCase(), 'STR'),
+        userRow('LastRowGUID', uuid().toUpperCase(), 'STR'),
+        userRow('DayEndTime', '16'),
+        userRow('StartDate', String(m.startSerial)),
+        userRow('EndDate', String(m.endSerial)),
+        userRow('ScaleUnits', String(nDays - 1), undefined, 'User.EndDate-User.StartDate'),
+        userRow('Scalar', f6(kDayW), 'DL', 'Sheet.1!Width/User.ScaleUnits'),
+        userRow('PriScaleUnitsType', '3'),
+        userRow('SecScaleUnitsType', '5'),
+        userRow('WDLookup', '0;0;0;0;0;2;1;', 'STR'),
+        userRow('WHLookup', '8;7;6;5;4;3;2;1;0;0;0;0;0;0;0;0;16;15;14;13;12;11;10;9;', 'STR'),
+        userRow('WTScalar', '0.3333333333333333', undefined, 'Inh'),
+        userRow('IDColumnGUID', uuid().toUpperCase(), 'STR'),
+    ]));
+    el.children.push(section('Geometry', [
+        row('LineTo', 2, undefined, [cell('X', f6(width), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(width), 'MM', 'Inh'), cell('Y', f6(kHeaderH), 'MM', 'Inh')]),
+        row('LineTo', 4, undefined, [cell('Y', f6(kHeaderH), 'MM', 'Inh')]),
+    ]));
+    return el;
+}
+
+function writeColumn(ctx: Ctx, m: GanttModel): XmlNode {
+    const masterId = ctx.masterIds.get('Column') ?? 0;
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Column');
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const height = kHeaderH + m.tasks.length * kRowH;
+    el.children.push(
+        cell('PinX', f6(kChartLeft - kColW / 2), undefined, 'Sheet.1!PinX-Sheet.1!Width/2-0.1230314960629921'),
+        cell('PinY', f6(kChartTop + kHeaderH), undefined, 'Sheet.1!PinY'),
+        cell('Width', f6(kColW)),
+        cell('Height', f6(height), 'MM', `Sheet.1!Height+${f6(m.tasks.length * kRowH)}`),
+        cell('LocPinY', f6(height), 'MM', 'Inh'),
+        cell('LayerMember', '1'),
+        cell('TxtPinY', f6(kHeaderH / 2), 'MM', 'Inh'),
+        cell('TxtWidth', f6(kColW), undefined, 'Inh'),
+    );
+    el.children.push(section('User', [
+        userRow('HeaderHeight', f6(kHeaderH), 'MM', 'Sheet.1!User.HeaderHeight'),
+        userRow('GCPrevColGUID', ctx.chartUuid, 'STR'),
+        userRow('GCFieldType', '55'),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('IsID', '1'),
+    ]));
+    el.children.push(section('Geometry', [
+        row('MoveTo', 1, undefined, [cell('Y', f6(height), 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('X', f6(kColW), undefined, 'Inh'), cell('Y', f6(height), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(kColW), undefined, 'Inh')]),
+        row('LineTo', 5, undefined, [cell('Y', f6(height), 'MM', 'Inh')]),
+        row('MoveTo', 1, undefined, [cell('Y', f6(kHeaderH), 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('X', f6(kColW), undefined, 'Inh'), cell('Y', f6(kHeaderH), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(kColW), undefined, 'Inh'), cell('Y', f6(height), 'MM', 'Inh')]),
+        row('LineTo', 4, undefined, [cell('Y', f6(height), 'MM', 'Inh')]),
+        row('LineTo', 5, undefined, [cell('Y', f6(kHeaderH), 'MM', 'Inh')]),
+    ]));
+    return el;
+}
+
+function writeScaleCell(ctx: Ctx, m: GanttModel, kind: 'Sec' | 'Pri', startSerial: number, len: number): XmlNode {
+    const masterName = kind === 'Sec' ? 'Sec scale cell' : 'Pri scale cell';
+    const masterId = ctx.masterIds.get(masterName) ?? 0;
+    const el = newShape();
+    setAttribute(el, 'NameU', masterName);
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const offset = startSerial - m.startSerial;
+    const pos = kChartLeft + offset * kDayW;
+    const w = len * kDayW;
+    const h = kHeaderH / 2;
+    const y = kChartTop + (kind === 'Sec' ? kHeaderH * 1.5 : kHeaderH);
+    const text = kind === 'Sec' ? fmtMonth(startSerial) : String(serialToP(startSerial).d);
+    const typeRow = kind === 'Sec' ? 'SecScaleUnitsType' : 'PriScaleUnitsType';
+    el.children.push(
+        cell('PinX', f6(pos), 'MM', 'GUARD(MAX(User.ScaledStartPos+LocPinX,User.ScaleStart))'),
+        cell('PinY', f6(y), 'MM', kind === 'Sec' ? 'GUARD(Sheet.1!PinY)' : 'GUARD(Sheet.1!PinY-(Sheet.1!User.HeaderHeight/2))'),
+        cell('Width', f6(w), undefined, 'User.ScaledDuration-(User.LeftWidthReduction+User.RightWidthReduction)'),
+        cell('Height', f6(h), 'MM', 'Sheet.1!User.HeaderHeight/2'),
+        cell('LocPinX', '0', 'MM', 'Inh'),
+        cell('LocPinY', f6(h), 'MM', 'Inh'),
+        cell('LayerMember', '1'),
+        cell('Value', text, 'STR', `User.PreText&FORMAT(User.StartDate,INDEX(Sheet.1!User.${typeRow},Sheet.1!User.${typeRow}TextFormat))`),
+        cell('Value', f6(0.08338587746484374), 'DL', 'Inh'),
+        cell('Value', f6(pos), 'MM', '(User.Offset*Sheet.1!User.Scalar)+User.ScaleStart'),
+        cell('Value', f6(w), 'DL', 'User.Duration*Sheet.1!User.Scalar'),
+        cell('Value', String(startSerial), undefined, 'Sheet.1!User.StartDate+User.Offset'),
+        cell('Value', String(len)),
+        cell('Value', f6(kChartLeft), 'MM', 'Sheet.1!PinX-Sheet.1!LocPinX'),
+        cell('Value', f6(axisEnd(m)), 'MM', 'User.ScaleStart+Sheet.1!Width'),
+        cell('Value', ctx.chartUuid, 'STR'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', '', 'STR', `IF(Sheet.1!User.${typeRow}=6,FORMAT(INT((MONTH(User.StartDate)+2)/3),`),
+        cell('HorzAlign', kind === 'Sec' ? '1' : '2', undefined, `IF(Sheet.1!User.${typeRow}=4,0,1)`),
+    );
+    el.children.push(section('Field', [
+        row(undefined, 0, undefined, [cell('Value', text, 'STR', 'Inh')]),
+    ]));
+    el.children.push(section('User', [
+        userRow('TextWidth', f6(0.08338587746484374), 'DL', 'Inh'),
+        userRow('ScaledStartPos', f6(pos), 'MM', '(User.Offset*Sheet.1!User.Scalar)+User.ScaleStart'),
+        userRow('ScaledDuration', f6(w), 'DL', 'User.Duration*Sheet.1!User.Scalar'),
+        userRow('StartDate', String(startSerial), undefined, 'Sheet.1!User.StartDate+User.Offset'),
+        userRow('Duration', String(len)),
+        userRow('ScaleStart', f6(kChartLeft), 'MM', 'Sheet.1!PinX-Sheet.1!LocPinX'),
+        userRow('ScaleEnd', f6(axisEnd(m)), 'MM', 'User.ScaleStart+Sheet.1!Width'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCColGUID', uuid().toUpperCase(), 'STR'),
+        userRow('PreText', '', 'STR', `IF(Sheet.1!User.${typeRow}=6,FORMAT(INT((MONTH(User.StartDate)+2)/3),`),
+    ]));
+    el.children.push(section('Paragraph', [
+        row(undefined, 0, undefined, [cell('HorzAlign', kind === 'Sec' ? '1' : '2', undefined, `IF(Sheet.1!User.${typeRow}=4,0,1)`)]),
+    ]));
+    el.children.push(section('Geometry', [
+        row('MoveTo', 1, undefined, [cell('Y', '0', 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('X', f6(w), undefined, 'Inh'), cell('Y', '0', 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(w), undefined, 'Inh'), cell('Y', f6(h), 'MM', 'Inh')]),
+        row('LineTo', 4, undefined, [cell('Y', f6(h), 'MM', 'Inh')]),
+        row('LineTo', 5, undefined, [cell('Y', '0', 'MM', 'Inh')]),
+    ]));
+    return el;
+}
+
+function writeNonWorking(ctx: Ctx, m: GanttModel, dayStart: number, len: number): XmlNode {
+    const masterId = ctx.masterIds.get('Non working time') ?? 0;
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Non working time');
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const startSerial = m.startSerial + dayStart;
+    const pos = kChartLeft + dayStart * kDayW;
+    const w = len * kDayW;
+    el.children.push(
+        cell('PinX', f6(pos), 'MM', 'GUARD(MAX(User.ScaledStartPos+LocPinX,User.ScaleStart))'),
+        cell('PinY', f6(kChartTop + kHeaderH * 2), 'MM', 'GUARD(Sheet.1!PinY-Sheet.1!User.HeaderHeight)'),
+        cell('Width', f6(w), undefined, 'User.ScaledDuration-(User.LeftWidthReduction+User.RightWidthReduction)'),
+        cell('Height', f6(kRowH), 'MM', 'Sheet.1!Height-Sheet.1!User.HeaderHeight'),
+        cell('LocPinY', f6(kRowH), 'MM', 'Inh'),
+        cell('LayerMember', '1'),
+        cell('Value', f6(pos), 'MM', '(User.Offset*Sheet.1!User.Scalar)+User.ScaleStart'),
+        cell('Value', f6(w), 'DL', 'User.Duration*Sheet.1!User.Scalar'),
+        cell('Value', String(startSerial), undefined, 'Sheet.1!User.StartDate+User.Offset'),
+        cell('Value', String(len)),
+        cell('Value', f6(kChartLeft), 'MM', 'Sheet.1!PinX-Sheet.1!LocPinX'),
+        cell('Value', f6(axisEnd(m)), 'MM', 'User.ScaleStart+Sheet.1!Width'),
+        cell('Value', ctx.chartUuid, 'STR'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+    );
+    el.children.push(section('User', [
+        userRow('ScaledStartPos', f6(pos), 'MM', '(User.Offset*Sheet.1!User.Scalar)+User.ScaleStart'),
+        userRow('ScaledDuration', f6(w), 'DL', 'User.Duration*Sheet.1!User.Scalar'),
+        userRow('StartDate', String(startSerial), undefined, 'Sheet.1!User.StartDate+User.Offset'),
+        userRow('Duration', String(len)),
+        userRow('ScaleStart', f6(kChartLeft), 'MM', 'Sheet.1!PinX-Sheet.1!LocPinX'),
+        userRow('ScaleEnd', f6(axisEnd(m)), 'MM', 'User.ScaleStart+Sheet.1!Width'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCColGUID', uuid().toUpperCase(), 'STR'),
+    ]));
+    el.children.push(section('Geometry', [
+        row('MoveTo', 1, undefined, [cell('Y', '0', 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('X', f6(w), undefined, 'Inh'), cell('Y', '0', 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(w), undefined, 'Inh'), cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('LineTo', 4, undefined, [cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('LineTo', 5, undefined, [cell('Y', '0', 'MM', 'Inh')]),
+    ]));
+    return el;
+}
+
+function writeRow(ctx: Ctx, m: GanttModel, t: GanttTask, i: number): XmlNode {
+    const masterId = ctx.masterIds.get('Row') ?? 0;
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Row');
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const width = chartWidth(m);
+    const y = kChartTop + kHeaderH * 2 - (i + 0.5) * kRowH;
+    el.children.push(
+        cell('PinX', f6(kChartLeft + width / 2), undefined, 'Sheet.1!PinX'),
+        cell('PinY', f6(y), 'MM', `Sheet.1!PinY-Sheet.1!User.HeaderHeight-${f6((i + 1) * kRowH)}`),
+        cell('Width', f6(width), 'MM', 'Sheet.1!Width'),
+        cell('LayerMember', '1'),
+        cell('TxtWidth', f6(kColW), undefined, 'Inh'),
+    );
+    el.children.push(section('User', [
+        userRow('HeaderWidth', f6(kColW), 'DL', 'Sheet.2!Width'),
+        userRow('GCPrevRowGUID', ctx.chartUuid, 'STR'),
+        userRow('HeaderPinX', '0', 'DL', 'Sheet.2!PinX-Sheet.1!PinX'),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+    ]));
+    el.children.push(section('Geometry', [
+        row('LineTo', 2, undefined, [cell('X', f6(width), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(width), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(kColW), undefined, 'Inh')]),
+        row('LineTo', 4, undefined, [cell('X', f6(kColW), undefined, 'Inh')]),
+    ]));
+    el.children.push(textEl(t.name));
+    return el;
+}
+
+function writeTaskBar(ctx: Ctx, m: GanttModel, t: GanttTask, i: number): XmlNode {
+    const masterId = ctx.masterIds.get('Task bar') ?? 0;
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Task bar');
+    setAttribute(el, 'Type', 'Group');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const offset = t.startSerial - m.startSerial;
+    const start = kChartLeft + offset * kDayW;
+    const dur = Math.max(t.duration, 0.0001) * kDayW;
+    const rowId = ctx.rowIds[i] ?? 1;
+    el.children.push(
+        cell('PinX', f6(start), 'MM', 'MIN(MAX(User.ScaledStartPos+LocPinX,User.ScaleStart),User.ScaleEnd)'),
+        cell('PinY', '0', 'MM', `Sheet.${rowId}!PinY`),
+        cell('Width', f6(dur), undefined, 'User.ScaledDuration-(User.LeftWidthReduction+User.RightWidthReduction)'),
+        cell('Height', f6(kBarH), 'MM', `Sheet.${rowId}!Height`),
+        cell('LayerMember', '1'),
+        cell('Comment', t.name, undefined, 'Inh'),
+    );
+    el.children.push(section('User', [
+        userRow('LeftText', '0', 'STR', 'Inh'),
+        userRow('RightText', '0', 'STR', 'Inh'),
+        userRow('InnerText', '0', 'STR', 'Inh'),
+        userRow('LeftTextID', '0', 'STR', 'Inh'),
+        userRow('RightTextID', '0', 'STR', 'Inh'),
+        userRow('InnerTextID', '0', 'STR', 'Inh'),
+        userRow('ScaledEndPos', f6(start + dur), 'MM', 'Inh'),
+        userRow('StartSymType', '9', undefined, 'Inh'),
+        userRow('EndSymType', '9', undefined, 'Inh'),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCModelGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('ScaledStartPos', f6(start), 'MM', 'MAX((User.Offset*Sheet.1!User.Scalar)+User.ScaleStart,User.Dependency)'),
+        userRow('ScaledDuration', f6(dur), 'DL', 'IF(User.IsSummary=1,User.DependencyDuration,User.Duration*Sheet.1!User.Scalar)'),
+        userRow('StartDate', String(t.startSerial), undefined, 'MAX(Sheet.1!User.StartDate+(User.Dependency-User.ScaleStart)/Sheet.1!User.Scalar,User.WTNormalizedStart)'),
+        userRow('Duration', String(t.duration)),
+        userRow('ScaleStart', f6(kChartLeft), 'MM', 'Sheet.1!PinX-Sheet.1!LocPinX'),
+        userRow('ScaleEnd', f6(axisEnd(m)), 'MM', 'User.ScaleStart+Sheet.1!Width'),
+        userRow('Offset', String(offset), undefined, 'User.WDOffset+User.WHOffset+User.StartDate-Sheet.1!User.StartDate'),
+        userRow('GCRowGUID', uuid().toUpperCase(), 'STR'),
+        userRow('WDOffset', '0', 'STR', 'INDEX(WEEKDAY(User.StartDate+User.WHOffset)-1,Sheet.1!User.WDLookup,Sheet.1!User.WTLookupSep)'),
+        userRow('WHOffset', '0', undefined, 'IF(Sheet.1!User.PriScaleUnitsType<3,INDEX(HOUR(User.StartDate),Sheet.1!User.WHLookup,Sheet.1!User.WTLookupSep),0)/24'),
+        userRow('ParentModelGUID', uuid().toUpperCase(), 'STR'),
+        userRow('DependencyDuration', '-1.5E300', 'MM', 'Inh'),
+        userRow('LastStartFromMove', String(t.startSerial), undefined, `IF(User.IsSummary,-1.5E300,${t.startSerial})`),
+        userRow('WTNormalizedStart', String(t.startSerial), undefined, `IF(Sheet.1!User.PriScaleUnitsType<3,INT(User.LastStartFromMove)+((Sheet.1!User.WTScalar*(User.LastStartFromMove-INT(User.LastStartFromMove)))+(Sheet.1!User.DayStartTime/24)),User.LastStartFromMove)`),
+    ]));
+    el.children.push(section('Control', [
+        row(undefined, undefined, 'Row_2', [cell('X', f6(dur), undefined, 'Inh'), cell('XDyn', f6(dur), undefined, 'Inh')]),
+    ]));
+    el.children.push(section('Property', [
+        row(undefined, undefined, 'Name', [cell('Value', t.name, 'STR'), cell('DataLinked', '0')]),
+        row(undefined, undefined, 'Start', [cell('Value', String(t.startSerial))]),
+        row(undefined, undefined, 'End', [cell('Value', String(t.startSerial + Math.max(t.duration - 1, 0)))]),
+        row(undefined, undefined, 'Duration', [cell('Value', `${t.duration}天`, 'STR', `FORMAT(${t.duration},`), cell('DataLinked', '0')]),
+        row(undefined, undefined, 'ActualStart', [cell('Value', String(t.startSerial), undefined, 'Inh')]),
+        row(undefined, undefined, 'ActualEnd', [cell('Value', String(t.startSerial + Math.max(t.duration - 1, 0)), undefined, 'Inh')]),
+        row(undefined, undefined, 'UserDefTime', [cell('Value', f6(t.startSerial + 0.33333333333334))]),
+        row(undefined, undefined, 'TaskID', [cell('Value', String(i + 1))]),
+    ]));
+    el.children.push(section('Connection', [
+        row('Connection', 0, 'RightSide', [cell('X', f6(dur), undefined, 'Inh')]),
+    ]));
+    el.children.push(section('Geometry', [
+        row('LineTo', 2, undefined, [cell('X', f6(dur), undefined, 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(dur), undefined, 'Inh')]),
+    ]));
+    const kids = makeElement('Shapes');
+    for (const ms of ['10', '5', '9', '6', '7', '11', '12', '13']) {
+        const k = newShape();
+        setAttribute(k, 'MasterShape', ms);
+        setAttribute(k, 'Type', 'Shape');
+        k.children.push(cell('LayerMember', '1'));
+        kids.children.push(k);
+    }
+    el.children.push(kids);
+    return el;
+}
+
+function writeMilestone(ctx: Ctx, m: GanttModel, t: GanttTask, i: number): XmlNode {
+    const masterId = ctx.masterIds.get('Milestone') ?? 0;
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Milestone');
+    setAttribute(el, 'Type', 'Group');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const offset = t.startSerial - m.startSerial;
+    const start = kChartLeft + offset * kDayW;
+    const rowId = ctx.rowIds[i] ?? 1;
+    el.children.push(
+        cell('PinX', f6(start), 'MM', 'MIN(MAX(User.ScaledStartPos+LocPinX,User.ScaleStart),User.ScaleEnd)'),
+        cell('PinY', '0', 'MM', `Sheet.${rowId}!PinY`),
+        cell('Width', '0', undefined, 'User.ScaledDuration-(User.LeftWidthReduction+User.RightWidthReduction)'),
+        cell('Height', f6(kBarH), 'MM', `Sheet.${rowId}!Height`),
+        cell('LayerMember', '1'),
+        cell('Comment', t.name, undefined, 'Inh'),
+    );
+    el.children.push(section('User', [
+        userRow('LeftText', '0', 'STR', 'Inh'),
+        userRow('RightText', '0', 'STR', 'Inh'),
+        userRow('InnerText', '0', 'STR', 'Inh'),
+        userRow('LeftTextID', '0', 'STR', 'Inh'),
+        userRow('RightTextID', '0', 'STR', 'Inh'),
+        userRow('InnerTextID', '0', 'STR', 'Inh'),
+        userRow('ScaledEndPos', f6(start), 'MM', 'Inh'),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCModelGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('ScaledStartPos', f6(start), 'MM', 'MAX((User.Offset*Sheet.1!User.Scalar)+User.ScaleStart,User.Dependency)'),
+        userRow('ScaledDuration', '0', 'DL', 'IF(User.IsSummary=1,User.DependencyDuration,User.Duration*Sheet.1!User.Scalar)'),
+        userRow('StartDate', f6(t.startSerial + 0.5), undefined, 'MAX(Sheet.1!User.StartDate+(User.Dependency-User.ScaleStart)/Sheet.1!User.Scalar,User.WTNormalizedStart)'),
+        userRow('ScaleStart', f6(kChartLeft), 'MM', 'Sheet.1!PinX-Sheet.1!LocPinX'),
+        userRow('ScaleEnd', f6(axisEnd(m)), 'MM', 'User.ScaleStart+Sheet.1!Width'),
+        userRow('Offset', f6(offset + 0.5), undefined, 'User.WDOffset+User.WHOffset+User.StartDate-Sheet.1!User.StartDate'),
+        userRow('GCRowGUID', uuid().toUpperCase(), 'STR'),
+        userRow('WDOffset', '0', 'STR', 'INDEX(WEEKDAY(User.StartDate+User.WHOffset)-1,Sheet.1!User.WDLookup,Sheet.1!User.WTLookupSep)'),
+        userRow('WHOffset', '0', undefined, 'IF(Sheet.1!User.PriScaleUnitsType<3,INDEX(HOUR(User.StartDate),Sheet.1!User.WHLookup,Sheet.1!User.WTLookupSep),0)/24'),
+        userRow('ParentModelGUID', uuid().toUpperCase(), 'STR'),
+        userRow('DependencyDuration', '-1.5E300', 'MM', 'Inh'),
+        userRow('LastStartFromMove', f6(t.startSerial + 0.5), undefined, `IF(User.IsSummary,-1.5E300,${f6(t.startSerial + 0.5)})`),
+        userRow('WTNormalizedStart', f6(t.startSerial + 0.5), undefined, `IF(Sheet.1!User.PriScaleUnitsType<3,INT(User.LastStartFromMove)+((Sheet.1!User.WTScalar*(User.LastStartFromMove-INT(User.LastStartFromMove)))+(Sheet.1!User.DayStartTime/24)),User.LastStartFromMove)`),
+    ]));
+    el.children.push(section('Property', [
+        row(undefined, undefined, 'Name', [cell('Value', t.name, 'STR'), cell('DataLinked', '0')]),
+        row(undefined, undefined, 'Start', [cell('Value', f6(t.startSerial + 0.5))]),
+        row(undefined, undefined, 'End', [cell('Value', f6(t.startSerial + 0.5))]),
+        row(undefined, undefined, 'Duration', [cell('Value', '0天', 'STR', 'FORMAT(0,'), cell('DataLinked', '0')]),
+        row(undefined, undefined, 'ActualStart', [cell('Value', f6(t.startSerial + 0.5), undefined, 'Inh')]),
+        row(undefined, undefined, 'ActualEnd', [cell('Value', f6(t.startSerial + 0.5), undefined, 'Inh')]),
+        row(undefined, undefined, 'UserDefTime', [cell('Value', f6(t.startSerial + 0.33333333333334))]),
+        row(undefined, undefined, 'TaskID', [cell('Value', String(i + 1))]),
+    ]));
+    return el;
+}
+
+function writeTextEntry(ctx: Ctx, m: GanttModel, t: GanttTask, i: number, kind: 'duration' | 'end'): XmlNode {
+    const masterId = ctx.masterIds.get('Text Entry') ?? 0;
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Text Entry');
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const text = kind === 'duration' ? `${t.duration}天` : fmtYmd(t.startSerial + Math.max(t.duration - 1, 0));
+    const x = kChartLeft + (t.startSerial - m.startSerial + t.duration) * kDayW + kColW + 0.2;
+    const w = 0.984251968503937;
+    const rowId = ctx.rowIds[i] ?? 1;
+    const prop = kind === 'duration' ? 'Duration' : 'End';
+    el.children.push(
+        cell('PinX', f6(x), 'MM', 'Sheet.1!PinX'),
+        cell('PinY', '0', 'MM', `Sheet.${rowId}!PinY`),
+        cell('Width', f6(w), 'MM', `Sheet.${2}!Width*4`),
+        cell('Height', f6(kBarH), 'MM', `Sheet.${rowId}!Height`),
+        cell('LocPinX', '0', 'MM', 'Inh'),
+        cell('LocPinY', f6(kBarH), 'MM', 'Inh'),
+        cell('LayerMember', '1'),
+        cell('LockTextEdit', '0', undefined, `IF(Sheet.${rowId}!User.IsSummary=1,1,0)`),
+        cell('Value', text, 'STR', 'Inh'),
+        cell('Value', ctx.chartUuid, 'STR'),
+        cell('Value', text, 'STR', `Sheet.${rowId}!Prop.${prop}`),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', '@', 'STR', `Sheet.${rowId}!Prop.${prop}.Format`),
+        cell('Value', '0', undefined, `Sheet.${rowId}!Prop.${prop}.Type`),
+        cell('Style', '0', undefined, `Sheet.${rowId}!User.TextStyle`),
+        cell('LangID', 'zh-CN', undefined, `Sheet.${rowId}!Prop.${prop}.LangID`),
+    );
+    el.children.push(section('Field', [
+        row(undefined, 0, undefined, [
+            cell('Value', text, 'STR', 'Inh'),
+            cell('Format', '@', 'STR', `Sheet.${rowId}!Prop.${prop}.Format`),
+            cell('Type', '0', undefined, `Sheet.${rowId}!Prop.${prop}.Type`),
+        ]),
+    ]));
+    el.children.push(section('User', [
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('Field', text, 'STR', `Sheet.${rowId}!Prop.${prop}`),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCRowGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCColGUID', uuid().toUpperCase(), 'STR'),
+        userRow('TextFormat', '@', 'STR', `Sheet.${rowId}!Prop.${prop}.Format`),
+        userRow('TextType', '0', undefined, `Sheet.${rowId}!Prop.${prop}.Type`),
+    ]));
+    el.children.push(section('Character', [
+        row(undefined, 0, undefined, [cell('Style', '0', undefined, `Sheet.${rowId}!User.TextStyle`), cell('LangID', 'zh-CN', undefined, `Sheet.${rowId}!Prop.${prop}.LangID`)]),
+    ]));
+    el.children.push(section('Geometry', [
+        row('LineTo', 2, undefined, [cell('X', f6(w), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(w), 'MM', 'Inh'), cell('Y', f6(0.2652755905511811), 'MM', 'Inh')]),
+        row('LineTo', 4, undefined, [cell('Y', f6(0.2652755905511811), 'MM', 'Inh')]),
+    ]));
+    return el;
+}
+
+function writeLinkLine(ctx: Ctx, m: GanttModel, fromBar: number, toBar: number): XmlNode {
+    const masterId = ctx.masterIds.get('Link lines') ?? 0;
+    void m;
+    const el = newShape();
+    setAttribute(el, 'NameU', 'Link lines');
+    setAttribute(el, 'Type', 'Shape');
+    if (masterId > 0) setAttribute(el, 'Master', String(masterId));
+    const w = f6(kDayW * 2);
+    const h = f6(kRowH * 2);
+    el.children.push(
+        cell('PinX', f6(kDayW), undefined, 'Inh'),
+        cell('PinY', f6(kRowH), 'MM', 'Inh'),
+        cell('Width', w, undefined, 'Inh'),
+        cell('Height', h, 'MM', 'Inh'),
+        cell('LocPinX', f6(kDayW), undefined, 'Inh'),
+        cell('LocPinY', f6(kRowH), 'MM', 'Inh'),
+        cell('BeginX', f6(kDayW * 2), undefined, `PAR(PNT(Sheet.${fromBar}!Connections.RightSide.X,Sheet.${fromBar}!Connections.RightSide.Y))`),
+        cell('BeginY', f6(kRowH), 'MM', `PAR(PNT(Sheet.${fromBar}!Connections.RightSide.X,Sheet.${fromBar}!Connections.RightSide.Y))`),
+        cell('EndX', '0', undefined, `PAR(PNT(Sheet.${toBar}!Connections.LeftSide.X,Sheet.${toBar}!Connections.LeftSide.Y))`),
+        cell('EndY', f6(kRowH), 'MM', `PAR(PNT(Sheet.${toBar}!Connections.LeftSide.X,Sheet.${toBar}!Connections.LeftSide.Y))`),
+        cell('LayerMember', '1'),
+        cell('TxtPinX', f6(kDayW), undefined, 'Inh'),
+        cell('TxtPinY', f6(kRowH), 'MM', 'Inh'),
+        cell('Value', w, 'DL', 'EndX-BeginX'),
+        cell('Value', f6(kDayW * 1.26), 'DL', 'User.EndPointDiff-User.TotalOffset'),
+        cell('Value', '0', 'BOOL', 'OR(AND(BeginX<=Sheet.1!PinX,EndX<=Sheet.1!PinX),AND(BeginX>=Sheet.1!PinX+Sheet.1!Width,EndX>=Sheet.1!PinX+Sheet.1!Width))'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', uuid().toUpperCase(), 'STR'),
+        cell('Value', ctx.chartUuid, 'STR'),
+        cell('Value', '0', 'DL', 'User.LagTime*Sheet.1!User.Scalar'),
+        cell('Value', '0'),
+        cell('Prompt', ''),
+        cell('Value', '0', 'D'),
+        cell('DataLinked', '0'),
+        cell('NoShow', '1', undefined, 'Inh'),
+    );
+    el.children.push(section('User', [
+        userRow('EndPointDiff', w, 'DL', 'EndX-BeginX'),
+        userRow('CrossWidth', f6(kDayW * 1.26), 'DL', 'User.EndPointDiff-User.TotalOffset'),
+        userRow('HideLine', '0', 'BOOL', 'OR(AND(BeginX<=Sheet.1!PinX,EndX<=Sheet.1!PinX),AND(BeginX>=Sheet.1!PinX+Sheet.1!Width,EndX>=Sheet.1!PinX+Sheet.1!Width))'),
+        userRow('GCVisioGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCModelGUID', uuid().toUpperCase(), 'STR'),
+        userRow('GCChartGUID', ctx.chartUuid, 'STR'),
+        userRow('ScaledDuration', '0', 'DL', 'User.LagTime*Sheet.1!User.Scalar'),
+        userRow('LagTime', '0'),
+    ]));
+    el.children.push(section('Property', [
+        row(undefined, undefined, 'LagTime', [cell('Value', '0', 'D'), cell('DataLinked', '0')]),
+    ]));
+    el.children.push(section('Geometry', [
+        row('MoveTo', 1, undefined, [cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('X', f6(kDayW * 2), undefined, 'Inh'), cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(kDayW * 2), undefined, 'Inh')]),
+        row('MoveTo', 1, undefined, [cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('LineTo', 2, undefined, [cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('LineTo', 3, undefined, [cell('X', f6(kDayW * 1.5), undefined, 'Inh'), cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('LineTo', 4, undefined, [cell('X', f6(kDayW * 1.5), undefined, 'Inh'), cell('Y', f6(kRowH - kDayW), 'MM', 'Inh')]),
+        row('LineTo', 5, undefined, [cell('X', f6(kDayW * 1.5), undefined, 'Inh')]),
+        row('LineTo', 6, undefined, [cell('X', f6(kDayW), undefined, 'Inh')]),
+    ]));
+    el.children.push(section('Connection', [
+        row('Connection', 0, undefined, [cell('X', f6(kDayW * 2), undefined, 'Inh'), cell('Y', f6(kRowH), 'MM', 'Inh')]),
+        row('Connection', 1, undefined, [cell('X', '0', undefined, 'Inh'), cell('Y', f6(kRowH), 'MM', 'Inh')]),
+    ]));
+    return el;
 }

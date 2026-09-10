@@ -131,7 +131,7 @@ export interface ClassBox {
     operations: ClassMember[];
 }
 
-export type ClassRelationKind = 'dependency' | 'inheritance' | 'realization';
+export type ClassRelationKind = 'dependency' | 'inheritance' | 'realization' | 'unsupported';
 
 export interface ClassRelation {
     from: string;

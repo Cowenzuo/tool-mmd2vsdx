@@ -5,11 +5,11 @@ import { CommonRenderer, buildPagesXml } from './diag/common.js';
 import { PieRenderer } from './diag/pie.js';
 import { QuadrantRenderer } from './diag/quadrant.js';
 import { GitRenderer } from './diag/git.js';
-import { SeqRenderer } from './diag/sequence.js';
+import { SeqRenderer, sequencePageSize } from './diag/sequence.js';
 import { MindmapRenderer } from './diag/mindmap.js';
-import { ClassRenderer } from './diag/class.js';
-import { ErRenderer } from './diag/er.js';
-import { GanttRenderer } from './diag/gantt.js';
+import { ClassRenderer, classPageSize } from './diag/class.js';
+import { ErRenderer, erPageSize } from './diag/er.js';
+import { GanttRenderer, ganttPageSize } from './diag/gantt.js';
 import { buildDocumentPart } from './common/styles/writer.js';
 import { StyleRegistry } from './common/styles/model.js';
 import { injectPrStyles } from './common/styles/pr.js';
@@ -42,7 +42,71 @@ function packSkeletonMasters(catalog: MasterCatalog | null): XmlPart[] {
     return new MasterPacker(catalog).pack([kSkeletonMasterName]).parts;
 }
 
+/** class 分支所需母版名（按契约 A 语义收集；仅官方 3 关系类型）。 */
+function wantedClassMasters(m: { classes: Array<{ stereotypes: string[]; attributes: unknown[]; operations: unknown[] }>; relations: Array<{ kind: string }> }): string[] {
+    const names: string[] = [];
+    const push = (n: string) => { if (!names.includes(n)) names.push(n); };
+    let needsMember = false;
+    let needsSep = false;
+    for (const c of m.classes) {
+        push(c.stereotypes.includes('interface') ? 'Interface' : 'Class');
+        if (c.attributes.length > 0 || c.operations.length > 0) needsMember = true;
+        if (c.attributes.length > 0 && c.operations.length > 0) needsSep = true;
+    }
+    if (needsMember) push('Member');
+    if (needsSep) push('Separator');
+    for (const r of m.relations) {
+        if (r.kind === 'dependency') push('Dependency');
+        else if (r.kind === 'realization') push('Interface Realization');
+        else if (r.kind === 'inheritance') push('Inheritance');
+    }
+    return names;
+}
+
 /** 契约 A → 部件（页面 + 文档基座 + 母版按需）。 */
+/** er 分支所需母版名（按契约 A 语义收集）。 */
+function wantedErMasters(m: { entities: Array<{ attributes: Array<{ primaryKey: boolean }> }>; relations: unknown[] }): string[] {
+    const names: string[] = ['Entity'];
+    const push = (n: string) => { if (!names.includes(n)) names.push(n); };
+    let hasPk = false;
+    let hasAttr = false;
+    for (const e of m.entities) {
+        for (const at of e.attributes) {
+            if (at.primaryKey) hasPk = true;
+            else hasAttr = true;
+        }
+    }
+    if (hasPk) push('Primary Key Attribute');
+    if (hasPk && hasAttr) push('Primary Key Separator');
+    if (hasAttr) push('Attribute');
+    if (m.relations.length > 0) push('Relationship');
+    return names;
+}
+
+/** gantt 分支：全套 10 枚官方母版（结构按母版承载，按需全量打包）。 */
+function wantedGanttMasters(): string[] {
+    return ['Gantt Chart frame', 'Column', 'Sec scale cell', 'Pri scale cell', 'Non working time', 'Row', 'Task bar', 'Text Entry', 'Milestone', 'Link lines'];
+}
+
+/** sequence 分支所需母版名（按契约消息/片段语义收集）。 */
+function wantedSequenceMasters(m: { actors: Array<{ kind: string }>; messages: Array<{ kind: string }>; activations: unknown[]; fragments: Array<{ kind: string }> }): string[] {
+    const names: string[] = [];
+    const push = (n: string) => { if (!names.includes(n)) names.push(n); };
+    for (const a of m.actors) push(a.kind === 'actor' ? 'Actor lifeline' : 'Object lifeline');
+    for (const msg of m.messages) {
+        if (msg.kind === 'return') push('Return Message');
+        else if (msg.kind === 'self') push('Self Message');
+        else if (msg.kind === 'async') push('Asynchronous Message');
+        else if (msg.kind === 'sync') push('Message');
+    }
+    if (m.activations.length > 0) push('Activation');
+    for (const f of m.fragments) {
+        if (f.kind === 'loop') push('Loop fragment');
+        else if (f.kind === 'opt') push('Optional fragment');
+    }
+    return names;
+}
+
 export function renderContract(a: ContractA, opts: ConvertOptions = {}): ContractB {
     const parts = [];
     const pageH = a.meta.bounds.maxY;
@@ -79,9 +143,12 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
         return { parts };
     }
     if (a.kind === 'sequence' && a.sequence) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new SeqRenderer().render(a, pageH, opts.pxPerInch ?? 96));
+        const packed = new MasterPacker(catalog).pack(wantedSequenceMasters(a.sequence));
+        parts.push(...packed.parts);
+        const { w, h } = sequencePageSize(a);
+        const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
+        parts.push(buildPagesXml(a2, cfg));
+        parts.push(new SeqRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
         return { parts };
     }
     if (a.kind === 'mindmap' && a.mindmap) {
@@ -91,21 +158,30 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
         return { parts };
     }
     if (a.kind === 'class' && a.classModel) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new ClassRenderer().render(a, pageH, opts.pxPerInch ?? 96));
+        const packed = new MasterPacker(catalog).pack(wantedClassMasters(a.classModel));
+        parts.push(...packed.parts);
+        const { w, h } = classPageSize(a);
+        const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
+        parts.push(buildPagesXml(a2, cfg));
+        parts.push(new ClassRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
         return { parts };
     }
     if (a.kind === 'er' && a.erModel) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new ErRenderer().render(a, pageH, opts.pxPerInch ?? 96));
+        const packed = new MasterPacker(catalog).pack(wantedErMasters(a.erModel));
+        parts.push(...packed.parts);
+        const { w, h } = erPageSize(a);
+        const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
+        parts.push(buildPagesXml(a2, cfg));
+        parts.push(new ErRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
         return { parts };
     }
     if (a.kind === 'gantt' && a.gantt) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new GanttRenderer().render(a, pageH, opts.pxPerInch ?? 96));
+        const packed = new MasterPacker(catalog).pack(wantedGanttMasters());
+        parts.push(...packed.parts);
+        const { w, h } = ganttPageSize(a);
+        const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
+        parts.push(buildPagesXml(a2, cfg));
+        parts.push(new GanttRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
         return { parts };
     }
     // 其它图型：通用骨架直译
