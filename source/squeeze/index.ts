@@ -1,4 +1,4 @@
-// squeeze（⑭ 压缩库）：契约 B → .vsdx 字节；打开逆向（docs/redesign/05-打包层/02-压缩库）
+// squeeze（压缩库）：契约 B → .vsdx 字节；打开逆向（docs/开发过程/01-结构设计.md）
 import { OpcPackage } from '../opc/index.js';
 import { part, type ContractB, type XmlPart } from '../contracts/index.js';
 

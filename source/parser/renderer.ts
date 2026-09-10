@@ -1,4 +1,4 @@
-// parser 渲染器：进程内 Chromium（docs/redesign/03-解析层/01-parser）
+// parser 渲染器：进程内 Chromium（docs/开发过程/01-结构设计.md）
 //
 // 注入顺序：提取脚本（ext/*.mjs 拼接 IIFE）→ 页面桥（ext/bridge.mjs）→
 // mermaid UMD（node_modules/mermaid/dist/mermaid.min.js）。

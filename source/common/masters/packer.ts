@@ -1,6 +1,6 @@
-﻿// 母版组：装配服务——NameU 集 → masters 三件套（docs/redesign/04-转义层/10-公用库）
+﻿// 母版组：装配服务——NameU 集 → masters 三件套（docs/开发过程/01-结构设计.md）
 //
-// 规则（research 5.4）：目录条目按 wanted 序重排、ID 从 100 起重写、
+// 规则（规范版 5.4）：目录条目按 wanted 序重排、ID 从 100 起重写、
 // Rel r:id 重写为目录内唯一（跨记录合并防冲突）、内容文件原样复制、
 // rels 按保留的 rId→文件重建。
 // 本包支持跨记录目录（如节点=basic_shape、连接线=flowchart）合并打包。

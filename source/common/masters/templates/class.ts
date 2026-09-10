@@ -1,5 +1,5 @@
-// 本文件由 temp/audit/gen-type-templates.mjs 一次性生成（勿手改）。
-// 来源：docs/research/标准研究模板-手动创建vsdx并解压/class/ 官方模板解压包；
+// 本文件由 docs/VSDX处理经验/scripts/gen-type-templates.mjs 一次性生成（勿手改）。
+// 来源：docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压/class/ 官方模板解压包；
 // 内容为母版 MasterContents 原文（verbatim），目录条目属性由 assets.ts buildRecord 合成；
 // NameU 为准；Name/Prompt（GBK 乱码）与 Icon 不携带（与既有 6 枚模板同策）。
 

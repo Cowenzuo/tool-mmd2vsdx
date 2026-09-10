@@ -1,4 +1,4 @@
-// 样式组：模型与生成（docs/redesign/04-转义层/10-公用库）
+// 样式组：模型与生成（docs/开发过程/01-结构设计.md）
 //
 // 样式 KEY 是语义名（'normal'、'connector'、'prTimebarFill'…），
 // 文档内 ID 由 resolver 按注册顺序分配（0-6 基底 + pr 家族 7 起）。
@@ -51,7 +51,7 @@ export class StyleRegistry {
     }
 
     private registerBase(): void {
-        // 基底默认 Cell（research 6.4.3 特征：0 号 No Style 为默认基线，含 Font/Size；
+        // 基底默认 Cell（规范版 6.4.3 特征：0 号 No Style 为默认基线，含 Font/Size；
         // 4 号 Guide 取 #7f7f7f 且不可打印）。仅资产缺失时生效，资产模板优先。
         this.specMap.set('noStyle', {
             nameU: 'No Style',

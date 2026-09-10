@@ -1,5 +1,5 @@
 // 结构规范测试（唯一保留）：每图型一个用例——转换 → 解压 → 与研究准则规格对比。
-// 规格来源（唯一标尺）：docs/research/通用visio结构分析.md（规范版）+ class/ER/gantt/sequence 专篇。
+// 规格来源（唯一标尺）：docs/VSDX解压结构研究/通用visio结构分析.md（规范版）+ class/ER/gantt/sequence 专篇。
 // 原则：产物相对于准则规格**不允许少任何一个节点或属性**；缺失即失败。
 // 无专篇素材的图型（git/mindmap/pie/quadrant/timeline）仅断言 L1 骨架与通用字段面，机制层标注待研究素材。
 

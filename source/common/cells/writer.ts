@@ -1,4 +1,4 @@
-﻿// 写手桥：意图 → XmlNode（docs/redesign/04-转义层/10-公用库 cells 组）
+﻿// 写手桥：意图 → XmlNode（docs/开发过程/01-结构设计.md cells 组）
 import { makeElement, setAttribute, type XmlNode } from '../xml/index.js';
 import type { CellIntent, GeometryIntent, RowIntent, SectionIntent } from '../intents.js';
 

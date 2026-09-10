@@ -1,4 +1,4 @@
-// 母版组：MasterClient 抽象与本地实现（docs/redesign/04-转义层/10-公用库）
+// 母版组：MasterClient 抽象与本地实现（docs/开发过程/01-结构设计.md）
 import type { NodeShapeKind } from '../../contracts/index.js';
 
 /** 渲染层唯一依赖的母版查询接口。 */

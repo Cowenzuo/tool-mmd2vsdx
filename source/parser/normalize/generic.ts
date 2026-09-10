@@ -1,4 +1,4 @@
-// parser 归一化：快照 JSON → 契约 A（docs/redesign/03-解析层/01-parser）
+// parser 归一化：快照 JSON → 契约 A（docs/开发过程/01-结构设计.md）
 //
 // 快照契约：{nodes, edges, clusters, diagramType, direction, boundingBox}。
 // 本文件为纯函数，零浏览器依赖，可单测。

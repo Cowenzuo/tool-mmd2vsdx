@@ -1,4 +1,4 @@
-// 契约 B：部件清单（docs/redesign/02-契约层/02-契约B-部件清单.md）
+// 契约 B：部件清单（docs/开发过程/01-结构设计.md）
 //
 // 纯数据层：一条部件 = uri + contentType + xml 文本。
 // 压缩库拿到 ContractB 即等于拿到完整 vsdx 内容。

@@ -1,4 +1,4 @@
-// 几何组：矩形/圆角矩形的几何行构造（docs/redesign/04-转义层/10-公用库）
+// 几何组：矩形/圆角矩形的几何行构造（docs/开发过程/01-结构设计.md）
 import { cell, row, type CellIntent, type GeometryIntent, type RowIntent } from '../intents.js';
 
 /** XY 坐标 cell：V 为英寸缓存，F 为引用公式，U=MM 显示。 */

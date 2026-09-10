@@ -1,4 +1,4 @@
-// 契约 A 运行时校验与兜底（docs/redesign/02-契约层/01-契约A 第 4 节）
+// 契约 A 运行时校验与兜底（docs/开发过程/01-结构设计.md 第二节）
 import { kDiagramKinds, type ContractA, type DiagramKind } from './a.js';
 
 /** 各图型对应的主扩展块字段名；kindOf 按先后顺序推断。 */

@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph 输入
+        T["mermaid 文本"]
+    end
+
+    T -->|"文本"| P["① parser<br/>把图译成 json 清单"]
+    P -->|"契约 A"| DIAG
+
+    subgraph DIAG["②-⑤ 四个图型包（平级，互不依赖）"]
+        direction LR
+        C["通用<br/>flowchart/block"]
+        CL["class"]
+        ER["ER"]
+        SQ["sequence"]
+    end
+
+    DIAG -->|"契约 B（部件数组）"| X["⑦ xml 部件栈<br/>收拢 + 补公共部件 + 校验"]
+    X -->|"校验后的部件清单"| S["⑧ squeeze<br/>打包成 .vsdx 字节"]
+    S --> OUT["输出 .vsdx"]
+
+    COMMON["⑥ 公用库<br/>几何 / cell / 公式 / 文本<br/>样式 / 母版 / 端口 / 校验"] -. 被四包调用 .-> DIAG
+    CONTRACTS["contracts<br/>契约 A/B 纯类型"] -. 被各包引用 .-> P
+    DIAG -. 引用契约 .-> CONTRACTS
+    X -. 引用契约 .-> CONTRACTS
+    S -. 引用契约 .-> CONTRACTS

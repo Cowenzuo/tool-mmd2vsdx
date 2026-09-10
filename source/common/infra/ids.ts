@@ -1,4 +1,4 @@
-// 校验与 ID 分配（docs/redesign/04-转义层/10-公用库 infra 组）
+// 校验与 ID 分配（docs/开发过程/01-结构设计.md infra 组）
 
 /** 页内形状 ID 分配器：页内唯一、单调递增、支持复制命名（Rectangle.4）。 */
 export class IdAllocator {

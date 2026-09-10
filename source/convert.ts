@@ -1,4 +1,4 @@
-// 编排门面：契约 A → 契约 B（按图型分派到各 diag 包；docs/redesign/01 包 app 职责）
+// 编排门面：契约 A → 契约 B（按图型分派到各 diag 包；docs/开发过程/01-结构设计.md 编排层）
 import type { ContractA, ContractB, XmlPart } from './contracts/index.js';
 import { part } from './contracts/index.js';
 import { CommonRenderer, buildPagesXml, kCanvasMargin } from './diag/common.js';
@@ -26,12 +26,12 @@ const kSkeletonMasterName = 'Rectangle';
 
 /** 母版目录（程序化构建）：节点=basic 家族模板（矩形/圆角/菱形/圆/椭圆），
  *  连接线=Dynamic connector 模板——不再依赖 vssx/stencil-data.json；
- *  图型专用包保持自足式（research 6.2.4 合法）。 */
+ *  图型专用包保持自足式（规范版 6.2.4 合法）。 */
 function loadShapeCatalog(): MasterCatalog | null {
     return buildMasterCatalog();
 }
 
-/** 专用包母版骨架：未引用母版，仅为满足 research 6.1.4 的"两支目录恒有"。 */
+/** 专用包母版骨架：未引用母版，仅为满足 规范版 6.1.4 的"两支目录恒有"。 */
 function packSkeletonMasters(catalog: MasterCatalog | null): XmlPart[] {
     if (!catalog) return [];
     return new MasterPacker(catalog).pack([kSkeletonMasterName]).parts;
@@ -175,7 +175,7 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
         if (p.uri === '/visio/document.xml') continue;
         parts.push(p);
     }
-    // 通用路径未产生母版（如 timeline 空页）时补骨架（research 6.1.4 两支目录恒有）
+    // 通用路径未产生母版（如 timeline 空页）时补骨架（规范版 6.1.4 两支目录恒有）
     if (!parts.some((p) => p.uri === '/visio/masters/masters.xml')) {
         parts.push(...packSkeletonMasters(catalog));
     }

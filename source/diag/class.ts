@@ -1,6 +1,6 @@
-// diag-class：契约 A → 契约 B（source/diag/class.ts；docs/redesign/04-转义层 对应篇）
+// diag-class：契约 A → 契约 B（source/diag/class.ts；docs/开发过程/01-结构设计.md 对应篇）
 //
-// 母版实例化版（docs/redesign/07-母版形状库方案）：
+// 母版实例化版（代数逐值见文件内注释与 docs/VSDX处理经验/02-坑位与解法.md 2.3）：
 //  - 类盒 = 官方 Class/Interface 母版实例（Master=N + 最小差异 cell + 嵌套 MasterShape 覆写），
 //    行为公式（User/Control/Connection/Geometry）由母版承载，实例只写覆盖；
 //  - 成员行 = Member 母版实例（LISTSHEETREF 容器家族），分隔线 = Separator 母版实例；
@@ -8,8 +8,7 @@
 //    （连接行 X3=下/X4=上，官方样本语义）、_XFTRIGGER、Connects ToPart=100+IX；
 //    6 类 mmd 关系（继承/实现/依赖/定向关联/聚合/复合）由母版 Actions 的
 //    BeginArrow/EndArrow/LinePattern GUARD 组合承载（官方母版菜单 1:1，无自定义形状）；
-// 实例模式来源：docs/research/标准研究模板-手动创建vsdx并解压/class/ 素材包实测
-//（temp/audit/class-instances.txt）；缓存值说明见 docs/redesign/07 第 8 节/比对清单。
+// 实例模式来源：docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压/class/ 素材包实测。
 
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kCanvasMargin } from '../common/geometry/transform.js';

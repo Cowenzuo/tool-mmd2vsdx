@@ -1,4 +1,4 @@
-// 样式组：document.xml 骨架与样式表部件生成（docs/redesign/04-转义层/10-公用库）
+// 样式组：document.xml 骨架与样式表部件生成（docs/开发过程/01-结构设计.md）
 import { makeElement, serializeDocument, setAttribute } from '../xml/index.js';
 import { kDocumentContentType, kDocumentUri, kVisioNamespace } from '../xml/constants.js';
 import { part, type XmlPart } from '../../contracts/index.js';
@@ -7,7 +7,7 @@ import { defaultFaceNames, type StyleRegistry } from './model.js';
 export interface ColorsOptions {
     /** ColorEntry 列表：{ix, rgb}；缺省给主题首尾两条。 */
     entries?: Array<{ ix: number; rgb: string }>;
-    /** 预生成 document.xml 模板（research 6.4 c4-1 自产基准）；提供时原样使用。 */
+    /** 预生成 document.xml 模板（规范版 6.4 c4-1 自产基准）；提供时原样使用。 */
     baseXml?: string;
 }
 
@@ -35,7 +35,7 @@ export function buildDocumentPart(registry: StyleRegistry, opts: ColorsOptions =
     setAttribute(settings, 'DefaultLineStyle', '3');
     setAttribute(settings, 'DefaultFillStyle', '3');
     setAttribute(settings, 'DefaultGuideStyle', '4');
-    // 文档级行为开关（research 6.4.4：手绘 8 个、自产 9 个，含空 SnapAngles）
+    // 文档级行为开关（规范版 6.4.4：手绘 8 个、自产 9 个，含空 SnapAngles）
     for (const [name, value] of [
         ['GlueSettings', '9'],
         ['SnapSettings', '295'],

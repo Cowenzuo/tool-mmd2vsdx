@@ -1,7 +1,7 @@
-// diag-sequence：契约 A → 契约 B（source/diag/sequence.ts；docs/redesign/04-转义层 对应篇）
+// diag-sequence：契约 A → 契约 B（source/diag/sequence.ts；docs/开发过程/01-结构设计.md 对应篇）
 //
-// 母版实例化版（docs/redesign/07-母版形状库方案），对齐官方 sequence 模板包
-// （docs/research/标准研究模板-手动创建vsdx并解压/sequence/）：
+// 母版实例化版（代数逐值见 docs/VSDX处理经验/02-坑位与解法.md 第 7 节），对齐官方 sequence 模板包
+// （docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压/sequence/）：
 //  - Object/Actor lifeline = 官方母版实例。**4 个嵌套子形状 MS6..9 必须显式写出**（官方实例如此）：
 //    不写时 Visio 打开会按母版子形状 ID 现场实例化，与页面其它顶层形状 ID 冲突
 //    → 形状被误并入组/丢失（实测：7 个顶层形状只剩 1 个）。
@@ -85,7 +85,7 @@ function row(t: string | undefined, ix: number | undefined, n: string | undefine
 function section(n: string, rows: XmlNode[], ix?: string): XmlNode {
     const s = makeElement('Section');
     setAttribute(s, 'N', n);
-    // 母版段覆写必须显式 IX='0'（见 docs/开发经验日志 02-坑位清单 2.1）
+    // 母版段覆写必须显式 IX='0'（见 docs/VSDX处理经验 02-坑位与解法 2.1）
     if (ix !== undefined) setAttribute(s, 'IX', ix);
     for (const r of rows) s.children.push(r);
     return s;

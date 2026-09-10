@@ -1,5 +1,5 @@
-// 本文件由 docs/开发经验日志/scripts/gen-er-templates.mjs 一次性生成（勿手改）。
-// 来源：docs/research/标准研究模板-手动创建vsdx并解压/er-all-in-one/ 官方模板解压包（5 枚）；
+// 本文件由 docs/VSDX处理经验/scripts/gen-er-templates.mjs 一次性生成（勿手改）。
+// 来源：docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压/er-all-in-one/ 官方模板解压包（5 枚）；
 // 内容为母版 MasterContents 原文（verbatim），目录条目属性由 assets.ts buildRecord 合成；
 // NameU 为准；Name/Prompt（GBK 乱码）与 Icon 不携带。
 

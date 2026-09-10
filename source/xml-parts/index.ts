@@ -1,4 +1,4 @@
-﻿// xml-parts（⑬ 部件栈）：契约 B 收口——补公共部件（docProps/windows/登记表/关系表）+ 校验
+// xml-parts（部件栈）：契约 B 收口——补公共部件（docProps/windows/登记表/关系表）+ 校验
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kCorePropsContentType, kDocPropsVTypesNs, kExtendedPropsContentType, kDcNs, kCorePropsNs, kExtendedPropsNs } from '../common/xml/constants.js';
 import { part, validateContractB, type ContractB, type XmlPart } from '../contracts/index.js';
@@ -63,7 +63,7 @@ export class PartsAssembler {
         if (!pkg.has('/visio/_rels/document.xml.rels')) {
             pkg.addPart('/visio/_rels/document.xml.rels', 'application/vnd.openxmlformats-package.relationships+xml', this.docRels());
         }
-        // 页目录关系表（research 5.5.1/5.5.3.5：页条目 Rel r:id → pageN.xml）
+        // 页目录关系表（规范版 5.5.1/5.5.3.5：页条目 Rel r:id → pageN.xml）
         if (pkg.has('/visio/pages/pages.xml') && !pkg.has('/visio/pages/_rels/pages.xml.rels')) {
             pkg.addPart(
                 '/visio/pages/_rels/pages.xml.rels',
@@ -156,7 +156,7 @@ export class PartsAssembler {
     private rootRels(): string {
         const root = makeElement('Relationships');
         setAttribute(root, 'xmlns', 'http://schemas.openxmlformats.org/package/2006/relationships');
-        // Target 用相对路径（research 3.3/3.4："包根表的 Target 不带前缀"）
+        // Target 用相对路径（规范版 3.3/3.4："包根表的 Target 不带前缀"）
         const rels: Array<[string, string, string]> = [
             ['rId1', 'http://schemas.microsoft.com/visio/2010/relationships/document', 'visio/document.xml'],
             ['rId2', 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties', 'docProps/core.xml'],
@@ -173,7 +173,7 @@ export class PartsAssembler {
         return decl(root);
     }
 
-    /** 页目录关系表：rId1 → page1.xml（research 5.5.3.5）。 */
+    /** 页目录关系表：rId1 → page1.xml（规范版 5.5.3.5）。 */
     private pagesRels(): string {
         const root = makeElement('Relationships');
         setAttribute(root, 'xmlns', 'http://schemas.openxmlformats.org/package/2006/relationships');

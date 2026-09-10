@@ -1,0 +1,113 @@
+classDiagram
+    direction LR
+
+    %% ── 契约（纯数据） ──
+    class ContractA {
+        +kind: DiagramKind
+        +meta: Meta
+        +shapes: GenericShape[]
+        +edges: GenericEdge[]
+        +clusters: Cluster[]
+        +classModel?: ClassModel
+        +erModel?: ErModel
+        +sequence?: SequenceModel
+    }
+    class ContractB {
+        +parts: XmlPart[]
+    }
+    class XmlPart {
+        +uri: string
+        +contentType: string
+        +xml: string
+    }
+
+    %% ── parser ──
+    class Parser {
+        +convertText(text, opts) ContractA
+    }
+    class SnapshotRenderer {
+        +render(text) SnapshotJson
+    }
+    class Normalizer {
+        +normalize(kind, json) ContractA
+    }
+    Parser ..> SnapshotRenderer
+    Parser ..> Normalizer
+    Parser ..> ContractA : 产出
+
+    %% ── 图型包门面（四个平级） ──
+    class CommonRenderer {
+        +render(a) ContractB
+    }
+    class ClassRenderer {
+        +render(a) ContractB
+    }
+    class ErRenderer {
+        +render(a) ContractB
+    }
+    class SequenceRenderer {
+        +render(a) ContractB
+    }
+
+    CommonRenderer ..> ContractA : 读取
+    CommonRenderer ..> ContractB : 产出
+    ClassRenderer ..> ContractA
+    ClassRenderer ..> ContractB
+    ErRenderer ..> ContractA
+    ErRenderer ..> ContractB
+    SequenceRenderer ..> ContractA
+    SequenceRenderer ..> ContractB
+
+    %% ── 公用库 ──
+    class CommonKit {
+        +geometry() GeometryBuilder
+        +styles() StyleRegistry
+        +masters() MasterPacker
+        +ports() PortStrategy
+    }
+    class GeometryBuilder {
+        +rect(w,h) rows
+        +roundRect(w,h,r) rows
+        +polyline(points) rows
+    }
+    class FormulaKit {
+        +gluePar(sheet, xn) string
+        +walkGlue() string
+        +guard(expr) string
+    }
+    class StyleRegistry {
+        +register(key, spec) void
+        +buildParts(keys) XmlPart[]
+    }
+    class MasterPacker {
+        +buildParts(nameUs) XmlPart[]
+    }
+    class PortStrategy {
+        +pick(shape, point) PortIntent
+        +toPart(ix) number
+    }
+
+    CommonRenderer ..> CommonKit
+    ClassRenderer ..> CommonKit
+    ErRenderer ..> CommonKit
+    SequenceRenderer ..> CommonKit
+    CommonKit ..> GeometryBuilder
+    CommonKit ..> FormulaKit
+    CommonKit ..> StyleRegistry
+    CommonKit ..> MasterPacker
+    CommonKit ..> PortStrategy
+
+    %% ── 后段 ──
+    class PartsAssembler {
+        +assemble(parts) ContractB
+    }
+    class Squeeze {
+        +pack(b) Buffer
+    }
+
+    CommonRenderer ..> PartsAssembler : 汇入
+    ClassRenderer ..> PartsAssembler
+    ErRenderer ..> PartsAssembler
+    SequenceRenderer ..> PartsAssembler
+    PartsAssembler ..> ContractB : 产出
+    Squeeze ..> ContractB : 读取

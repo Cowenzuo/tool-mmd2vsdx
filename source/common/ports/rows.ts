@@ -1,4 +1,4 @@
-// 端口组：连接行读取与端口选择（docs/redesign/04-转义层/10-公用库）
+// 端口组：连接行读取与端口选择（docs/开发过程/01-结构设计.md）
 //
 // 依据 research 结论：Xn=行 IX(n-1) 标准五行（下/右/上/左/中）、
 // 类系列四行（左/右/下/上）、命名行（LeftSide/RightSide.X）、
@@ -55,7 +55,7 @@ export interface PortIntent {
     glue: 'par' | 'walkglue';
 }
 
-/** 标准矩形五行：下/右/上/左/中（research 5.4.3.3 修正版）。 */
+/** 标准矩形五行：下/右/上/左/中（规范版 5.4.3.3 修正版）。 */
 export const kStandardRows = {
     bottom: 0,
     right: 1,

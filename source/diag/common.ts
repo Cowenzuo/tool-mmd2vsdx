@@ -1,4 +1,4 @@
-// diag-common（通用包）：契约 A → 契约 B（source/diag/common.ts；docs/redesign/04-转义层 对应篇）
+// diag-common（通用包）：契约 A → 契约 B（source/diag/common.ts；docs/开发过程/01-结构设计.md 对应篇）
 //
 // 样板实现：扁平图（flowchart 等）。节点走"自足式"写法（全几何/全连接点/
 // 全样式覆盖，不依赖母版资产）；连接线走双端自动（WALKGLUE 走线吸附，
@@ -201,7 +201,7 @@ function connectRec(
     return el;
 }
 
-/** 标准五行连接行（下/右/上/左/中，research 5.4.3.3 修正版，方向列=粘附指向）。 */
+/** 标准五行连接行（下/右/上/左/中，规范版 5.4.3.3 修正版，方向列=粘附指向）。 */
 function connectionSection(w: number, h: number): XmlNode {
     const sec = makeElement('Section');
     setAttribute(sec, 'N', 'Connection');
@@ -378,7 +378,7 @@ function writeConnectorNode(
         }
         el.children.push(geo);
     } else {
-        // 无母版兜底（自足式，research 6.2.4 合法）：母版全部 cell 落实例
+        // 无母版兜底（自足式，规范版 6.2.4 合法）：母版全部 cell 落实例
         setAttribute(el, 'LineStyle', '5');
         setAttribute(el, 'FillStyle', '5');
         setAttribute(el, 'TextStyle', '5');

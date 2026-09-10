@@ -1,4 +1,4 @@
-// XML 栈：数字格式化与常量（docs/redesign/01 包的 xml/ 底层库）
+// XML 栈：数字格式化与常量（docs/开发过程/01 包的 xml/ 底层库）
 
 /** 确定性数值格式化：最多 17 位有效、去尾零、0 正常化。 */
 export function number(v: number): string {

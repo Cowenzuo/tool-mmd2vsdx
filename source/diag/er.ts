@@ -1,13 +1,13 @@
-// diag-er：契约 A → 契约 B（source/diag/er.ts；docs/redesign/04-转义层 对应篇）
+// diag-er：契约 A → 契约 B（source/diag/er.ts；docs/开发过程/01-结构设计.md 对应篇）
 //
-// 母版实例化版（docs/redesign/07-母版形状库方案），对齐官方 er-all-in-one 模板包（5 枚：
+// 母版实例化版（代数逐值见 docs/VSDX处理经验/02-坑位与解法.md），对齐官方 er-all-in-one 模板包（5 枚：
 // Entity/Primary Key Attribute/Primary Key Separator/Attribute/Relationship）：
 //  - 实体 = 官方 Entity 母版实例（Group + Master= + 最小差异 + 嵌套 MasterShape 6..8 覆写）；
 //    盒高 = 官方内容公式 HdrHgt + n*rowH（n=属性行数+分隔线；HdrHgt=0.436163IN、rowH=0.388939IN）。
 //  - 属性行 = PK/普通母版实例（LISTSHEETREF 容器家族、ItemIndex 行序、User 行族、
 //    嵌套 MasterShape 6/7 文字覆写）；主键分隔线 = Primary Key Separator 母版实例。
 //  - 关系 = Relationship 母版实例（MasterType=541）：规则见下。
-// 实例代数来源：docs/research/标准研究模板-手动创建vsdx并解压/er-all-in-one/（官方包）
+// 实例代数来源：docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压/er-all-in-one/（官方包）
 // 页面实例逐值比对：实体 1/21/35、属性行 5/9/25/29/43、分隔线 8/28/42、关系 15/49。
 //
 // 关系实例代数（官方原文，无自创）：

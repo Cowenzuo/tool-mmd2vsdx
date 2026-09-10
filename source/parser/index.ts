@@ -1,4 +1,4 @@
-// parser 门面（docs/redesign/03-解析层/01-parser）
+// parser 门面（docs/开发过程/01-结构设计.md）
 import { type ContractA } from '../contracts/index.js';
 import { MermaidParseError, SnapshotRenderer } from './renderer.js';
 import { normalizeGeneric, type SnapshotLike } from './normalize/generic.js';

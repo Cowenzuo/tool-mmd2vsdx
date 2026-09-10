@@ -1,4 +1,4 @@
-// 文本组：run 分段与转义（docs/redesign/04-转义层/10-公用库）
+// 文本组：run 分段与转义（docs/开发过程/01-结构设计.md）
 
 /** 文本分段意图：一段文本 = 若干 run；多行用字面换行（research basic-4 观察）。 */
 export interface RunSegment {

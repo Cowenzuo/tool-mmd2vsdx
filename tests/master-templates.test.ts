@@ -1,5 +1,5 @@
 // M1 装配机制单测：官方模板提取物 → 目录记录 → 打包，逐项验证"verbatim 等价 + MasterType 保真"。
-// 准则：模板内容与 docs/research 素材包逐字节一致；目录条目 MasterType 与官方一致；打包后 ID/rId 重写但内容原样。
+// 准则：模板内容与 docs/VSDX解压结构研究 素材包逐字节一致；目录条目 MasterType 与官方一致；打包后 ID/rId 重写但内容原样。
 
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { kClassTemplates } from '../source/common/masters/templates/class.js';
 import { kErTemplates } from '../source/common/masters/templates/er.js';
 import { kSequenceTemplates } from '../source/common/masters/templates/sequence.js';
 
-const root = 'docs/research/标准研究模板-手动创建vsdx并解压';
+const root = 'docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压';
 
 /** 从素材包读官方条目信息：NameU → { masterType, file, content }（按 rels 映射）。 */
 function loadPack(dir: string): Map<string, { masterType: string; file: string; content: string }> {

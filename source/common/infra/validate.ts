@@ -1,4 +1,4 @@
-// 校验与 ID 分配（docs/redesign/04-转义层/10-公用库 infra 组）
+// 校验与 ID 分配（docs/开发过程/01-结构设计.md infra 组）
 
 /** 颜色校验：#rrggbb。 */
 export function isValidColor(v: string): boolean {

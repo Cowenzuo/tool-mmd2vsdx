@@ -1,7 +1,7 @@
-// 母版组：资产目录构建——模板函数直接返回 XML 文本（docs/redesign/04-转义层/10-公用库）
+// 母版组：资产目录构建——模板函数直接返回 XML 文本（docs/开发过程/01-结构设计.md）
 //
 // 不再依赖 vssx/stencil-data.json：6 枚我们用到的母版（节点 5 种 + 连接线）
-// 原文固化在 templates.ts（从官方模具提取物一次性生成，与 docs/research 素材
+// 原文固化在 templates.ts（从官方模具提取物一次性生成，与 docs/VSDX解压结构研究 素材
 // 逐字一致），构建函数按 NameU 返回 StencilRecord 结构（mastersXml/contents/
 // relsXml），其中 ID/NameU/文件名由构建期填充。
 

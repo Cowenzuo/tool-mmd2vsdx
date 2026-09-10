@@ -1,4 +1,4 @@
-// 本文件由 docs/开发经验日志/scripts/gen-type-templates.mjs 一次性生成（勿手改）。
+// 本文件由 docs/VSDX处理经验/scripts/gen-type-templates.mjs 一次性生成（勿手改）。
 // 来源：sequence/ ∪ seq-all-in-one/官方模板解压包（14 枚）；
 // 来源 = sequence（通用件 Rectangle/Dynamic connector）+ seq-all-in-one（12 枚时序专用件，含 Alternative fragment/Interaction operand/Other fragment）；同名条目两包内容一致。
 // 内容为母版 MasterContents 原文（verbatim），目录条目属性由 assets.ts buildRecord 合成；
