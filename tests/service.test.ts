@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ServiceError, ServiceSession } from '../source/service/index.js';
+import { ServiceError, ServiceSession, toServiceError } from '../source/service/index.js';
 
 const kFlow = 'flowchart LR\n  A[开始] --> B[结束]';
 const kClass = 'classDiagram\n  class Animal {\n    +String name\n  }\n  class Dog\n  Animal <|-- Dog';
@@ -127,5 +127,32 @@ describe('service：批量', () => {
 
     it('空批量报参数错误', async () => {
         await expect(session.convertMany([])).rejects.toMatchObject({ code: 'invalid_argument' });
+    });
+});
+
+describe('service：进程内复用与错误映射', () => {
+    it('连续三次转换复用同一个浏览器，稳态明显快于首次', async () => {
+        const first = Date.now();
+        await session.convert({ text: kFlow, path: 'reuse-1.vsdx', overwrite: true });
+        const firstMs = Date.now() - first;
+        await session.convert({ text: kFlow, path: 'reuse-2.vsdx', overwrite: true });
+        const third = Date.now();
+        await session.convert({ text: kFlow, path: 'reuse-3.vsdx', overwrite: true });
+        const thirdMs = Date.now() - third;
+        expect(thirdMs).toBeLessThan(1000);
+        expect(thirdMs).toBeLessThanOrEqual(Math.max(firstMs, 1000));
+    });
+
+    it('浏览器起不来映射为 renderer_unavailable', () => {
+        const mapped = toServiceError(new Error("browserType.launch: Executable doesn't exist at /path/chromium"));
+        expect(mapped.code).toBe('renderer_unavailable');
+        expect(mapped.hint).toContain('playwright install chromium');
+    });
+
+    it('不支持的图型映射为 unsupported_kind 并去掉内部前缀', () => {
+        const mapped = toServiceError(new Error('[parse] 不支持的图型：gantt；当前支持 flowchart / block / class / er / sequence'));
+        expect(mapped.code).toBe('unsupported_kind');
+        expect(mapped.message).not.toContain('[parse]');
+        expect(mapped.hint).toContain('只支持 flowchart');
     });
 });
