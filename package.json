@@ -1,31 +1,19 @@
 {
   "name": "mmd2vsdx",
   "version": "0.1.0-alpha1",
-  "description": "Mermaid → Visio VSDX converter (pure Node/TypeScript port of the verified C++17 mmd2vsdx engine)",
+  "description": "Mermaid → Visio VSDX converter (pure Node/TypeScript, no Visio dependency)",
   "type": "module",
   "private": true,
-  "main": "./dist/app/application.js",
-  "types": "./dist/app/application.d.ts",
-  "bin": {
-    "mmd2vsdx": "./dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
   "engines": {
     "node": ">=22.2.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node --input-type=module -e \"import {cpSync,mkdirSync} from 'node:fs'; import {join} from 'node:path'; const root=process.cwd(); const s=join(root,'source','parser','ext'); const d=join(root,'dist','parser','ext'); mkdirSync(join(root,'dist','parser'),{recursive:true}); cpSync(s,d,{recursive:true}); console.log('[copy-assets] '+s+' -> '+d);\"",
     "prepare": "npm run build",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "check:arch": "node scripts/check-architecture.mjs",
-    "make:fixtures": "node scripts/make-fixtures.mjs"
+    "test:watch": "vitest"
   },
   "license": "MIT",
   "devDependencies": {

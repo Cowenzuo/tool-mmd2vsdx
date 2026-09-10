@@ -1,6 +1,6 @@
 // 浏览器端 sequence 提取器：DB 语义（参与者/消息/激活/片段）+ 确定性布局
 // 输入：getDiagramFromText 返回的包装对象（db 在 .db 上）；输出结构 JSON。
-// 布局常量须与 diag-sequence/index.ts 一致（同一份设计：间距 0.541667in=52px…）。
+// 布局常量须与 diag/sequence.ts 一致（同一份设计：间距 0.541667in=52px…）。
 (function () {
     'use strict';
 

@@ -2,77 +2,60 @@
 
 把 Mermaid 文本转换为**原生可编辑的 Visio VSDX** 文档（不依赖 Visio COM）。
 
-本仓库是源工程 `D:\_dev\mmd2vsdx`（C++17 引擎 + Node/mermaid-snapshot 复合结构，经验证）
-的**纯 Node/TypeScript 移植版**：MMD 解析（mermaid.js + Playwright 渲染提取）与
-VSDX 生成（OPC/ZIP/XML + 官方模具母版实例）统一于单一 Node 生态，无 C++ 复合结构。
-
-## 能力（与 C++ 基线结构等价验证）
+## 能力
 
 - 14 类 Mermaid 图（flowchart/state/class/er/sequence/block/gantt/pie/gitGraph/
   mindmap/timeline/quadrantChart/xychart/c4）
-- 原生可编辑 VSDX：官方模具母版实例（Master="N"+局部覆盖）、1-D 连接线
-  `_WALKGLUE` 粘附、五节点几何、线型/箭头映射、多页
-- 16 个验收样本产物与 C++ 基线 **逐部件结构等价**（tests/testmasters 金标准闸门）
+- 原生可编辑 VSDX：官方模具母版实例（Master="N"+局部覆盖）、1-D 连接线双端
+  `_WALKGLUE` 自动连接（路由避让 ShapeRouteStyle=5）、五节点几何、线型/箭头映射
+- 母版程序化：6 枚模板构建函数（节点 5 种 + Dynamic connector），无 vssx/资产
+  文件依赖；样式基座程序化（StyleRegistry）——克隆后构建即全量可用
+- 16 个验收样本逐条断言 docs/research 准则（`tests/spec.test.ts`，缺一即败）
 
 ## 使用
 
 ```bash
 npm install
 npx playwright install chromium        # 首次（渲染需 Chromium）
-
-# CLI（npm run build 后；或 npm link 全局注册 mmd2vsdx）
-node dist/cli.js in.mmd out.vsdx
-node dist/cli.js --dir inputDir outDir
-node dist/cli.js --serve --port 12138    # POST /convert {text} → {status, vsdx(base64),...}
+npm run build                          # 产出 dist/
 ```
 
-三种消费场景（手动/目录批量、另一 Node 项目 import、AI 本地工具调用）的
-完整说明见 **[docs/usage.md](docs/usage.md)**（含构建、打包分发对照、serve JSON 协议
-与 LLM 工具描述示例）。
+库调用（管道四步，详见 docs/AI开发约定/部署说明.md）：
 
 ```ts
-// 库 API（ESM；包已声明 main/types，import 名即包名）
-import { application } from 'mmd2vsdx';
-const r = await application.convertText('flowchart LR\n  A-->B');
-if (r.ok) fs.writeFileSync('out.vsdx', Buffer.from(r.vsdxBase64, 'base64'));
+import { Parser } from 'mmd2vsdx/dist/parser/index.js';
+import { renderContract } from 'mmd2vsdx/dist/convert.js';
+import { PartsAssembler } from 'mmd2vsdx/dist/xml-parts/index.js';
+import { Squeeze } from 'mmd2vsdx/dist/squeeze/index.js';
+
+const a = await new Parser().convertText('flowchart LR\n  A-->B');  // 契约 A
+const b = renderContract(a);                                        // 契约 B
+const pack = new PartsAssembler().assemble(b.parts);                // 完整包
+const bytes = new Squeeze().pack(pack);                             // .vsdx 字节
 ```
+
+批量转换/产物校验等辅助脚本属开发期工具（可再生成），位于本仓库 `temp/` 下，
+不入库、不作为公开接口；发布形态以库 API 为准。
 
 ## 测试
 
 ```bash
-npm test          # 186 用例（8 套件，含真实 Chromium 渲染与金标准闸门）
+npm test          # 16 样本准则验收（tests/spec.test.ts，含真实 Chromium 渲染）
 npm run typecheck
-npm run build
 ```
-
-## Visio 人工验收指引（M5/M6）
-
-自动化闸门已保证与 C++ 基线产物**结构等价**（部件清单 + 全部 XML parse 级一致）；
-建议再用真实 Visio 目视确认一次：
-
-1. `node dist/cli.js resources/test-examples/mmd-input/05-flowchart-1.mmd temp/v.vsdx`
-2. 用 Visio 打开 `temp/v.vsdx`：节点为官方形状（拖动把手/连接线端点粘附、
-   线型右键切换可用）；保存后无"格式修复"提示（Document.Saved=True 语义）
-3. 抽查甘特（07）：GC 组件列拖动重排、右键"配置"菜单与官方模板一致
 
 ## 文档
 
-- `docs/usage.md` — 使用指南（构建/打包/三场景调用/母版资产供给）
-- `docs/roadmap.md` — 未来待办（预览渲染器立项，含方案与待确认清单）
-- `docs/工程规范.md` — 提交/命名/代码规范（源自 dsh-plugins）
-- `docs/bench.md` — 性能冒烟基线
-- `docs/architecture/` — 架构文档（模块结构/数据流/审核报告/结构图）
-- `docs/research/` — Visio 产物内部结构研究（逐图类型解包剖析，实证认知库）
+- `docs/AI开发约定/` — 部署说明（构建/库调用/批量/校验）、工程规范、文档写作规范、性能基线
+- `docs/redesign/` — 设计文档（00 一览 + 契约/解析/转义/打包各层）+ 现状（模块结构/数据流/验收报告）
+- `docs/research/` — Visio 产物内部结构研究（唯一验收准则：规范版 + class/ER/gantt/sequence 专篇 + 素材解压包）
+- `docs/待讨论功能备忘.md` — 未来待办（预览渲染器立项等）
 - 历史参考材料已随 git 历史保留（原 docs/archived 区已移除）
-- `resources/test-examples/` — 验收输入与产物：mmd-input 源稿 /
-  svg-json-medium 浏览器快照 / vsdx-output 产物（旧实现基线已移除）
-- `resources/visio-template|binary/` — 官方模具与提取物（仅本地开发用，不入库）
+- `resources/mmd-input/` — 验收源稿（入库）；`resources/vsdx-output/` — 转换产物（本地产出、可再生成，不入库）
 
 ## 状态
 
-M0–M6 全部完成：core/xml/opcpkg/mmdtransform/snapshot/vsdxdoc/masters/app 全链路
-纯 TS；金标准 16/16 结构等价；测试 201/201 绿。官方模具资产**不随包、不入公开
-仓库**（`resources/visio-*`：template 原件与 binary 提取物均已 gitignore 并在历史中清除）：
-运行期自动搜寻本机 Visio 或经 `--stencil-dir/--stencil-asset` 显式导入
-（详见 docs/usage.md §〇·一）；公开克隆无模具文件——真实母版/金标准测试自动
-跳过，本地与私有 CI 提供模具后全量 201/201 通过。
+重做完成：mermaid 文本 → 契约 A → 契约 B → OPC/ZIP 全链路纯 TS。
+验收唯一标尺 = docs/research 准则：16 样本逐条断言（`tests/spec.test.ts`），
+`verify-vsdx.mjs` A-F 六组守门。克隆后 `npm install && npm run build`
+即可复现全部验证，零外部资产。

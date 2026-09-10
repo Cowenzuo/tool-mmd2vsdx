@@ -1,4 +1,4 @@
-﻿# diag-gantt（⑤ gantt 包）
+﻿# diag/gantt（⑤ gantt 包）
 
 ## 1. 模块职能
 
@@ -10,7 +10,7 @@ gantt 包是全管线最重的图型：日期序列 → 行列坐标 → 任务�
 ## 2. 目录与文件
 
 ```
-src/diag-gantt/
+source/diag/gantt/
 ├── index.ts           GanttRenderer.render(a) → 契约B
 ├── layout.ts          日期序列与行列坐标计算
 ├── frame.ts           框架/列/标尺/行写手（含 Field 段）

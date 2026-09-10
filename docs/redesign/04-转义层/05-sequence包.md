@@ -1,4 +1,4 @@
-﻿# diag-sequence（⑥ sequence 包）
+﻿# diag/sequence（⑥ sequence 包）
 
 ## 1. 模块职能
 
@@ -10,7 +10,7 @@ sequence 包写时序图：生命线是带**时间格连接行**的 Group（100 
 ## 2. 目录与文件
 
 ```
-src/diag-sequence/
+source/diag/sequence/
 ├── index.ts        SequenceRenderer.render(a) → 契约B
 ├── lifeline.ts     生命线写手（时间格连接行）
 ├── activation.ts   激活条写手

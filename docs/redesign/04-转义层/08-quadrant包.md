@@ -1,4 +1,4 @@
-﻿# diag-quadrant（⑨ quadrant 包）
+﻿# diag/quadrant（⑨ quadrant 包）
 
 ## 1. 模块职能
 
@@ -8,7 +8,7 @@ quadrant 包写四象限图：十字线、四组象限标签、数据点（Circl
 ## 2. 目录与文件
 
 ```
-src/diag-quadrant/
+source/diag/quadrant/
 ├── index.ts        QuadrantRenderer.render(a) → 契约B
 ├── axes.ts         十字线与象限标签写手
 └── point.ts        数据点写手

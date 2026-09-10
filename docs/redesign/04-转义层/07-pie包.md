@@ -1,4 +1,4 @@
-﻿# diag-pie（⑧ pie 包）
+﻿# diag/pie（⑧ pie 包）
 
 ## 1. 模块职能
 
@@ -8,7 +8,7 @@ Circle 装饰）、扇区标签、标题。语义来自契约 A 的 PieChart 块
 ## 2. 目录与文件
 
 ```
-src/diag-pie/
+source/diag/pie/
 ├── index.ts       PieRenderer.render(a) → 契约B
 ├── slice.ts       扇区写手
 └── pie.ts         饼体与标题写手

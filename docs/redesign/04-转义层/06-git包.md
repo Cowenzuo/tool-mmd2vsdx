@@ -1,4 +1,4 @@
-﻿# diag-git（⑦ git 包）
+﻿# diag/git（⑦ git 包）
 
 ## 1. 模块职能
 
@@ -8,7 +8,7 @@ git 包写 git 图：提交圆点（Circle 母版）、分支线、提交间箭�
 ## 2. 目录与文件
 
 ```
-src/diag-git/
+source/diag/git/
 ├── index.ts       GitRenderer.render(a) → 契约B
 ├── commit.ts      提交点写手
 ├── branch.ts      分支线写手

@@ -1,4 +1,4 @@
-﻿# diag-class（③ class 包）
+﻿# diag/class（③ class 包）
 
 ## 1. 模块职能
 
@@ -10,7 +10,7 @@ class 包按 UML 类图写产品：类盒是**列表容器**（Group 嵌套子�
 ## 2. 目录与文件
 
 ```
-src/diag-class/
+source/diag/class/
 ├── index.ts        ClassRenderer.render(a) → 契约B
 ├── box.ts          类盒写手（Group 容器）
 ├── member.ts       成员行写手（Member/Separator）

@@ -1,4 +1,4 @@
-// OPC 底层：关系表（.rels）结构、序列化与解析
+﻿// OPC 底层：关系表（.rels）结构、序列化与解析
 import {
     attr,
     elementChildren,
@@ -6,8 +6,8 @@ import {
     parseDocument,
     serializeDocument,
     setAttribute,
-} from '../xml/xmlNode.js';
-import { kPackageRelsNs } from '../xml/constants.js';
+} from '../common/xml/xmlNode.js';
+import { kPackageRelsNs } from '../common/xml/constants.js';
 
 export interface Relationship {
     id: string;

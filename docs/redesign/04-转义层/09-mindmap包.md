@@ -1,4 +1,4 @@
-﻿# diag-mindmap（⑩ mindmap 包）
+﻿# diag/mindmap（⑩ mindmap 包）
 
 ## 1. 模块职能
 
@@ -9,7 +9,7 @@ mindmap 包写脑图：树形节点（圆角母版）、父节点射线、层级
 ## 2. 目录与文件
 
 ```
-src/diag-mindmap/
+source/diag/mindmap/
 ├── index.ts        MindmapRenderer.render(a) → 契约B
 ├── node.ts         节点写手
 ├── edge.ts         射线写手

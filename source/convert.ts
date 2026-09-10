@@ -1,16 +1,15 @@
 // 编排门面：契约 A → 契约 B（按图型分派到各 diag 包；docs/redesign/01 包 app 职责）
 import type { ContractA, ContractB, XmlPart } from './contracts/index.js';
 import { part } from './contracts/index.js';
-import { CommonRenderer } from './diag-common/index.js';
-import { PieRenderer } from './diag-pie/index.js';
-import { QuadrantRenderer } from './diag-quadrant/index.js';
-import { GitRenderer } from './diag-git/index.js';
-import { SeqRenderer } from './diag-sequence/index.js';
-import { MindmapRenderer } from './diag-mindmap/index.js';
-import { ClassRenderer } from './diag-class/index.js';
-import { ErRenderer } from './diag-er/index.js';
-import { GanttRenderer } from './diag-gantt/index.js';
-import { buildPagesXml } from './diag-common/index.js';
+import { CommonRenderer, buildPagesXml } from './diag/common.js';
+import { PieRenderer } from './diag/pie.js';
+import { QuadrantRenderer } from './diag/quadrant.js';
+import { GitRenderer } from './diag/git.js';
+import { SeqRenderer } from './diag/sequence.js';
+import { MindmapRenderer } from './diag/mindmap.js';
+import { ClassRenderer } from './diag/class.js';
+import { ErRenderer } from './diag/er.js';
+import { GanttRenderer } from './diag/gantt.js';
 import { buildDocumentPart } from './common/styles/writer.js';
 import { StyleRegistry } from './common/styles/model.js';
 import { injectPrStyles } from './common/styles/pr.js';

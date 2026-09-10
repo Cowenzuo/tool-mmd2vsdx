@@ -5,6 +5,6 @@ temp/
 .vitest/
 coverage/
 .DS_Store
-# 官方模具原件（vssx/vstx，本地开发参照用，代码不再依赖；合规红线不进入公开仓库）
-# 母版内容已程序化固化于 source/common/masters/templates.ts（构建函数直接返回 XML）
-resources/visio-template/
+
+# 转换产物（本地产出，可再生成，不入验收契约）
+resources/vsdx-output/

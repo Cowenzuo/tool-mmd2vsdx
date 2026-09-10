@@ -1,8 +1,8 @@
-// OPC 底层：包对象（部件集合 → zip 字节；打开逆向）
+﻿// OPC 底层：包对象（部件集合 → zip 字节；打开逆向）
 import { readZip, writeZip, type ZipEntry } from './zip.js';
 import { PartUri } from './partUri.js';
 import { buildContentTypes, parseContentTypes } from './contentTypes.js';
-import { kRelsContentType } from '../xml/constants.js';
+import { kRelsContentType } from '../common/xml/constants.js';
 
 export interface PackagePart {
     uri: string;

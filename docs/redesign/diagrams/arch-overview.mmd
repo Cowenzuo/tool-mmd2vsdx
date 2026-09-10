@@ -1,0 +1,51 @@
+﻿---
+title: mmd2vsdx 新结构分层模块
+---
+flowchart TB
+    subgraph L6["L6 编排层"]
+        conv["convert.ts<br/>renderContract 分派<br/>已实现图型清单 kImplementedKinds"]
+    end
+    subgraph L5["L5 打包层（平级）"]
+        xp["xml-parts<br/>部件组装 PartsAssembler"]
+        sq["squeeze<br/>OPC/ZIP 压缩（只懂 OPC）"]
+    end
+    subgraph L4["L4 转义层（每类一包，平级）"]
+        dc["diag/common<br/>通用骨架/页面底座"]
+        dp["diag/pie"]
+        dq["diag/quadrant"]
+        dg["diag/git"]
+        ds["diag/sequence"]
+        dm["diag/mindmap"]
+        dcl["diag/class"]
+        der["diag/er"]
+        dga["diag/gantt"]
+    end
+    subgraph L3["L3 解析层"]
+        par["parser<br/>renderer + normalize + ext/*.mjs"]
+    end
+    subgraph L2["L2 公用库"]
+        com["common<br/>意图/几何/公式/文本/单元格/样式/母版/端口"]
+    end
+    subgraph L1["L1 基础层"]
+        xml["xml 栈与常量"]
+        opc["opc 包容器"]
+    end
+    subgraph L0["L0 契约层"]
+        ca["契约 A（图型 json）"]
+        cb["契约 B（部件清单）"]
+    end
+    conv --> par
+    conv --> dc & dp & dq & dg & ds & dm & dcl & der & dga
+    conv --> xp & sq
+    par --> com
+    dp & dq & dg & ds & dm & dcl & der & dga --> com
+    xp --> com
+    sq --> opc
+    opc --> xml
+    com --> xml
+    com --> ca
+    com --> cb
+    par --> ca
+    xp --> cb
+    sq --> cb
+    sq --> opc

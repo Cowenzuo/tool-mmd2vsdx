@@ -10,11 +10,11 @@
 ### 0.1 文档目标与素材
 
 - 目标：建立"Visio 文件 → 目录结构 → 部件 XML → 字段语义"的完整认知；
-- 素材：`docs/research/basic-N/…` 真实图纸解压包，正文按完整路径引用；
-  `docs/research/c4-1/` 为本工程自产样本（第六章案例），仅作对照；
+- 素材：`docs/research/标准研究模板-手动创建vsdx并解压/basic-N/…` 真实图纸解压包，正文按完整路径引用；
+  `docs/research/标准研究模板-手动创建vsdx并解压/c4-1/` 为本工程自产样本（第六章案例），仅作对照；
 - 来源标注：实例出处统一标为 `素材 basic-N`、`官方参照` 或 `自产样本`；
 - 取证符号：🔍 实测原文 · 📚 微软规范/SDK · ❓ 推断待核；
-- 行文：正文遵循 `docs/文档写作规范.md` 的叙事约束。
+- 行文：正文遵循 `docs/AI开发约定/文档写作规范.md` 的叙事约束。
 
 ### 0.2 五步分析法
 
@@ -130,7 +130,7 @@ basic-1/（规范 zip 解压）
 
 ### 2.2 实例内容
 
-素材 `basic-1/`，全文见 `docs/research/basic-1/[Content_Types].xml`：
+素材 `basic-1/`，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/[Content_Types].xml`：
 
 ```xml
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -230,7 +230,7 @@ drawing.main、masters、master、pages、page、windows 六类，后跟 +xml。
 
 ### 3.2 实例内容
 
-素材 `basic-1/`，全文见 `docs/research/basic-1/_rels/.rels`；`basic-2/` 与之
+素材 `basic-1/`，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/_rels/.rels`；`basic-2/` 与之
 逐字一致。
 
 ```xml
@@ -331,7 +331,7 @@ Word、Excel、Visio 用同一套字段，只是值不同。
 
 #### 4.1.2 实例内容
 
-素材 `basic-1/`，全文见 `docs/research/basic-1/docProps/core.xml`。正文把
+素材 `basic-1/`，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/docProps/core.xml`。正文把
 命名空间声明折成一行，元素一个不少：
 
 ```xml
@@ -401,7 +401,7 @@ app.xml 存应用属性：哪个软件生成、文档结构统计这类信息。
 
 #### 4.2.2 实例内容
 
-素材 `basic-1/`，全文见 `docs/research/basic-1/docProps/app.xml`。正文把
+素材 `basic-1/`，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/docProps/app.xml`。正文把
 两个 vector 的内部逐项压成一行示意，其余照实：
 
 ```xml
@@ -476,7 +476,7 @@ Visio 自己把一批运行状态记在这里，见 4.3.3 的条目表。
 
 #### 4.3.2 实例内容
 
-素材 `basic-1/`，全文见 `docs/research/basic-1/docProps/custom.xml`：
+素材 `basic-1/`，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/docProps/custom.xml`：
 
 ```xml
 <Properties xmlns="…/custom-properties" xmlns:vt="…/docPropsVTypes">
@@ -549,7 +549,7 @@ thumbnail.emf 是封面图，Visio 保存时把预览画面渲染进去，文件
 #### 4.4.2 实例内容
 
 它是二进制 EMF 文件，没法贴文本，素材全文见
-`docs/research/basic-1/docProps/thumbnail.emf`。正文只做头部取证，用脚本按
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-1/docProps/thumbnail.emf`。正文只做头部取证，用脚本按
 EMF 头布局读前 44 字节：
 
 ```
@@ -611,7 +611,7 @@ windows.xml 是界面记忆文件。它记录上次关闭 Visio 时的窗口现�
 
 #### 5.1.2 实例内容
 
-素材 `basic-1/`，全文见 `docs/research/basic-1/visio/windows.xml`。首行的
+素材 `basic-1/`，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/windows.xml`。首行的
 XML 声明省略，结构原样：
 
 ```xml
@@ -746,7 +746,7 @@ document.xml 是主文档，全图纸的默认值与行为底座。颜色表、�
 
 #### 5.2.2 实例内容
 
-素材 `basic-1/`，完整文件 806 行，见 `docs/research/basic-1/visio/document.xml`。
+素材 `basic-1/`，完整文件 806 行，见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/document.xml`。
 正文不整贴，按五个顶层子元素做骨架：
 
 ```
@@ -1003,7 +1003,7 @@ CustomMenusFile 之类定制元素。
 
 #### 5.3.2 实例内容
 
-素材 `basic-1/`，全文见 `docs/research/basic-1/visio/_rels/document.xml.rels`，
+素材 `basic-1/`，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/_rels/document.xml.rels`，
 basic-2 与之逐字一致。XML 声明行省略：
 
 ```xml
@@ -1069,7 +1069,7 @@ Rel r:id 指向关系表；关系表把 rId 翻译成 masterN.xml。页面方向
 
 #### 5.4.2 实例内容
 
-目录文件以 basic-1 为准，见 `docs/research/basic-1/visio/masters/masters.xml`。
+目录文件以 basic-1 为准，见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/masters/masters.xml`。
 Icon 的 base64 文本长，正文省略，结构与条目属性一个不少。下面三段代码的
 XML 声明行都省略：
 
@@ -1093,7 +1093,7 @@ XML 声明行都省略：
 ```
 
 目录关系表用 basic-2 的，全文见
-`docs/research/basic-2/visio/masters/_rels/masters.xml.rels`，两行顺序故意
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-2/visio/masters/_rels/masters.xml.rels`，两行顺序故意
 乱写，条目数与母版数相等：
 
 ```xml
@@ -1104,10 +1104,10 @@ XML 声明行都省略：
 ```
 
 basic-1 只有一行 rId1 指向 master1.xml，见
-`docs/research/basic-1/visio/masters/_rels/masters.xml.rels`。
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/masters/_rels/masters.xml.rels`。
 
 母版内容文件以矩形为例，素材 `basic-1/` 全文 109 行，见
-`docs/research/basic-1/visio/masters/master1.xml`，骨架如下：
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/masters/master1.xml`，骨架如下：
 
 ```xml
 <MasterContents xmlns=…visio/2012/main …>
@@ -1124,7 +1124,7 @@ basic-1 只有一行 rId1 指向 master1.xml，见
 ```
 
 basic-2 多一份连接线母版内容，文件名为 master2.xml，素材见
-`docs/research/basic-2/visio/masters/master2.xml`，形态与矩形母版差异较大，
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-2/visio/masters/master2.xml`，形态与矩形母版差异较大，
 5.4.3.4 单独对照。
 
 #### 5.4.3 字段解释
@@ -1351,7 +1351,7 @@ pageN.xml。页内容里形状的 Master="ID" 再反向引用母版区。两页�
 
 #### 5.5.2 实例内容
 
-页目录以 basic-1 为准，全文见 `docs/research/basic-1/visio/pages/pages.xml`：
+页目录以 basic-1 为准，全文见 `docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/pages/pages.xml`：
 
 ```xml
 <Pages xmlns=…visio/2012/main xmlns:r=…relationships>
@@ -1384,7 +1384,7 @@ basic-2 的 pages.xml 同名同构，PageSheet 里多一个 Section Layer，图�
 连接线母版带的那份一致，见 5.5.3.1。
 
 页内容先看 basic-1 的矩形页，全文 26 行见
-`docs/research/basic-1/visio/pages/page1.xml`：
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/pages/page1.xml`：
 
 ```xml
 <PageContents xmlns=…visio/2012/main …>
@@ -1414,7 +1414,7 @@ BBB
 ```
 
 basic-2 的页内容加了一根动态连接线，素材全文见
-`docs/research/basic-2/visio/pages/page1.xml`。正文把三个形状逐 cell 列骨架，
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-2/visio/pages/page1.xml`。正文把三个形状逐 cell 列骨架，
 数值按素材原样截断展示，完整精度以素材为准，XML 声明行省略：
 
 ```xml
@@ -1456,7 +1456,7 @@ basic-2 的页内容加了一根动态连接线，素材全文见
 ```
 
 两张关系表全文。目录关系表见
-`docs/research/basic-1/visio/pages/_rels/pages.xml.rels`：
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-1/visio/pages/_rels/pages.xml.rels`：
 
 ```xml
 <Relationships xmlns="…/package/2006/relationships">
@@ -1465,7 +1465,7 @@ basic-2 的页内容加了一根动态连接线，素材全文见
 ```
 
 页的关系表用 basic-2 的，两条恰好对应本页用到的两枚母版，见
-`docs/research/basic-2/visio/pages/_rels/page1.xml.rels`：
+`docs/research/标准研究模板-手动创建vsdx并解压/basic-2/visio/pages/_rels/page1.xml.rels`：
 
 ```xml
 <Relationships xmlns="…/package/2006/relationships">
@@ -1792,7 +1792,7 @@ class 素材引入两种更强的结构：Group 形状，形状体内嵌套子�
 ## 第六章 图型案例（C4 自产样本）
 
 > 前五章的素材全部由 Visio 手工绘制。本章换一个写作者：本工程自己转出的
-> C4 图，解压包入库为 `docs/research/c4-1/`。用它是做双面照镜。正面：拿
+> C4 图，解压包入库为 `docs/research/标准研究模板-手动创建vsdx并解压/c4-1/`。用它是做双面照镜。正面：拿
 > 第二到五章的规律对照第二类产物，分清哪些是格式固有约定，哪些只是
 > Visio 保存器的习惯。反面：把本工程的写入特征记下来，后续解析任意
 > vsdx 时有一份对照。
@@ -1805,7 +1805,7 @@ class 素材引入两种更强的结构：Group 形状，形状体内嵌套子�
 #### 6.1.1 文件定位
 
 案例是一张 C4 系统上下文图。mermaid 源稿全文见
-`resources/test-examples/mmd-input/02-c4-1.mmd`：
+`resources/mmd-input/02-c4-1.mmd`：
 
 ```text
 C4Context
@@ -1821,8 +1821,8 @@ C4Context
 外部系统。两条关系是用户使用核心系统，核心系统调用外部系统。页面上一共
 六个形状，数量对得上，见 6.2。
 
-产物样本在 `resources/test-examples/vsdx-output/02-c4-1.vsdx`。解压后
-入库为 `docs/research/c4-1/`，共 21 个部件。素材类别是自产样本，与手工
+产物样本在 `resources/vsdx-output/02-c4-1.vsdx`（本地产出、不入库）。解压后
+入库为 `docs/research/标准研究模板-手动创建vsdx并解压/c4-1/`，共 21 个部件。素材类别是自产样本，与手工
 素材的约定不同，划分见 research README。
 
 #### 6.1.2 实例内容
@@ -1906,7 +1906,7 @@ page1.xml.rels 没有。手工素材里页级关系表声明本页用到的母�
 #### 6.2.2 实例内容
 
 pages.xml 全文很短，直接贴，见素材
-`docs/research/c4-1/visio/pages/pages.xml`：
+`docs/research/标准研究模板-手动创建vsdx并解压/c4-1/visio/pages/pages.xml`：
 
 ```xml
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -2217,7 +2217,7 @@ masterN.xml。本样本的特别之处有二。一是目录 9 条而内容文件
 两条连接线共用一个文件，与 106 同址，见 6.3.4 的 W-1。
 
 master1.xml 内容与 5.4.3.3 同构，骨架全文见
-`docs/research/c4-1/visio/masters/master1.xml`，结构如下：
+`docs/research/标准研究模板-手动创建vsdx并解压/c4-1/visio/masters/master1.xml`，结构如下：
 
 ```xml
 <MasterContents xmlns=…xml:space='preserve'>
@@ -2306,7 +2306,7 @@ docProps 三件是属性档案，[Content_Types].xml 是登记表。结构与第
 #### 6.4.2 实例内容
 
 document.xml 顶层只有四个元素，全文见
-`docs/research/c4-1/visio/document.xml`：
+`docs/research/标准研究模板-手动创建vsdx并解压/c4-1/visio/document.xml`：
 
 ```xml
 <VisioDocument xmlns=…>
@@ -2369,7 +2369,7 @@ docProps 三件全文都很短，直接贴：
 ```
 
 windows.xml 两个窗口，全文见素材
-`docs/research/c4-1/visio/windows.xml`：
+`docs/research/标准研究模板-手动创建vsdx并解压/c4-1/visio/windows.xml`：
 
 ```xml
 <Windows …>

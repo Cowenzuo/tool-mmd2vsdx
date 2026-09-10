@@ -1,6 +1,6 @@
-// xml-parts（⑬ 部件栈）：契约 B 收口——补公共部件（docProps/windows/登记表/关系表）+ 校验
-import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../xml/index.js';
-import { kCorePropsContentType, kDocPropsVTypesNs, kExtendedPropsContentType, kDcNs, kCorePropsNs, kExtendedPropsNs } from '../xml/constants.js';
+﻿// xml-parts（⑬ 部件栈）：契约 B 收口——补公共部件（docProps/windows/登记表/关系表）+ 校验
+import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
+import { kCorePropsContentType, kDocPropsVTypesNs, kExtendedPropsContentType, kDcNs, kCorePropsNs, kExtendedPropsNs } from '../common/xml/constants.js';
 import { part, validateContractB, type ContractB, type XmlPart } from '../contracts/index.js';
 import { OpcPackage } from '../opc/index.js';
 

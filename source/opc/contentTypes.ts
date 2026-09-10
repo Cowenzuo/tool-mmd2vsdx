@@ -1,7 +1,7 @@
-// OPC 底层：[Content_Types].xml 生成与解析
-import { makeElement, parseDocument, setAttribute } from '../xml/xmlNode.js';
-import { serializeDocument } from '../xml/xmlNode.js';
-import { kRelsContentType, kXmlContentType } from '../xml/constants.js';
+﻿// OPC 底层：[Content_Types].xml 生成与解析
+import { makeElement, parseDocument, setAttribute } from '../common/xml/xmlNode.js';
+import { serializeDocument } from '../common/xml/xmlNode.js';
+import { kRelsContentType, kXmlContentType } from '../common/xml/constants.js';
 
 export interface ContentTypeOverride {
     partName: string;

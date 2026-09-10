@@ -1,0 +1,21 @@
+﻿---
+title: mmd2vsdx 新结构转换流水线
+---
+flowchart LR
+    A["mermaid 文本"] --> B["Parser<br/>chromium + mermaid UMD + ext 提取组<br/>串行队列/失败重建"]
+    B --> C{"提取路由<br/>bridge.mjs"}
+    C -->|"DB 命中"| D1["语义提取器<br/>pie/quadrant/state/git/sequence/mindmap/c4/xy/class/er"]
+    C -->|"DB 为 gantt"| D2["gantt 文本直解<br/>after 相对日期解析"]
+    C -->|"其它"| D3["generic.mjs<br/>SVG g.node + 边路径"]
+    D1 --> E["契约 A<br/>kind + meta + 语义块"]
+    D2 --> E
+    D3 --> E
+    E --> F["convert.ts renderContract<br/>按 kind 分派"]
+    F --> G["diag-* 各图型包<br/>页面部件 page1.xml"]
+    F --> H["diag/common<br/>pages.xml / 文档基座"]
+    G --> I["契约 B<br/>parts: XmlPart[]"]
+    H --> I
+    I --> J["PartsAssembler<br/>关系与内容类型"]
+    J --> K["Squeeze<br/>OPC/ZIP 压缩"]
+    K --> L[".vsdx 字节"]
+    L --> M["落盘 / base64 返回"]

@@ -1,6 +1,6 @@
 # class 图 .vsdx 内部结构分析（图型专篇）
 
-> 素材：`docs/research/class/`，Visio 手工绘制的 UML 类图，非本工程产物。
+> 素材：`docs/research/标准研究模板-手动创建vsdx并解压/class/`，Visio 手工绘制的 UML 类图，非本工程产物。
 > 定位：本篇是图型专篇第一篇。通用格式知识在
 > [通用visio结构分析.md](通用visio结构分析.md) 第〇至五章，本篇只讲 class
 > 图自己的行为层机制：Group 形状体系、容器与成员公式、关系形状。
@@ -92,7 +92,7 @@ Type='Shape'，这里第一次出现 Type='Group'。
 ### 2.2 实例内容
 
 以 Class 母版为例，骨架见
-`docs/research/class/visio/masters/master3.xml`：
+`docs/research/标准研究模板-手动创建vsdx并解压/class/visio/masters/master3.xml`：
 
 ```xml
 <MasterContents …>
@@ -143,7 +143,7 @@ Type='Shape'，这里第一次出现 Type='Group'。
 ```
 
 页面实例以组 1 为例，见
-`docs/research/class/visio/pages/page1.xml`。实例只写覆盖与关系：
+`docs/research/标准研究模板-手动创建vsdx并解压/class/visio/pages/page1.xml`。实例只写覆盖与关系：
 Pin/W/H 覆盖、LocPin F=Inh、`Relationships=0 F=SUM(DEPENDSON(2,Sheet.6!SheetRef(),…)`
 声明成员、Connection 行只带 Y 缓存 F=Inh、Geometry 行 Y-only F=Inh、
 嵌套子形状以最小形态出现，如 ID=3 只带 PinY F=Inh 与 User Value F=Inh。

@@ -9,5 +9,5 @@
     "types": ["node"]
   },
   "include": ["source/**/*.ts"],
-  "exclude": ["tests", "source/**/*.test.ts", "vitest.config.ts"]
+  "exclude": ["tests", "vitest.config.ts"]
 }

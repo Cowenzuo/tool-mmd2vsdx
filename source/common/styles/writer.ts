@@ -1,6 +1,6 @@
-// 样式组：document.xml 骨架与样式表部件生成（docs/redesign/04-转义层/10-公用库）
-import { makeElement, serializeDocument, setAttribute } from '../../xml/index.js';
-import { kDocumentContentType, kDocumentUri, kVisioNamespace } from '../../xml/constants.js';
+﻿// 样式组：document.xml 骨架与样式表部件生成（docs/redesign/04-转义层/10-公用库）
+import { makeElement, serializeDocument, setAttribute } from '../xml/index.js';
+import { kDocumentContentType, kDocumentUri, kVisioNamespace } from '../xml/constants.js';
 import { part, type XmlPart } from '../../contracts/index.js';
 import { defaultFaceNames, type StyleRegistry } from './model.js';
 

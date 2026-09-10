@@ -1,6 +1,6 @@
 # gantt 图 .vsdx 内部结构分析（图型专篇）
 
-> 素材：`docs/research/gantt/`，Visio 手工绘制的甘特图，非本工程产物。
+> 素材：`docs/research/标准研究模板-手动创建vsdx并解压/gantt/`，Visio 手工绘制的甘特图，非本工程产物。
 > 定位：图型专篇第三篇。通用格式知识见
 > [通用visio结构分析.md](通用visio结构分析.md) 第〇至五章，容器机制基础
 > 见 [class-结构分析.md](class-结构分析.md) 第 2、3 章。

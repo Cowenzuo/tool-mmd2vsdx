@@ -1,6 +1,6 @@
 # ER 图 .vsdx 内部结构分析（图型专篇）
 
-> 素材：`docs/research/ER/`，Visio 手工绘制的 ER 图，非本工程产物。
+> 素材：`docs/research/标准研究模板-手动创建vsdx并解压/ER/`，Visio 手工绘制的 ER 图，非本工程产物。
 > 定位：图型专篇第二篇。通用格式知识在
 > [通用visio结构分析.md](通用visio结构分析.md) 第〇至五章，容器机制的
 > 基础概念见 [class-结构分析.md](class-结构分析.md) 第 2、3 章，本篇只讲
@@ -65,7 +65,7 @@
 
 ### 2.2 实例内容
 
-实体母版骨架见 `docs/research/ER/visio/masters/master3.xml`。Container
+实体母版骨架见 `docs/research/标准研究模板-手动创建vsdx并解压/ER/visio/masters/master3.xml`。Container
 相关 User 行与 class 同款，有 msvSDContainerResize、msvSDListAlignment、
 msvSDListDirection，又多出分类与列表项声明：
 
@@ -125,7 +125,7 @@ Connection 行四枚，IX0 左边、IX1 右边、IX2 下边、IX3 上边中点�
 
 ### 3.2 实例内容
 
-主键属性母版骨架见 `docs/research/ER/visio/masters/master4.xml`：
+主键属性母版骨架见 `docs/research/标准研究模板-手动创建vsdx并解压/ER/visio/masters/master4.xml`：
 
 ```xml
 <Shape ID='5' Type='Group' LineStyle='3' FillStyle='3' TextStyle='3'>
@@ -186,7 +186,7 @@ User 行与子形状，不区分依赖/继承/实现等三族。它是 Group 1-D
 
 ### 4.2 实例内容
 
-关系母版骨架见 `docs/research/ER/visio/masters/master7.xml`。关键点：
+关系母版骨架见 `docs/research/标准研究模板-手动创建vsdx并解压/ER/visio/masters/master7.xml`。关键点：
 
 ```xml
 <Shape ID='5' Type='Group' LineStyle='7' FillStyle='7' TextStyle='7'>

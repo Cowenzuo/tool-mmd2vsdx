@@ -1,6 +1,6 @@
 # sequence 图 .vsdx 内部结构分析（图型专篇）
 
-> 素材：`docs/research/sequence/`，Visio 手工绘制的时序图，非本工程产物。
+> 素材：`docs/research/标准研究模板-手动创建vsdx并解压/sequence/`，Visio 手工绘制的时序图，非本工程产物。
 > 定位：图型专篇第四篇。通用格式知识见
 > [通用visio结构分析.md](通用visio结构分析.md) 第〇至五章。
 > 本篇要义：时序图把"时间"编码成连接点行，是本系列里公式密度仅次于
