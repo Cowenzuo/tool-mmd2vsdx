@@ -126,4 +126,22 @@ describe('cli：batch 与 inspect', () => {
         expect(receipt.shapeCount).toBeGreaterThan(0);
         expect(receipt.pages.length).toBe(1);
     });
+
+    it('batch 默认不覆盖，加 --overwrite 才覆盖', async () => {
+        const src = join(dir, 'src2');
+        mkdirSync(src, { recursive: true });
+        writeFileSync(join(src, 'one.mmd'), kFlow, 'utf8');
+        const first = makeIo();
+        expect(await runCli(['batch', 'src2', '--out', 'batch-ow'], first.io, session)).toBe(0);
+
+        const blocked = makeIo();
+        expect(await runCli(['batch', 'src2', '--out', 'batch-ow'], blocked.io, session)).toBe(1);
+        const blockedReceipt = firstJson(blocked.out) as { failed: number; results: Array<{ error?: { code: string } }> };
+        expect(blockedReceipt.failed).toBe(1);
+        expect(blockedReceipt.results[0]?.error?.code).toBe('path_denied');
+
+        const forced = makeIo();
+        expect(await runCli(['batch', 'src2', '--out', 'batch-ow', '--overwrite'], forced.io, session)).toBe(0);
+        expect((firstJson(forced.out) as { succeeded: number }).succeeded).toBe(1);
+    });
 });

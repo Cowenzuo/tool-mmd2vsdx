@@ -42,9 +42,9 @@ export class ServiceSession {
     }
 
     /** 批量转换，逐项隔离失败。 */
-    async convertMany(items: BatchItem[], outDir?: string): Promise<BatchReceipt> {
+    async convertMany(items: BatchItem[], outDir?: string, overwrite = false): Promise<BatchReceipt> {
         try {
-            return await convertBatch(this.parser, this.policy, items, outDir);
+            return await convertBatch(this.parser, this.policy, items, outDir, overwrite);
         } catch (e) {
             throw toServiceError(e);
         }

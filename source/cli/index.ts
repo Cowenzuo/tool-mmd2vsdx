@@ -153,6 +153,7 @@ async function cmdBatch(argv: string[], io: CliIo, session: ServiceSession): Pro
     const receipt = await session.convertMany(
         files.map((f) => ({ file: f })),
         flagText(flags, 'out'),
+        flags.has('overwrite'),
     );
     json(io, { ...receipt, ok: receipt.failed === 0 });
     io.err(`[batch] 共 ${receipt.total} 项，成功 ${receipt.succeeded}，失败 ${receipt.failed} → ${receipt.outDir}`);
