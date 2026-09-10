@@ -81,9 +81,12 @@ for (const f of files) {
     if (n) {
       const expectPart = 100 + (Number(n) - 1);
       if (Number(m[2]) !== expectPart) connIssue++;
+    } else if ((m[1] === 'PinX' || m[1] === 'PinY') && Number(m[2]) !== 3) {
+      // 本体粘附（basic-3/basic-5：ToCell=PinX/PinY 恒配 ToPart=3）
+      connIssue++;
     }
   }
-  assert(connIssue === 0, f, 'E', `${connIssue} 条 ToPart 与行号不符（5.5.3.4）`);
+  assert(connIssue === 0, f, 'E', `${connIssue} 条 ToPart 与 ToCell 不符（5.5.3.4 行号粘附/本体粘附=3）`);
 
   // F Connection 方向列（research 5.4.3.3）
   // 页面无 Connection 段=母版继承形态（research 5.4.5），通过；有段则五行方向不得恒零。

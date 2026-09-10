@@ -77,6 +77,18 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
     } else {
         a.meta.bounds = defaultBoundingBox();
     }
+    // 坐标系平移：SVG 视图原点可能非 0（如 state 布局含负坐标），
+    // 统一平移到 0 起点（页面坐标原点=左下），页面与节点不越界（5.5.3.2 实例落位）。
+    const kShiftX = -(a.meta.bounds.minX || 0);
+    const kShiftY = -(a.meta.bounds.minY || 0);
+    a.meta.bounds.minX = 0;
+    a.meta.bounds.minY = 0;
+    a.meta.bounds.maxX += kShiftX;
+    a.meta.bounds.maxY += kShiftY;
+    const shiftPoint = (p: { x?: number; y?: number }) => {
+        p.x = (p.x ?? 0) + kShiftX;
+        p.y = (p.y ?? 0) + kShiftY;
+    };
     for (const n of snap.nodes ?? []) {
         const s = defaultGenericShape();
         s.id = String(n['id'] ?? `n${a.shapes.length}`);
@@ -88,6 +100,7 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
             : 'rect';
         s.x = num(n['x']);
         s.y = num(n['y']);
+        shiftPoint(s); // 平移节点（与边/簇一致；曾误传给临时字面量导致节点不动、线与框分离）
         s.width = num(n['width']);
         s.height = num(n['height']);
         s.styleClass = String(n['styleClass'] ?? '');
@@ -114,10 +127,11 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
             : 'arrow';
         edge.arrowTail = 'none';
         edge.waypoints = Array.isArray(e['waypoints'])
-            ? (e['waypoints'] as Array<{ x?: number; y?: number }>).map((p) => ({
-                  x: num(p?.x),
-                  y: num(p?.y),
-              }))
+            ? (e['waypoints'] as Array<{ x?: number; y?: number }>).map((p) => {
+                  const q = { x: num(p?.x), y: num(p?.y) };
+                  shiftPoint(q);
+                  return q;
+              })
             : [];
         edge.fromMultiplicity = String(e['fromMultiplicity'] ?? '');
         edge.toMultiplicity = String(e['toMultiplicity'] ?? '');
@@ -127,6 +141,7 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
         const b = { x: 0, y: 0, width: 0, height: 0 };
         b.x = num(c['x']);
         b.y = num(c['y']);
+        shiftPoint(b); // 同节点：必须实际平移（曾为临时字面量，位移丢失）
         b.width = num(c['width']);
         b.height = num(c['height']);
         a.clusters.push({ id: String(c['id'] ?? ''), label: String(c['label'] ?? ''), ...b });

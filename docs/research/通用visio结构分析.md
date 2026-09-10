@@ -1581,6 +1581,49 @@ _WALKGLUE(EndTrigger,BegTrigger,WalkPreference)，不再 PAR 到某个连接点�
 Connects 里对应记录 ToCell='PinX'、ToPart='3'，端点粘在目标形状本体上，
 随目标移动沿边重新布点。两种粘附可以在同一页并存。
 
+basic-5 补上自动连接基准：一根连接线**两端全部**走线吸附。三处关键差异
+（与 basic-3 shape 6 单端走线对照）：
+
+| 项 | basic-3 shape 6（单端走线） | basic-5 shape 3（双端自动） | 结论 |
+| --- | --- | --- | --- |
+| BeginX/BeginY 公式 | PAR(PNT(...Connections.X2...)) | `_WALKGLUE(BegTrigger,EndTrigger,WalkPreference)` | 自动连接=两端都走线；起点公式参数顺序与终点**镜像**（Begin 先 BegTrigger，End 先 EndTrigger），生成器不能对两端粘贴同文本 |
+| WalkPreference | 无 | `V='3'` | 自动连接实例显式写出走线偏好（方向编码待核），单端 PAR 实例未写 |
+| ConFixedCode | 5 | **6** | 取值随粘附模式变化：单端 PAR+走线取 5、双端自动取 6（6.5 W 清单另见 c4-1 同取 6 的条目） |
+| 实例 ShapeRouteStyle | 无 | 无 | 双端自动时实例不写路由样式 cell（路由完全交给 WALKGLUE） |
+| EndArrow | 13 | 13 | 一致 |
+
+端点 V 缓存（basic-5）：Begin=(3.423, 9.326)、End=(4.429, 9.014)，与两矩形
+的各边中点无关——缓存值只是"保存时刻的走线位置"，打开后由 WALKGLUE 重算，
+生成时无须精确。PinX/PinY/LocPinX/LocPinY 均写 F='Inh'（继承母版的
+GUARD((BeginX+EndX)/2) 等公式），实例只覆盖公式所需 cell。
+
+basic-5 矩形实例（shape 1/2）另带 Connection 段五行（F='Inh' 缓存）——
+与 basic-3 页面实例不带 Connection 段并存，属于保存行为差异（5.5.3 注），
+连接点行语义仍以母版为准（行号约定见 5.4.3.3，W-11 提醒行→位置映射随母版走）。
+
+basic-6 补上自动连接线的文字实证（与 basic-5 同几何，唯一差异=实例带
+`<Text>文字</Text>`）：
+
+| cell | basic-5（无文字） | basic-6（有文字） | 结论 |
+| --- | --- | --- | --- |
+| TxtPinX/TxtPinY | `0.659/0` F=Inh | `0.659/0` F=Inh | 相同——文本柄位置与有无文字无关 |
+| TxtHeight/TxtLocPinY | 无 | `0.2445/0.1222` F=Inh | **有文字才写**：TEXTHEIGHT 结果缓存 + 高/2 |
+| TxtWidth/TxtLocPinX | 无 | 无 | 走母版公式（TEXTWIDTH(TheText) 等），实例不写 |
+| XCon | 5（公式 Inh） | **0（F='Inh'）** | 有文字时柄已锁定（不自动居中）→ V=0 |
+| Control.X/Y | `0.659/0` | `0.659/0` | 文本柄=**走线 L 型路径按弧长的中点**：路径长=水平+竖直两段，半长处落在水平段（X=半长, Y=0）或竖直段（X=水平长, Y=-(半长-水平长)）——不是几何对角中点（basic-6: 长 1.318 半长 0.659 < 1.006 落在水平段） |
+
+文本定位基准的补充规律（basic-2/4/5/6 四样本合并）——**粘附模式决定默认位置**：
+
+| 粘附模式 | 样本 | 默认文本柄 | 说明 |
+| --- | --- | --- | --- |
+| PAR 行号粘附 | basic-2（水平线）、basic-4 shape 3（纯竖线） | **LocPin（几何对角中点）**（=Width/2, Height/2） | 线体不动，文本默认居中于形状 |
+| 双端 WALKGLUE | basic-5/6 | **L 型路径弧长中点** | 走线自动重算，文本跟随路径；basic-6 实测 = (|dx|+|dy|)/2 距 Begin |
+
+注意 XCon=0 只说明"文本柄保存状态"（Visio 计算后固化在 Control 行），
+不作为"是否被拖动"的判据——basic-4 的"默认居中"与"移动位置"两条
+XCon 均为 0。实例几何（Geometry 两行 LineTo）**必须实例化**：母版几何是
+占位（0→-1→1），WALKGLUE 实例不写几何会渲染占位形状、文本柄随之错位。
+
 basic-4 补上两块拼图。第一块是连接线文本。实例 Text 元素直接写标签文字，
 文本格式与块尺寸走母版继承：TxtPinX/Y 经 SETATREF 写回 TextPosition 句柄，
 TxtWidth/TxtHeight 按内容自适应，实例只写 F='Inh' 的缓存。标签默认居中时
@@ -1622,7 +1665,10 @@ basic-2 加 basic-3 加 basic-4 共十三条记录，规律清晰：钉在连接
 记录，ToCell 写 Connections.Xn，ToPart 与行 IX 对应，值=100+IX：X1 取 100、
 X2 取 101、X3 取 102、X4 取 103，与形状公式引用的行完全一致。basic-3 另有
 一条不钉连接点的：ToCell 写 PinX，ToPart 为 3，配合走线粘附公式
-_WALKGLUE，见 5.5.3.3。
+_WALKGLUE，见 5.5.3.3。basic-5 自动连接线（双端 WALKGLUE）两端记录
+ToCell 均写 **PinY**、ToPart=3。走线吸附的目标落点 cell 在 PinX 与 PinY
+之间切换的规律（方向依赖？）在两组素材间尚未归一，入 W 清单：PinX/PinY
+之差见 5.5.3.3 对照——共同点是与粘附模式无关的 ToPart=3（本体粘附角色码）。
 
 行号规模在专篇里扩展：sequence 的生命线把连接行建到 100 枚时间格，
 Xn 一路取到 X23、ToPart 取到 122，规律不变，见
@@ -2423,6 +2469,11 @@ xml，Override 覆盖 16 个部件：docProps 三件、主文档、母版区九�
 | W-10 | Xn 行号约定与 OriginalID | Xn=行 IX=n-1 为四份素材实证；连接线母版 Shape 带 OriginalID='0'，矩形母版无 | 待核官方出处 |
 | W-11 | Xn 约定对自定义行布局的适用边界 | Xn=IX(n-1) 命名约定不变；行到位置的映射随母版而异，类系列为左/右/下/上四中间点 | 待核官方出处，详见 class-结构分析.md |
 | W-12 | 命名连接行寻址 | gantt 任务条 Connections.LeftSide.X/RightSide.X，ToPart 仍取 100/101 | 待核，详见 gantt-结构分析.md |
+| W-13 | 自动连接双端 WALKGLUE 参数顺序 | basic-5：Begin=`_WALKGLUE(BegTrigger,EndTrigger,WalkPreference)`、End=`_WALKGLUE(EndTrigger,BegTrigger,WalkPreference)`——两端镜像，不能粘贴同一文本 | 已确认（basic-5 实证），官方出处待核 |
+| W-14 | ConFixedCode 取值分布 | basic-3 单端走线=5、basic-5 双端自动=6、c4-1=6；与粘附模式相关 | 待核：5 与 6 的语义边界 |
+| W-15 | 走线吸附 Connects 落点 cell | basic-3 走线端 ToCell='PinX'；basic-5 双端 ToCell='PinY'；ToPart 均为 3 | 待核：PinX/PinY 的选取规律（方向依赖？） |
+| W-16 | WalkPreference 显式写出 | basic-5 实例 V='3'；basic-3 单端走线实例未写 | 待核：取值枚举与何时需要显式写 |
+| W-17 | basic-5 矩形实例带 Connection 段 | 页面实例带五行 F='Inh' 缓存；basic-3 页面实例不带（行数据走母版） | 保存行为差异，对解析无碍 |
 
 #### 6.5.3 字段解释
 
@@ -2437,7 +2488,10 @@ xml，Override 覆盖 16 个部件：docProps 三件、主文档、母版区九�
 - W-6 的跨机表现与 W-7 的固定时间戳都属于写入特征，源码对号时一并看；
 - W-8 与 W-9 是对自产写法的确认性观察，不构成疑点，写进本章是保留证据；
 - W-10 的两条都出自 basic-4 比对：Xn 行号约定由四份素材的端口对位推出，
-  OriginalID 只在连接线母版出现，等官方文档对照确认。
+  OriginalID 只在连接线母版出现，等官方文档对照确认；
+- W-13…W-17 出自 basic-5：双端 WALKGLUE 与单端 PAR 走线的实证差异集中
+  在参数顺序、WalkPreference、ConFixedCode、Connects 落点 cell 四项；
+  共同规律是 ToPart=3（本体粘附角色码）与触发器 _XFTRIGGER V=2 不变。
 
 #### 6.5.4 字段扩展
 
@@ -2464,6 +2518,6 @@ a5cec55 处可查，本表是它的去向：
   语法，甘特的公式驱动子形状体系，sequence 的生命周期线。素材原则与
   前面相同，每类图手工最简样本加自产产物对照；
 - 待核清单汇总入口：各章补充注解的 ❓ 条目汇总在 research README 待办，
-  本章 W-1……W-9 并入其中；
+  本章 W-1……W-17 并入其中；
 - 本章结论边界再申明一遍：c4-1 是自产样本，对照结论只代表这个写入者。
   Visio 打开后的实际行为以真机验收为准。

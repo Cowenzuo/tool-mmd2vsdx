@@ -1,11 +1,10 @@
-node_modules/
+﻿node_modules/
 dist/
 temp/
 *.log
 .vitest/
 coverage/
 .DS_Store
-# 微软官方模具及其提取物：不进入公开仓库（合规红线，docs/usage.md §〇·一）
-# 本地保留以支持开发再生成（gen-stencils）与测试（金标准闸门）
-# visio-template=原件、visio-binary=压缩提取物（stencil-data.json）
-resources/visio-*/
+# 官方模具原件（vssx/vstx，本地开发参照用，代码不再依赖；合规红线不进入公开仓库）
+# 母版内容已程序化固化于 source/common/masters/templates.ts（构建函数直接返回 XML）
+resources/visio-template/

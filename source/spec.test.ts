@@ -106,13 +106,21 @@ function l1Audit(pkg: OpcPackage): string[] {
 
     // 形状级（5.5.3.2/5.5.3.3）：位置必须、端点必须、几何必须有关闭与起点
     const shapes = parseAllShapes(page);
+    const masterXmls = [...pkg.listUris().filter((u) => /^\/visio\/masters\/master\d+\.xml$/.test(u)).map((u) => xml(u))];
     for (const s of shapes) {
         for (const cell of ['PinX', 'PinY']) {
             if (!s.body.includes(`N="${cell}"`)) err.push(`Shape ${s.id} 缺 ${cell}（5.5.3.2 实例位置必填）`);
         }
         if (/N="BeginX"/.test(s.body)) {
-            for (const cell of ['BeginY', 'EndX', 'EndY', 'GlueType', 'ObjType']) {
+            for (const cell of ['BeginY', 'EndX', 'EndY']) {
                 if (!s.body.includes(`N="${cell}"`)) err.push(`Shape ${s.id}（1-D）缺 ${cell}（5.5.3.3）`);
+            }
+            // GlueType/ObjType 可能随母版（basic-5：实例只有 Master=；母版承载行为组）
+            if (!s.body.includes('N="GlueType"') && !masterXmls.some((m) => /GlueType" V="2"/.test(m))) {
+                err.push(`Shape ${s.id}（1-D）缺 GlueType（实例或母版，5.5.3.3）`);
+            }
+            if (!s.body.includes('N="ObjType"') && !masterXmls.some((m) => /ObjType" V="2"/.test(m))) {
+                err.push(`Shape ${s.id}（1-D）缺 ObjType（实例或母版，5.5.3.3）`);
             }
         }
         const isLine = /N="BeginX"/.test(s.body);
@@ -142,10 +150,11 @@ function l1Audit(pkg: OpcPackage): string[] {
             if (flags.length === 5 && flags.every((mm) => mm[1] === '0' && mm[2] === '0')) err.push(`Shape ${s.id} Connection 方向列恒零（5.4.3.3）`);
         }
     }
-    // Connects（5.5.3.4）：ToPart=100+IX、FromPart 恒配、无悬空端点
+    // Connects（5.5.3.4）：ToPart=100+IX、本体粘附=3、FromPart 恒配、无悬空端点
     for (const m of page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(\w+)" FromPart="(\w+)" ToSheet="(\d+)" ToCell="([^"]+)" ToPart="(\d+)"/g)) {
         const n = /X(\d+)/.exec(m[5]!)?.[1];
         if (n && Number(m[6]) !== 100 + Number(n) - 1) err.push(`Connects ToPart=${m[6]}≠100+行号（5.5.3.4）`);
+        if (m[5] === 'PinY' && Number(m[6]) !== 3) err.push('Connects PinY 未配 ToPart=3（basic-5 本体粘附）');
         if (m[2] === 'BeginX' && m[3] !== '9') err.push('Connects BeginX 未配 FromPart=9（5.5.3.4）');
         if (m[2] === 'EndX' && m[3] !== '12') err.push('Connects EndX 未配 FromPart=12（5.5.3.4）');
         const from = shapes.find((s) => s.id === m[1]);
@@ -173,19 +182,104 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
     const has = (s: string, re: RegExp) => re.test(s);
 
     if (kind === 'common') {
-        // 节点（5.5.3.2 最小式）：Master 引用 + 文本；连接线（5.5.3.3/6.2.3.3）补齐 1-D 字段面
+        // 节点（5.5.3.2 最小式）：Master 引用 + 文本；连接线（basic-5 基准）双端自动 WALKGLUE。
+        // 实例=Master= 引用 + 差异 cell；母版承载几何/1-D 行为组/NoFill/文本公式（官方 flowchart 模具）。
+        const masterXmls = [...pkg.listUris().filter((u) => /^\/visio\/masters\/master\d+\.xml$/.test(u))
+            .map((u) => xml(u))];
+        // 连接线母版：1-D 特征齐全（BeginX 缓存 + GUARD(EndX-BeginX) + SETATREF 文本句柄 + TEXTWIDTH 公式）
+        const connMaster = masterXmls.find((m) =>
+            /Cell N="BeginX"/.test(m)
+            && /GUARD\(EndX-BeginX\)/.test(m)
+            && /TxtPinX"[^>]*SETATREF/.test(m)
+            && /MAX\(TEXTWIDTH\(TheText\)/.test(m)) ?? '';
         for (const s of shapes) {
             if (has(s.body, /N="BeginX"/)) {
-                for (const c of ['LockHeight', 'ConFixedCode', 'ShapeRouteStyle', 'EndArrow', 'TxtPinX', 'TxtPinY']) {
-                    if (!s.body.includes(`N="${c}"`)) err.push(`通用连接线 Shape ${s.id} 缺 ${c}（5.5.3.3/6.2.3.3）`);
+                // 实例差异 cell（basic-5 同款：端点公式/触发器/WalkPreference/ConFixedCode/EndArrow/TxtPin 缓存）
+                for (const c of ['ConFixedCode', 'EndArrow', 'WalkPreference', 'BegTrigger', 'EndTrigger']) {
+                    if (!s.body.includes(`N="${c}"`)) err.push(`通用连接线 Shape ${s.id} 缺 ${c}（basic-5）`);
                 }
-                if (!has(s.body, /<Section N="Control">/)) err.push(`通用连接线 Shape ${s.id} 缺 Control 段（5.4.3.4）`);
-                if (!has(s.body, /<Row T="LineTo" IX="3" Del="1"/)) err.push(`通用连接线 Shape ${s.id} 缺 Del 占位行（5.5.3.3）`);
+                // 独立样式（5.4.3.4：Connector 样式三件套 = 无填充线；与面形状 3 号区分）
+                for (const c of ['LineStyle', 'FillStyle', 'TextStyle']) {
+                    if (!new RegExp(`${c}="5"`).test(s.attrs)) err.push(`通用连接线 Shape ${s.id} 缺 ${c}=5（Connector 样式）`);
+                }
+                // 双端自动（basic-5：Begin/End 均 _WALKGLUE，参数顺序镜像；WalkPreference=3；ConFixedCode=6）
+                if (!has(s.body, /N="BeginX"[^>]*F="_WALKGLUE\(BegTrigger,EndTrigger,WalkPreference\)"/)) {
+                    err.push(`通用连接线 Shape ${s.id} BeginX 缺 _WALKGLUE(BegTrigger,…)（basic-5 双端自动镜像顺序）`);
+                }
+                if (!has(s.body, /N="EndX"[^>]*F="_WALKGLUE\(EndTrigger,BegTrigger,WalkPreference\)"/)) {
+                    err.push(`通用连接线 Shape ${s.id} EndX 缺 _WALKGLUE(EndTrigger,…)（basic-5 双端自动镜像顺序）`);
+                }
+                if (!/<Cell N="WalkPreference" V="3"/.test(s.body)) err.push(`通用连接线 Shape ${s.id} WalkPreference≠3（basic-5）`);
+                if (!/<Cell N="ConFixedCode" V="6"/.test(s.body)) err.push(`通用连接线 Shape ${s.id} ConFixedCode≠6（basic-5 双端自动）`);
+                // 路由样式（basic-3/4 实证 ShapeRouteStyle=5=Flowchart 上→下绕行避让；
+                // 官方语义 0=页面默认/不避让——必须显式写，basic-5 省略属无障碍物样本）
+                if (!/<Cell N="ShapeRouteStyle" V="5"/.test(s.body)) err.push(`通用连接线 Shape ${s.id} 缺 ShapeRouteStyle=5（basic-3/4 绕行避让）`);
+                if (!has(s.body, /N="BegTrigger"[^>]*F="_XFTRIGGER/) || !has(s.body, /N="EndTrigger"[^>]*F="_XFTRIGGER/)) {
+                    err.push(`通用连接线 Shape ${s.id} 缺 _XFTRIGGER 触发（5.5.3.3 素材）`);
+                }
+                // 文本闭环（basic-6）：TxtPinX/TxtPinY 缓存（文本柄位置）+ Control.TextPosition；
+                // 有文字（basic-6）：补 TxtHeight/TxtLocPinY 缓存 + XCon='0' Inh（柄锁定不再自动居中）；
+                // 无文字（basic-5）：TxtWidth/TxtLocPinX 不写（走母版公式）
+                const hasText = has(s.body, /<Text>/);
+                if (!has(s.body, /N="TxtPinX"[^>]*F="Inh"/) || !has(s.body, /N="TxtPinY"[^>]*F="Inh"/)) {
+                    err.push(`通用连接线 Shape ${s.id} 缺 TxtPinX/Y Inh 缓存（basic-6 文本闭环）`);
+                }
+                if (hasText) {
+                    if (!has(s.body, /N="TxtHeight"/) || !has(s.body, /N="TxtLocPinY"/)) {
+                        err.push(`通用连接线 Shape ${s.id}（有文字）缺 TxtHeight/TxtLocPinY 缓存（basic-6）`);
+                    }
+                    if (!/<Cell N="XCon" V="0"[^>]*F="Inh"/.test(s.body)) {
+                        err.push(`通用连接线 Shape ${s.id}（有文字）XCon 应为 0/Inh（basic-6 柄锁定）`);
+                    }
+                }
+                // 母版承载（官方模具 Dynamic connector）：行为组/NoFill/文本公式
+                // ——已引用母版的实例母版文件必须带；但几何/Width/Height 实例自己写
+                // （basic-6 实证：母线是 WALKGLUE 走线，几何必须实例化——母版几何是占位，
+                // 不写会显示占位形状、文本柄错乱漂移）
+                if (/Master="\d+"/.test(s.attrs)) {
+                    if (!connMaster) err.push(`连接线 Shape ${s.id} 引用母版但母版文件缺失（5.4.3）`);
+                    else {
+                        if (!/<Cell N="GlueType" V="2"/.test(connMaster)) err.push(`连接线母版缺 GlueType=2（5.4.3.4 母版表）`);
+                        if (!/<Cell N="NoFill" V="1"/.test(connMaster)) err.push(`连接线母版几何缺 NoFill=1（5.4.3.4 只描线不填充）`);
+                        if (!/<TxtWidth"[^>]*MAX\(TEXTWIDTH\(TheText\)/.test(connMaster) && !/MAX\(TEXTWIDTH\(TheText\),/.test(connMaster)) err.push(`连接线母版缺 TxtWidth 公式（master2）`);
+                    }
+                    // 实例必须带（basic-5/6）：Width/Height + Geometry 段（MoveTo+LineTo×2）
+                    if (!has(s.body, /N="Width"[^>]*F="GUARD\(EndX-BeginX\)/) || !has(s.body, /N="Height"[^>]*F="GUARD\(EndY-BeginY\)/)) {
+                        err.push(`通用连接线 Shape ${s.id} 缺 Width/Height 随端点公式（basic-5）`);
+                    }
+                    const gir = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
+                    if (!/<Row T="MoveTo"/.test(gir)) err.push(`通用连接线 Shape ${s.id} 实例几何缺 MoveTo（basic-6 实例化几何）`);
+                    // 纯竖线（|dx|<1e-6）两行即可（basic-4 shape 3 实证）；否则 L 型必带 IX=3
+                    const ddx = Math.abs((+((/N="BeginX" V="([^"]+)"/.exec(s.body))?.[1] ?? 0)) - (+((/N="EndX" V="([^"]+)"/.exec(s.body))?.[1] ?? 0)));
+                    if (ddx > 1e-6 && !/<Row T="LineTo" IX="3"/.test(gir)) {
+                        err.push(`通用连接线 Shape ${s.id} 实例几何缺第二段 IX=3（basic-6 L 型）`);
+                    }
+                } else {
+                    // 自足式兜底（无母版资产时）：母版全部 cell 落实例
+                    for (const c of ['LockHeight', 'GlueType', 'ObjType']) {
+                        if (!s.body.includes(`N="${c}"`)) err.push(`通用连接线 Shape ${s.id}（自足式）缺 ${c}（5.5.3.3/6.2.3.3）`);
+                    }
+                    if (!/<Cell N="NoFill" V="1"/.test(s.body)) err.push(`通用连接线 Shape ${s.id} 几何缺 NoFill=1（5.4.3.4）`);
+                    if (!/<Row T="MoveTo"/.test(s.body)) err.push(`通用连接线 Shape ${s.id} 几何缺 MoveTo（5.4.3.3）`);
+                    if (!has(s.body, /<Section N="Control">/)) err.push(`通用连接线 Shape ${s.id} 缺 Control 段（5.4.3.4）`);
+                    const gir = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
+                    if (!/<Row T="LineTo" IX="3"/.test(gir)) err.push(`通用连接线 Shape ${s.id} 几何缺第二段 IX=3（basic-5 L 型）`);
+                }
             } else {
-                // 节点（Master 引用实例）：Master= 必须（5.5.3.2）
+                // 节点（Master 引用实例）：Master= 必须（5.5.3.2）；尺寸覆盖必须（6.2.3.2，
+                // 母版占位 40×30mm 远大于布局间距，缺覆盖会整页重叠）
                 if (shapes.length > 0 && !/Master="/.test(s.attrs)) err.push(`通用节点 Shape ${s.id} 缺 Master= 引用（5.5.3.2）`);
-                if (has(s.body, /<Text/) === false && s.body.includes('<Text')) { /* noop */ }
+                for (const c of ['Width', 'Height', 'LocPinX', 'LocPinY']) {
+                    if (!s.body.includes(`N="${c}"`)) err.push(`通用节点 Shape ${s.id} 缺 ${c} 尺寸覆盖（6.2.3.2 防重叠）`);
+                }
             }
+        }
+        // 双端自动 Connects 记录（basic-5：两端 ToCell='PinY' ToPart='3'）
+        const lineIds = shapes.filter((s) => has(s.body, /N="BeginX"/)).map((s) => s.id);
+        const walkRecs = [...page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(?:BeginX|EndX)"[^>]*ToCell="PinY" ToPart="3"/g)];
+        for (const lid of lineIds) {
+            const n = walkRecs.filter((m) => m[1] === lid).length;
+            if (n !== 2) err.push(`连接线 ${lid} 走线吸附记录 ${n}/2（basic-5：两端 ToCell=PinY ToPart=3）`);
         }
     }
 
@@ -300,7 +394,7 @@ describe('结构规范：每图型解压包 vs 研究准则规格（缺一即败
             const pkg = OpcPackage.open(new Squeeze().pack(b1));
 
             const errs = [...mustParts(pkg), ...l1Audit(pkg)];
-            if (c.type !== 'noSpec') errs.push(...l2Audit(c.kind, pkg));
+            if (c.type !== 'noSpec') errs.push(...l2Audit(c.type, pkg));
 
             // 形状数下限（准则：图型内容不允许少节点）
             const page = pkg.get('/visio/pages/page1.xml')?.xml ?? '';

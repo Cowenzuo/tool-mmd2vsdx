@@ -15,9 +15,11 @@ export function gluePar(sheetId: number, xn: number): string {
     return `PAR(PNT(Sheet.${sheetId}!Connections.X${xn},Sheet.${sheetId}!Connections.Y${xn}))`;
 }
 
-/** 走线粘附：_WALKGLUE(EndTrigger,BegTrigger,WalkPreference)。 */
-export function walkGlue(): string {
-    return '_WALKGLUE(EndTrigger,BegTrigger,WalkPreference)';
+/** 走线吸附（basic-5 实证——参数顺序两端镜像，不能粘贴同一文本）：
+ *  Begin 端 = _WALKGLUE(BegTrigger,EndTrigger,WalkPreference)；
+ *  End 端 = _WALKGLUE(EndTrigger,BegTrigger,WalkPreference)。 */
+export function walkGlue(begin = false): string {
+    return begin ? '_WALKGLUE(BegTrigger,EndTrigger,WalkPreference)' : '_WALKGLUE(EndTrigger,BegTrigger,WalkPreference)';
 }
 
 /** 变换触发器：_XFTRIGGER(Sheet.n!EventXFMod)。 */

@@ -1,119 +1,119 @@
 {
-  "startedAt": "2026-09-07T06:49:43.787Z",
-  "durationMs": 1676,
+  "startedAt": "2026-09-07T10:07:34.278Z",
+  "durationMs": 1521,
   "okCount": 16,
   "total": 16,
   "results": [
     {
       "file": "01-block-1.mmd",
       "status": "ok",
-      "ms": 924,
-      "size": 10631,
+      "ms": 859,
+      "size": 7316,
       "kind": "flowchart"
     },
     {
       "file": "02-c4-1.mmd",
       "status": "ok",
-      "ms": 41,
-      "size": 11443,
+      "ms": 27,
+      "size": 9097,
       "kind": "c4"
     },
     {
       "file": "03-class-1.mmd",
       "status": "ok",
-      "ms": 100,
-      "size": 13241,
+      "ms": 101,
+      "size": 9828,
       "kind": "class"
     },
     {
       "file": "04-er-1.mmd",
       "status": "ok",
-      "ms": 42,
-      "size": 12884,
+      "ms": 39,
+      "size": 9471,
       "kind": "er"
     },
     {
       "file": "05-flowchart-1.mmd",
       "status": "ok",
-      "ms": 38,
-      "size": 12838,
+      "ms": 29,
+      "size": 10327,
       "kind": "flowchart"
     },
     {
       "file": "06-flowchart-2.mmd",
       "status": "ok",
-      "ms": 80,
-      "size": 14903,
+      "ms": 75,
+      "size": 12411,
       "kind": "flowchart"
     },
     {
       "file": "07-gantt-1.mmd",
       "status": "ok",
-      "ms": 21,
-      "size": 13807,
+      "ms": 13,
+      "size": 10362,
       "kind": "gantt"
     },
     {
       "file": "08-git-1.mmd",
       "status": "ok",
-      "ms": 35,
-      "size": 11808,
+      "ms": 31,
+      "size": 8395,
       "kind": "git"
     },
     {
       "file": "11-mindmap-1.mmd",
       "status": "ok",
-      "ms": 45,
-      "size": 12403,
+      "ms": 40,
+      "size": 8990,
       "kind": "mindmap"
     },
     {
       "file": "12-pie-1.mmd",
       "status": "ok",
-      "ms": 20,
-      "size": 11186,
+      "ms": 13,
+      "size": 7773,
       "kind": "pie"
     },
     {
       "file": "13-quadrant-1.mmd",
       "status": "ok",
-      "ms": 18,
-      "size": 11071,
+      "ms": 11,
+      "size": 7658,
       "kind": "quadrant"
     },
     {
       "file": "15-sequence-1.mmd",
       "status": "ok",
-      "ms": 26,
-      "size": 16850,
+      "ms": 20,
+      "size": 13437,
       "kind": "sequence"
     },
     {
       "file": "15-sequence-2.mmd",
       "status": "ok",
-      "ms": 23,
-      "size": 17030,
+      "ms": 17,
+      "size": 13617,
       "kind": "sequence"
     },
     {
       "file": "16-state-1.mmd",
       "status": "ok",
-      "ms": 29,
-      "size": 11658,
+      "ms": 23,
+      "size": 9624,
       "kind": "state"
     },
     {
       "file": "17-timeline-1.mmd",
       "status": "ok",
-      "ms": 21,
-      "size": 10418,
+      "ms": 14,
+      "size": 7005,
       "kind": "flowchart"
     },
     {
       "file": "18-xy-1.mmd",
       "status": "ok",
-      "ms": 19,
-      "size": 10593,
+      "ms": 12,
+      "size": 7313,
       "kind": "xy"
     }
   ]

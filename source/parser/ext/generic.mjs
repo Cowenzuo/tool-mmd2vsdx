@@ -74,16 +74,27 @@
         return null;
     }
 
-    function waypoints(path) {
+    function waypoints(svg, path) {
+        // d 属性是路径局部坐标（g.edgePaths 等容器带 transform）——先经 path.getCTM()
+        // 到根用户空间，再经 svg.getScreenCTM().inverse() 返回世界坐标（与 worldBox 同口径）。
         const d = attr(path, 'd');
-        const pts = [];
-        const re = /M\s*([\d.]+)[,\s]+([\d.]+)/g;
+        const raw = [];
         const lm = d.match(/M\s*([\d.]+)[,\s]+([\d.]+)/);
-        if (lm) pts.push({ x: +lm[1], y: +lm[2] });
+        if (lm) raw.push({ x: +lm[1], y: +lm[2] });
         for (const mm of d.matchAll(/[Ll]\s*([\d.]+)[,\s]+([\d.]+)/g)) {
-            pts.push({ x: +mm[1], y: +mm[2] });
+            raw.push({ x: +mm[1], y: +mm[2] });
         }
-        return pts;
+        const ctm = svg.getScreenCTM();
+        const pathCtm = path.getScreenCTM();
+        if (!ctm || !pathCtm) return raw;
+        // 顺序明确：path 局部 → (pathCtm) → 屏幕 → (ctm⁻¹) → 世界坐标
+        return raw.map((p) => {
+            const pt = svg.createSVGPoint();
+            pt.x = p.x;
+            pt.y = p.y;
+            const w = pt.matrixTransform(pathCtm).matrixTransform(ctm.inverse());
+            return { x: w.x, y: w.y };
+        });
     }
 
     function arrowKind(path) {
@@ -128,7 +139,7 @@
         for (const el of svgEl.querySelectorAll('.edgePaths path')) {
             const ids = edgeIds(el);
             if (!ids) continue;
-            const pts = waypoints(el);
+            const pts = waypoints(svg, el);
             let label = '';
             if (pts.length >= 2 && labels.length > 0) {
                 const midX = (pts[0].x + pts[pts.length - 1].x) / 2;
