@@ -33,9 +33,19 @@ function loadPack(dir: string): Map<string, { masterType: string; file: string; 
 }
 
 describe('M1 装配机制：官方母版模板', () => {
+    /** 多包合并（先给的包优先，后包只补缺失条目——同名条目各包内容一致）。 */
+    function mergePacks(dirs: string[]): Map<string, { masterType: string; file: string; content: string }> {
+        const out = new Map<string, { masterType: string; file: string; content: string }>();
+        for (const d of dirs) for (const [k, v] of loadPack(d)) if (!out.has(k)) out.set(k, v);
+        return out;
+    }
+
     it('四类模板模块：条目集合与官方包一致、内容逐字节等价、MasterType 正确', () => {
         // class 模板库 = 官方 class 包（11 条：含 Rectangle/Dynamic connector 通用件）
         //              ∪ class-all-in-one 包（16 条：全部类图模板，含 7 类线型母版）
+        // sequence 模板库 = sequence 包（11 条：含 Rectangle/Dynamic connector 通用件）
+        //              ∪ seq-all-in-one 包（12 条：时序专用件，含 Alternative fragment/
+        //                Interaction operand/Other fragment）
         // 两包合并为权威全集；条目与内容逐字节比对。
         // er 模板库 = er-all-in-one 包（5 条：Entity/PKAttr/PKSep/Attr/Relationship，MasterType=541 关系）。
         for (const [dir, tpl] of [
@@ -45,13 +55,10 @@ describe('M1 装配机制：官方母版模板', () => {
             ['sequence', kSequenceTemplates],
         ] as const) {
             const packs = dir === 'class'
-                ? (() => {
-                      const a = loadPack('class');
-                      const b = loadPack('class-all-in-one');
-                      for (const [k, v] of b) if (!a.has(k)) a.set(k, v);
-                      return a;
-                  })()
-                : loadPack(dir);
+                ? mergePacks(['class', 'class-all-in-one'])
+                : dir === 'sequence'
+                    ? mergePacks(['sequence', 'seq-all-in-one'])
+                    : loadPack(dir);
             expect(Object.keys(tpl).length, `${dir} 条目数`).toBe(packs.size);
             for (const [nameU, entry] of Object.entries(tpl)) {
                 const official = packs.get(nameU);

@@ -271,6 +271,7 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                   y?: number;
                   width?: number;
                   height?: number;
+                  operands?: Array<{ label?: string; yTop?: number; yBottom?: number }>;
               }>;
           }
         | undefined;
@@ -286,7 +287,7 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                 from: String(m.from ?? ''),
                 to: String(m.to ?? ''),
                 label: String(m.label ?? ''),
-                kind: (['sync', 'return', 'self', 'async', 'note', 'activate', 'deactivate', 'loop', 'loopend', 'alt', 'altelse', 'altend', 'opt', 'optend'] as const).includes(
+                kind: (['sync', 'return', 'self', 'async', 'note', 'activate', 'deactivate', 'loop', 'loopend', 'alt', 'altelse', 'altend', 'opt', 'optend', 'par', 'parelse', 'parend', 'critical', 'criticalelse', 'criticalend', 'break', 'breakend', 'rect', 'rectend'] as const).includes(
                     m.kind as never,
                 )
                     ? (m.kind as MessageKind)
@@ -307,6 +308,13 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                 y: num(f.y),
                 width: num(f.width),
                 height: num(f.height),
+                operands: Array.isArray(f.operands)
+                    ? (f.operands as Array<Record<string, unknown>>).map((o) => ({
+                          label: String(o.label ?? ''),
+                          yTop: num(o.yTop),
+                          yBottom: num(o.yBottom),
+                      }))
+                    : undefined,
             })),
         };
     }

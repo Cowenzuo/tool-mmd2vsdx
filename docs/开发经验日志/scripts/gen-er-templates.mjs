@@ -1,5 +1,7 @@
 // 模板模块生成器：官方模板解压包 → source/common/masters/templates/<mod>.ts
 // 用法：node docs/开发经验日志/scripts/gen-er-templates.mjs（在仓库根目录执行）
+// ⚠ 已被通用脚本取代：docs/开发经验日志/scripts/gen-type-templates.mjs（支持多包合并与任意图型）。
+//   本文件保留仅为 er.ts 头注释的历史引用；新包一律用通用脚本。
 // 说明：
 //  - 条目 = { masterType, contentXml }，contentXml 为官方 MasterContents 原文（verbatim）；
 //  - NameU 为准；Name/Prompt（GBK 乱码）与 Icon 不携带；

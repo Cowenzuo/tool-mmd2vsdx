@@ -1,0 +1,27 @@
+sequenceDiagram
+    actor User as 用户
+    participant Web as 前端
+    participant Pay as 支付网关
+    participant Bank as 银行
+
+    User->>Web: 提交支付
+    activate Web
+    Web->>Pay: 创建支付单
+    activate Pay
+    Pay->>Bank: 扣款请求
+    alt 余额充足
+        Bank-->>Pay: 扣款成功
+        Pay-->>Web: 支付成功
+    else 余额不足
+        Bank-->>Pay: 余额不足
+        Pay-->>Web: 支付失败
+    end
+    Note over Pay,Bank: 失败时需当日对账
+    par 通知商户
+        Pay-)Web: 异步回调
+    and 写审计日志
+        Pay->>Pay: 落库
+    end
+    deactivate Pay
+    deactivate Web
+    User->>Web: 展示结果

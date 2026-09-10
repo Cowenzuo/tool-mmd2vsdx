@@ -245,7 +245,17 @@ export type MessageKind =
     | 'altelse'
     | 'altend'
     | 'opt'
-    | 'optend';
+    | 'optend'
+    | 'par'
+    | 'parelse'
+    | 'parend'
+    | 'critical'
+    | 'criticalelse'
+    | 'criticalend'
+    | 'break'
+    | 'breakend'
+    | 'rect'
+    | 'rectend';
 
 export interface SeqMessage {
     from: string;
@@ -263,14 +273,25 @@ export interface SeqActivation {
     width: number;
 }
 
+/** 片段内的分支（alt/else、par/and、critical/option）：分支标签 + 起止行（像素 y）。 */
+export interface SeqOperand {
+    label: string;
+    /** 分支起始行 y（alt/else 标记行）。 */
+    yTop: number;
+    /** 分支结束行 y（下一条 else / 片段 end 标记行）。 */
+    yBottom: number;
+}
+
 export interface SeqFragment {
-    /** loop/alt/opt 等。 */
+    /** loop/alt/opt/par/critical/break 等。 */
     kind: string;
     label: string;
     x: number;
     y: number;
     width: number;
     height: number;
+    /** 多分支片段（alt/par/critical）的分支列表；单分支片段为空。 */
+    operands?: SeqOperand[];
 }
 
 export interface SequenceModel {

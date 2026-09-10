@@ -40,6 +40,8 @@ const kCases = [
     { file: '07-gantt-1', kind: 'gantt', minShapes: 40, type: 'gantt' },
     { file: '15-sequence-1', kind: 'sequence', minShapes: 2, type: 'sequence' },
     { file: '15-sequence-2', kind: 'sequence', minShapes: 3, type: 'sequence' },
+    { file: '15-sequence-3', kind: 'sequence', minShapes: 40, type: 'sequence' },
+    { file: '15-sequence-4', kind: 'sequence', minShapes: 30, type: 'sequence' },
 ] as const;
 
 // ---------- 检查器：L1 骨架（全部图型；研究 6.1.4/3.3/5.5.2/6.4.x/5.5.3.4/5.4.3.3） ----------
@@ -491,9 +493,11 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
     }
 
     if (kind === 'sequence') {
-        // 母版实例化口径：生命线/激活/消息/片段全部 Master= 实例；
-        // 生命线实例只写用到的 Connection 行 Y 缓存（F=Inh），母版承载 100 行公式；
-        // 消息双端 PAR(PNT(...Connections.Xk))、ToPart 扩到时间格（100+IX）。
+        // 母版实例化口径（官方 sequence 包）：
+        //  - 生命线实例带 4 个嵌套子形状 MS6..9（官方实例如此；不写会被 Visio 现场实例化并与页面形状 ID 冲突）；
+        //  - 时间格 = 0.25IN 网格（母版公式：行 IX=k → Y=-(k+1)*0.25IN，长度由 Controls.Row_1.Y 钳制）；
+        //  - 消息双 Geometry 段（IX=0 主线 + IX=1 箭头）；Return 为负 W/H（官方符号）；
+        //  - Connects ToPart=100+存储行号、ToCell=Connections.X{行+1}（Visio 公式 1-based，X0 无效）。
         const masterRefs = [...page.matchAll(/<Shape[^>]*Master="(\d+)"/g)].map((m) => m[1]);
         expect(masterRefs.length, 'Master 引用数（样本规模相关，≥7）').toBeGreaterThanOrEqual(7);
         const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
@@ -504,29 +508,83 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
         for (const [n, mt] of [['Actor lifeline', '2'], ['Activation', '1'], ['Loop fragment', '2'], ['Optional fragment', '2']] as const) {
             if (byName.has(n)) expect(byName.get(n), `sequence 母版 ${n} MasterType`).toBe(mt);
         }
-        // 生命线：实例 Connection 行 Y 缓存（母版承载 100 行定义）
-        const lifelines = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /Controls\.Row_1/.test(s.body) === false && /N="Row_1"/.test(s.body) === false);
-        void lifelines;
-        const rows14 = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /<Row T="Connection" IX="14"/.test(s.body));
-        expect(rows14.length, '生命线 Connection IX14 起（时间格行）').toBeGreaterThanOrEqual(2);
-        expect(rows14.every((s) => /<Section N="Control">/.test(s.body)), '生命线 Control 段').toBe(true);
-        // 消息：PAR 钉接 + 触发器 + Connects ToPart≥104 + 同格行号（激活条无触发器，另计）
+        // 生命线：Connection 行从 IX=0 起、0.25IN 网格、F=Inh；嵌套子形状 MS6..9 必须写出
+        // （激活条的 Connection 亦从 IX=0 起，故须用 Control.Row_1 区分生命线）
+        const lifelines = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /<Row T="Connection" IX="0"/.test(s.body) && /<Row N="Row_1"/.test(s.body));
+        expect(lifelines.length, '生命线实例数').toBeGreaterThanOrEqual(2);
+        expect(lifelines.every((s) => /<Section N="Control">/.test(s.body)), '生命线 Control 段').toBe(true);
+        expect(lifelines.every((s) => /MasterShape="6"/.test(s.body) && /MasterShape="9"/.test(s.body)), '生命线嵌套子形状 MS6..9（防 Visio 现场实例化）').toBe(true);
+        expect(lifelines.every((s) => /<Row T="Connection" IX="0">\s*<Cell N="Y" V="-0\.25" U="MM" F="Inh"\/>/.test(s.body)), '时间格行 IX=0 → Y=-0.25IN（0.25 网格）').toBe(true);
+        expect(lifelines.every((s) => /N="Y" V="-0\.5" U="MM" F="Inh"/.test(s.body)), '时间格行 IX=1 → Y=-0.5IN').toBe(true);
+        // 消息：PAR 钉接 + 触发器 + 双 Geometry 段
         const msgs = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /N="BeginX"[^>]*PAR\(PNT/.test(s.body) && /TextPosition/.test(s.body));
         expect(msgs.length, '消息 PAR 钉接数').toBeGreaterThanOrEqual(3);
         expect(msgs.every((s) => /_XFTRIGGER/.test(s.body)), '消息触发器').toBe(true);
+        expect(msgs.every((s) => /<Section N="Geometry" IX="0">/.test(s.body) && /<Section N="Geometry" IX="1">/.test(s.body)), '消息双 Geometry 段（主线+箭头）').toBe(true);
+        // Return：负 W/H（官方符号；由 Begin/End 方向决定）
+        const returns = shapes.filter((s) => /NameU="Return Message/.test(s.attrs));
+        if (returns.length > 0) {
+            expect(returns.every((s) => /N="Width" V="-/.test(s.body) && /N="Height" V="-/.test(s.body)), 'Return 负 W/H（官方符号）').toBe(true);
+        }
+        // Connects：ToPart=100+存储行号；ToCell=Connections.X{行+1}
         const connMatches = [...page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(\w+)" FromPart="(\w+)" ToSheet="(\d+)" ToCell="([^"]+)" ToPart="(\d+)"/g)];
-        expect(connMatches.every((m) => Number(m[6]!) >= 104), 'Connects ToPart 时间格（≥104）').toBe(true);
+        const portOk = (m: RegExpMatchArray) => {
+            const pm = /Connections\.X(\d+)/.exec(m[5]!);
+            return !!pm && Number(m[6]) === 99 + Number(pm[1]);
+        };
+        expect(connMatches.length, 'Connects 记录数').toBeGreaterThanOrEqual(4);
+        expect(connMatches.every((m) => portOk(m)), 'Connects ToPart=100+存储行号（Xk ↔ 行 k-1）').toBe(true);
         expect(connMatches.filter((m) => m[2] === 'BeginX' && m[3] === '9').length, 'BeginX FromPart=9').toBeGreaterThanOrEqual(3);
         // 激活条（样本 15-2 有）
         if (/Activation/.test(xml('/visio/masters/masters.xml'))) {
             const acts = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /N="BeginX"/.test(s.body) && !/_XFTRIGGER/.test(s.body));
             expect(acts.length, '激活条实例数').toBeGreaterThanOrEqual(1);
+            expect(acts.every((s) => /N="Width"[^>]*U="MM"/.test(s.body)), '激活条 Width=时间跨度（沿本地 X）').toBe(true);
         }
         // 片段（样本 15-2 有 loop）
         if (/Loop fragment/.test(xml('/visio/masters/masters.xml'))) {
-            const frags = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /MasterShape="6"/.test(s.body));
+            // 注意：生命线也带 MS6..9，故片段必须按 NameU 过滤，不能只看 MasterShape
+            const frags = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /NameU="[^"]*fragment/.test(s.attrs));
             expect(frags.length, '片段实例数').toBeGreaterThanOrEqual(1);
+            expect(frags.every((s) => /<Section N="Geometry" IX="0">/.test(s.body)), '片段根 Geometry IX=0').toBe(true);
+            // 两段带：MS6=类型关键词（不写文本，继承母版「循环」/「选择」）、MS7=参数带（写 mermaid 标签）
+            expect(frags.every((s) => {
+                const kid6 = /<Shape ID="\d+" MasterShape="6"[^>]*>(?:(?!<\/Shape>)[\s\S])*?<\/Shape>/.exec(s.body)?.[0] ?? '';
+                const kid7 = /<Shape ID="\d+" MasterShape="7"[^>]*>(?:(?!<\/Shape>)[\s\S])*?<\/Shape>/.exec(s.body)?.[0] ?? '';
+                return !/<Text[ >]/.test(kid6) && /<Text[ >]/.test(kid7);
+            }), '片段两段带：MS6 无文本（继承关键词）、MS7 带标签文本').toBe(true);
         }
+        // 自消息（样本 15-3 有）：官方 Self Message 母版、跨 2 格（Height=-0.5IN）、两端钉接不同行
+        const selfs = shapes.filter((s) => /NameU="Self Message/.test(s.attrs));
+        if (selfs.length > 0) {
+            expect(selfs.every((s) => /Master="\d+"/.test(s.attrs)), '自消息用官方 Self Message 母版').toBe(true);
+            expect(selfs.every((s) => /N="Height" V="-0\.5"/.test(s.body)), '自消息跨 2 格（Height=-0.5IN）').toBe(true);
+            expect(selfs.every((s) => {
+                const xk = [...s.body.matchAll(/Connections\.X(\d+)/g)].map((m) => m[1]);
+                return new Set(xk).size >= 2;
+            }), '自消息两端钉接不同时间格行').toBe(true);
+        }
+        // alt（样本 15-4 有）：Alternative fragment 容器（仅 MS6 折角标题带）+ Interaction operand 分支
+        if (/Alternative fragment/.test(xml('/visio/masters/masters.xml'))) {
+            const alts = shapes.filter((s) => /NameU="Alternative fragment/.test(s.attrs));
+            expect(alts.length, 'Alternative fragment 实例数').toBeGreaterThanOrEqual(1);
+            expect(alts.every((s) => /Master="\d+"/.test(s.attrs) && /MasterShape="6"/.test(s.body)), 'alt 容器带 MS6 折角标题带').toBe(true);
+            expect(alts.every((s) => !/MasterShape="7"/.test(s.body)), 'alt 容器无 MS7（官方母版只有 MS6）').toBe(true);
+            const ops = shapes.filter((s) => /NameU="Interaction operand/.test(s.attrs));
+            expect(ops.length, 'Interaction operand 分支数').toBeGreaterThanOrEqual(2);
+            expect(ops.every((s) => /Master="\d+"/.test(s.attrs) && /<Text[ >]/.test(s.body)), '操作数带分支条件文本').toBe(true);
+            // 首条分支 NoShow=1（不画分隔虚线）；其余显式 NoShow=0（母版公式依赖 LISTORDER()）
+            expect(ops.filter((s) => /N="NoShow" V="1"/.test(s.body)).length, '首条操作数隐藏分隔线').toBeGreaterThanOrEqual(1);
+            expect(ops.every((s) => /N="NoShow" V="[01]"/.test(s.body)), '操作数显式写 NoShow').toBe(true);
+        }
+        // note（样本 15-4 有）：官方 Note 母版 + 折角子形状 MS6 必须显式写出（否则多 Note ID 冲突被吞）
+        const notes = shapes.filter((s) => /NameU="Note/.test(s.attrs));
+        if (notes.length > 0) {
+            expect(notes.every((s) => /Master="\d+"/.test(s.attrs) && /MasterShape="6"/.test(s.body)), '备注带折角子形状 MS6').toBe(true);
+            expect(notes.every((s) => /N="TxtWidth"/.test(s.body)), '备注写死 TxtWidth（防母版折行撑高）').toBe(true);
+        }
+        // 页面尺寸：DrawingResizeType=2（不随图形缩放），Visio 打开后页面尺寸 = 写入值
+        expect(xml('/visio/pages/pages.xml'), 'sequence 页面禁用自动缩放（DrawingResizeType=2）').toMatch(/N="DrawingResizeType" V="2"/);
         const err = [] as string[];
         void err;
     }

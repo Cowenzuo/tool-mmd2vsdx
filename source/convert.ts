@@ -10,7 +10,7 @@ import { MindmapRenderer } from './diag/mindmap.js';
 import { ClassRenderer, classPageSize } from './diag/class.js';
 import { ErRenderer, erPageSize } from './diag/er.js';
 import { GanttRenderer, ganttPageSize } from './diag/gantt.js';
-import { buildDocumentPart, buildOfficialDocumentPart, buildOfficialErDocumentPart } from './common/styles/writer.js';
+import { buildDocumentPart, buildOfficialDocumentPart, buildOfficialErDocumentPart, buildOfficialSequenceDocumentPart } from './common/styles/writer.js';
 import { StyleRegistry } from './common/styles/model.js';
 import { injectPrStyles } from './common/styles/pr.js';
 import { buildConnectorStyleXml } from './common/styles/connector.js';
@@ -96,7 +96,7 @@ function wantedGanttMasters(): string[] {
 }
 
 /** sequence 分支所需母版名（按契约消息/片段语义收集）。 */
-function wantedSequenceMasters(m: { actors: Array<{ kind: string }>; messages: Array<{ kind: string }>; activations: unknown[]; fragments: Array<{ kind: string }> }): string[] {
+function wantedSequenceMasters(m: { actors: Array<{ kind: string }>; messages: Array<{ kind: string }>; activations: unknown[]; fragments: Array<{ kind: string; operands?: unknown[] }> }): string[] {
     const names: string[] = [];
     const push = (n: string) => { if (!names.includes(n)) names.push(n); };
     for (const a of m.actors) push(a.kind === 'actor' ? 'Actor lifeline' : 'Object lifeline');
@@ -105,11 +105,18 @@ function wantedSequenceMasters(m: { actors: Array<{ kind: string }>; messages: A
         else if (msg.kind === 'self') push('Self Message');
         else if (msg.kind === 'async') push('Asynchronous Message');
         else if (msg.kind === 'sync') push('Message');
+        // 备注复用官方 Note 母版（class 包同名母版，母版目录跨记录可见）
+        else if (msg.kind === 'note') push('Note');
     }
     if (m.activations.length > 0) push('Activation');
     for (const f of m.fragments) {
         if (f.kind === 'loop') push('Loop fragment');
         else if (f.kind === 'opt') push('Optional fragment');
+        else if (f.kind === 'alt') { push('Alternative fragment'); push('Interaction operand'); }
+        else if (f.kind === 'par' || f.kind === 'critical' || f.kind === 'break') {
+            push('Other fragment');
+            if ((f.operands?.length ?? 0) > 1) push('Interaction operand');
+        }
     }
     return names;
 }
@@ -121,13 +128,17 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
     // 引用 LineStyle/FillStyle='7' 即官方 Connector 样式；旧合成样式表缺 Theme 致黑填充）。
     // er：官方 er-all-in-one document 基座（ID6=Theme、ID7=Connector、Colors 6 条——关系母版
     // LineStyle/FillStyle='7' 同引用官方 Connector；旧合成样式表缺 Theme 同坑）。
+    // sequence：官方 sequence document 基座（ID7=Connector 的 TextBkgnd='#ffffff' 提供消息
+    // 文字白底——合成基座里 Connector 在 ID5，母版引用 '7' 落空导致线压文字）。
     // 其它图型：合成样式表 + 注入 Connector(ID5)（原有 5.4.4 语义保持不变）。
     let docXml = a.kind === 'class'
         ? buildOfficialDocumentPart().xml
         : a.kind === 'er'
             ? buildOfficialErDocumentPart().xml
-            : buildDocumentPart(new StyleRegistry()).xml;
-    if (a.kind !== 'class' && a.kind !== 'er' && !docXml.includes('NameU="Connector"')) {
+            : a.kind === 'sequence'
+                ? buildOfficialSequenceDocumentPart().xml
+                : buildDocumentPart(new StyleRegistry()).xml;
+    if (a.kind !== 'class' && a.kind !== 'er' && a.kind !== 'sequence' && !docXml.includes('NameU="Connector"')) {
         docXml = docXml.replace('</StyleSheets>', buildConnectorStyleXml() + '\n</StyleSheets>');
     }
     // gantt：注入 pr 样式家族（gantt 专篇 2.2：24 枚）
@@ -162,7 +173,9 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
         parts.push(...packed.parts);
         const { w, h } = sequencePageSize(a);
         const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
-        parts.push(buildPagesXml(a2, cfg));
+        // DrawingResizeType=2（不随图形缩放）：Visio 默认 1 会按打印纸倍数放大页面，
+        // 实测把 11.96×8.01IN 变成 23.80×11.69IN 并把图形整体平移——页面尺寸必须由我们决定。
+        parts.push(buildPagesXml(a2, { ...cfg, drawingResizeType: '2' }));
         parts.push(new SeqRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
         return { parts };
     }

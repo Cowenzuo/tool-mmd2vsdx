@@ -1,0 +1,29 @@
+sequenceDiagram
+    actor User as 用户
+    participant Web as 前端 Web
+    participant API as 网关 API
+    participant DB as 数据库
+    participant MQ as 消息队列
+
+    User->>Web: 提交订单
+    activate Web
+    Web->>API: POST /api/orders
+    activate API
+    API->>DB: INSERT orders
+    activate DB
+    DB-->>API: order_id=1024
+    deactivate DB
+    API-)MQ: 发布 OrderCreated 事件
+    API-->>Web: 201 Created
+    deactivate API
+    loop 每 500ms 轮询直到终态
+        Web->>API: GET /api/orders/1024
+        API-->>Web: status=pending
+    end
+    Web->>Web: 刷新本地缓存
+    opt 用户勾选开票
+        Web->>API: POST /api/invoices
+        API-->>Web: invoice_no=INV-2024-1024
+    end
+    deactivate Web
+    User->>Web: 显示下单成功

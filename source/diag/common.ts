@@ -1,4 +1,4 @@
-﻿// diag-common（通用包）：契约 A → 契约 B（source/diag/common.ts；docs/redesign/04-转义层 对应篇）
+// diag-common（通用包）：契约 A → 契约 B（source/diag/common.ts；docs/redesign/04-转义层 对应篇）
 //
 // 样板实现：扁平图（flowchart 等）。节点走"自足式"写法（全几何/全连接点/
 // 全样式覆盖，不依赖母版资产）；连接线走双端自动（WALKGLUE 走线吸附，
@@ -28,6 +28,10 @@ export interface RenderOptions {
     stencil?: MasterCatalog;
     /** 内部：母版 ID 映射（render 填充后下传）。 */
     masterIds?: Map<string, number>;
+    /** pages.xml 的 DrawingResizeType：1=随图形自动缩放（Visio 默认，按打印纸倍数放大页面，
+     *  实测会忽略 PageWidth/PageHeight）、2=不缩放（页面尺寸 = 我们算的尺寸）。
+     *  sequence 的页面公式精确且内容不出界，用 2 才能让 Visio 打开后页面尺寸与写入值一致。 */
+    drawingResizeType?: string;
 }
 
 const kIn = (v: number) => fmtInch(v);
@@ -129,7 +133,7 @@ export function buildPagesXml(a: ContractA, opts: RenderOptions): XmlPart {
         cellNode('DrawingScaleType', '0'),
         cellNode('InhibitSnap', '0'),
         cellNode('UIVisibility', '0'),
-        cellNode('DrawingResizeType', '1'),
+        cellNode('DrawingResizeType', opts.drawingResizeType ?? '1'),
         cellNode('PageShapeSplit', '1'),
     );
     p.children.push(sheet);
