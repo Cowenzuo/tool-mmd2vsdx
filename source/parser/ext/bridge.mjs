@@ -82,7 +82,7 @@
                         return { ok: true, data: window.__mmdExtractClass(dbDiagram, svgEl) };
                     }
                     if (diagramType === 'er' && typeof window.__mmdExtractER === 'function') {
-                        return { ok: true, data: window.__mmdExtractER(dbDiagram) };
+                        return { ok: true, data: window.__mmdExtractER(dbDiagram, svgEl) };
                     }
                     if (diagramType === 'gantt' && typeof window.__mmdExtractGantt === 'function') {
                         return { ok: true, data: window.__mmdExtractGantt(dbDiagram, svgEl, payload.text) };

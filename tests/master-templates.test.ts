@@ -37,9 +37,10 @@ describe('M1 装配机制：官方母版模板', () => {
         // class 模板库 = 官方 class 包（11 条：含 Rectangle/Dynamic connector 通用件）
         //              ∪ class-all-in-one 包（16 条：全部类图模板，含 7 类线型母版）
         // 两包合并为权威全集；条目与内容逐字节比对。
+        // er 模板库 = er-all-in-one 包（5 条：Entity/PKAttr/PKSep/Attr/Relationship，MasterType=541 关系）。
         for (const [dir, tpl] of [
             ['class', kClassTemplates],
-            ['ER', kErTemplates],
+            ['er-all-in-one', kErTemplates],
             ['gantt', kGanttTemplates],
             ['sequence', kSequenceTemplates],
         ] as const) {

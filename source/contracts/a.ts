@@ -185,11 +185,16 @@ export interface ErRelation {
     multiplicityFrom: string;
     multiplicityTo: string;
     identifying: boolean;
+    /** mmd 边选择（left/right/top/bottom）：渲染端取盒边中点连接；缺则按轴优选取边。 */
+    fromEdge?: string;
+    toEdge?: string;
 }
 
 export interface ErModel {
     entities: ErEntity[];
     relations: ErRelation[];
+    /** mmd 布局全集（实体名 → 中心/尺寸），缺失则不启用比例布局。 */
+    layout?: Record<string, { x: number; y: number; width: number; height: number }>;
 }
 
 // ── gantt 扩展块 ──

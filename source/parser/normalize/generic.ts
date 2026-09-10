@@ -414,7 +414,10 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                   multiplicityFrom?: string;
                   multiplicityTo?: string;
                   identifying?: boolean;
+                  fromEdge?: string;
+                  toEdge?: string;
               }>;
+              layout?: Record<string, { x: number; y: number; width: number; height: number }>;
           }
         | undefined;
     if (erModel && erModel.entities && erModel.entities.length > 0) {
@@ -438,7 +441,11 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                 multiplicityFrom: String(r.multiplicityFrom ?? ''),
                 multiplicityTo: String(r.multiplicityTo ?? ''),
                 identifying: !!r.identifying,
+                // mmd 边选择（渲染端用边中点，不用 mmd 角点）
+                fromEdge: r.fromEdge !== undefined ? String(r.fromEdge) : undefined,
+                toEdge: r.toEdge !== undefined ? String(r.toEdge) : undefined,
             })),
+            layout: erModel.layout ?? undefined,
         };
     }
     const gantt = snap['gantt'] as

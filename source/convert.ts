@@ -10,7 +10,7 @@ import { MindmapRenderer } from './diag/mindmap.js';
 import { ClassRenderer, classPageSize } from './diag/class.js';
 import { ErRenderer, erPageSize } from './diag/er.js';
 import { GanttRenderer, ganttPageSize } from './diag/gantt.js';
-import { buildDocumentPart, buildOfficialDocumentPart } from './common/styles/writer.js';
+import { buildDocumentPart, buildOfficialDocumentPart, buildOfficialErDocumentPart } from './common/styles/writer.js';
 import { StyleRegistry } from './common/styles/model.js';
 import { injectPrStyles } from './common/styles/pr.js';
 import { buildConnectorStyleXml } from './common/styles/connector.js';
@@ -119,11 +119,15 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
     const pageH = a.meta.bounds.maxY;
     // class：官方 document 基座（StyleSheets ID6=Theme 完整、ID7=Connector、Colors 9 条——母版
     // 引用 LineStyle/FillStyle='7' 即官方 Connector 样式；旧合成样式表缺 Theme 致黑填充）。
+    // er：官方 er-all-in-one document 基座（ID6=Theme、ID7=Connector、Colors 6 条——关系母版
+    // LineStyle/FillStyle='7' 同引用官方 Connector；旧合成样式表缺 Theme 同坑）。
     // 其它图型：合成样式表 + 注入 Connector(ID5)（原有 5.4.4 语义保持不变）。
     let docXml = a.kind === 'class'
         ? buildOfficialDocumentPart().xml
-        : buildDocumentPart(new StyleRegistry()).xml;
-    if (a.kind !== 'class' && !docXml.includes('NameU="Connector"')) {
+        : a.kind === 'er'
+            ? buildOfficialErDocumentPart().xml
+            : buildDocumentPart(new StyleRegistry()).xml;
+    if (a.kind !== 'class' && a.kind !== 'er' && !docXml.includes('NameU="Connector"')) {
         docXml = docXml.replace('</StyleSheets>', buildConnectorStyleXml() + '\n</StyleSheets>');
     }
     // gantt：注入 pr 样式家族（gantt 专篇 2.2：24 枚）

@@ -69,6 +69,10 @@ function parseAllShapes(page: string): Array<{ id: string; attrs: string; body: 
         if (m[0] === '</Shape>') {
             const top = stack.pop();
             if (top) out.push({ id: top.id, attrs: top.attrs, body: page.slice(top.start, m.index), nested: top.nested });
+        } else if (/\/$/.test(m[2]!)) {
+            // 自闭合空形状（官方实例常见：`<Shape ID="6" Type="Shape" MasterShape="6"/>`）——
+            // 不入栈，直接成条目，否则后续栈错位导致 body 截断。
+            out.push({ id: m[1]!, attrs: m[2]!.slice(0, -1), body: '', nested: stack.length > 0 });
         } else {
             stack.push({ id: m[1]!, attrs: m[2]!, start: re.lastIndex, nested: stack.length > 0 });
         }
@@ -371,9 +375,10 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
     }
 
     if (kind === 'er') {
-        // 母版实例化口径：Entity/属性行/分隔线/关系全部 Master= 实例；
+        // 母版实例化口径（er-all-in-one）：Entity/属性行/分隔线/关系全部 Master= 实例；
         // 容器注册行（msvSDListItemMaster USE("Primary Key Attribute")）由母版承载；
-        // 属性行 ItemIndex 行序、PK 行 ObjType=1；关系线双端 PAR + Connects。
+        // 属性行 ItemIndex 行序（PK 行 ObjType 不写——主键语义由母版 User.PrimaryKey 承载，官方实例无 ObjType）；
+        // 关系线双端 PAR + Connects（端边由 mmd 边选择/轴优选取边，端口 X1..X4 与 ToPart 对应）。
         const masterRefs = [...page.matchAll(/<Shape[^>]*Master="(\d+)"/g)].map((m) => m[1]);
         expect(masterRefs.length, 'Master 引用数 ≥ 官方样本 17').toBeGreaterThanOrEqual(17);
         const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
@@ -381,27 +386,71 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
         for (const [n, mt] of [['Entity', '2'], ['Primary Key Attribute', '2'], ['Primary Key Separator', '2'], ['Attribute', '2'], ['Relationship', '541']] as const) {
             expect(byName.get(n), `er 母版 ${n} 存在`).toBe(mt);
         }
+        const masterIdByName = new Map<string, string>();
+        for (const m of xml('/visio/masters/masters.xml').matchAll(/<Master\sID="(\d+)"\sNameU="([^"]+)"[^>]*?MasterType="(\d+)"/g)) masterIdByName.set(m[2]!, m[1]!);
         // 母版内容承载列表项注册（官方 Entity 母版 User.msvSDListItemMaster USE）
         const masterContents = pkg.listUris().filter((u) => /^\/visio\/masters\/master\d+\.xml$/.test(u)).map((u) => xml(u));
         expect(masterContents.some((m) => /USE\("Primary Key Attribute"\)/.test(m)), 'Entity 母版列表项注册 USE("Primary Key Attribute")').toBe(true);
-        // 实体 Group 实例（容器特征：嵌套 MasterShape 6..8 覆写且无 BeginX；属性行组/关系组另计）
-        const groups = shapes.filter((s) => /Type="Group"/.test(s.attrs) && /MasterShape="6"/.test(s.body) && !/N="BeginX"/.test(s.body));
+        // 实体 Group 实例（容器特征：嵌套 MasterShape 6..8 覆写且无 BeginX；按 Master=Entity 精确过滤——
+        // 属性行组亦有 MasterShape 6/7 覆写，不能按子形状号混入）
+        const entityMasterId = masterIdByName.get('Entity');
+        const groups = shapes.filter((s) => /Type="Group"/.test(s.attrs) && /Master="\d+"/.test(s.attrs) && /MasterShape="6"/.test(s.body) && !/N="BeginX"/.test(s.body) && entityMasterId !== undefined && new RegExp(`Master="${entityMasterId}"`).test(s.attrs));
         expect(groups.length, '实体 Group 实例数').toBeGreaterThanOrEqual(7);
         expect(groups.every((g) => /\bSUM\(DEPENDSON\b/.test(g.body)), '实体 Relationships SUM(DEPENDSON)').toBe(true);
         expect(groups.every((g) => /MasterShape="8"/.test(g.body)), '嵌套 MasterShape 6..8 覆写').toBe(true);
         expect(groups.every((g) => /N="TxtPinY"[^>]*F="Inh"/.test(g.body)), '实体 TxtPinY Inh').toBe(true);
-        // 属性行：LISTSHEETREF + ItemIndex + PK ObjType=1
+        // 属性行：LISTSHEETREF + ItemIndex（官方行高 0.3889/表头 0.4362；几何/连接段 IX=0）
         const attrRows = shapes.filter((s) => has(s.body, /LISTSHEETREF/) && /<Row N="ItemIndex"/.test(s.body));
         expect(attrRows.length, '属性行（LISTSHEETREF+ItemIndex）').toBeGreaterThanOrEqual(20);
-        expect(attrRows.some((s) => /N="ObjType" V="1"/.test(s.body)), 'PK 属性行 ObjType=1').toBe(true);
         expect(attrRows.every((s) => /<Row N="ContainerMargin"/.test(s.body)), '属性行 ContainerMargin').toBe(true);
-        // 关系线：PAR 钉接 + 触发器 + 无 EndArrow + Connects
+        expect(attrRows.every((s) => !/N="ObjType"/.test(s.body)), '属性行不写 ObjType（主键语义母版承载）').toBe(true);
+        expect(attrRows.every((s) => /MasterShape="6"[^>]*/.test(s.body) || /MasterShape="7"/.test(s.body)), '属性行嵌套 MasterShape 6/7 覆写').toBe(true);
+        // 官方公式：实体 Height = HdrHgt + 属性行数*rowH（分隔线为 0 高行不计；高度随属性数动态变化，
+        // Visio 打开保留——实测 0~5 属性实体均按此值保留）
+        expect(groups.every((g) => {
+            const h = Number(/N="Height" V="([\d.]+)"/.exec(g.body)?.[1] ?? 0);
+            const memberIds = [...g.body.matchAll(/Sheet\.(\d+)!SheetRef\(\)/g)].map((m) => m[1]!);
+            const nAttrs = memberIds.filter((mid) => {
+                const s = shapes.find((x) => x.id === mid);
+                return s !== undefined && !/Primary Key Separator/.test(s.attrs);
+            }).length;
+            const expectH = 0.4361626369900174 + nAttrs * 0.388939397515191;
+            return h > 0 && Math.abs(h - expectH) < 1e-4;
+        }), '实体 Height=官方内容公式（HdrHgt+n*rowH，分隔线 0 高）').toBe(true);
+        // 官方实体实例无根 Geometry 段（边框由子形状 #6 承载；自写根段=多画一圈矩形）
+        expect(groups.every((g) => !/<Section N="Geometry"/.test(g.body.split('<Shapes>')[0]!)), '实体无根 Geometry 段').toBe(true);
+        // 官方行堆叠：行与行紧贴（属性→属性=rowH；属性→分隔线=rowH/2；分隔线→属性=rowH/2）
+        expect(groups.every((g) => {
+            const memberIds = [...g.body.matchAll(/Sheet\.(\d+)!SheetRef\(\)/g)].map((m) => m[1]!);
+            const rows = memberIds.map((mid) => {
+                const s = shapes.find((x) => x.id === mid)!;
+                return { y: Number(/N="PinY" V="([\d.]+)"/.exec(s.body)?.[1] ?? NaN), sep: /Primary Key Separator/.test(s.attrs) };
+            }).filter((r) => Number.isFinite(r.y));
+            for (let i = 1; i < rows.length; i++) {
+                const gap = Math.abs(rows[i - 1]!.y - rows[i]!.y);
+                const want = rows[i - 1]!.sep || rows[i]!.sep ? 0.1944696987575955 : 0.388939397515191;
+                if (Math.abs(gap - want) > 1e-4) return false;
+            }
+            return true;
+        }), '属性行/分隔线紧贴堆叠（0 高分隔线）').toBe(true);
+        // 关系线：PAR 钉接 + 触发器 + 无 EndArrow + W/H 随端点 GUARD + L 形几何 + Connects
         const rels = shapes.filter((s) => /N="BeginX"/.test(s.body));
         expect(rels.some((r) => has(r.body, /PAR\(PNT/)), '关系线 PAR 钉接').toBe(true);
         expect(rels.every((r) => !has(r.body, /N="EndArrow"/)), '关系线实例不写 EndArrow（母版承载）').toBe(true);
+        expect(rels.every((r) => /BegTrigger"[^>]*_XFTRIGGER/.test(r.body) && /EndTrigger"[^>]*_XFTRIGGER/.test(r.body)), '关系线触发器').toBe(true);
+        expect(rels.every((r) => /N="Width"[^>]*F="GUARD\(EndX-BeginX\)"/.test(r.body) && /N="Height"[^>]*F="GUARD\(EndY-BeginY\)"/.test(r.body)), '关系线 W/H GUARD(EndX-BeginX)').toBe(true);
+        // 官方 L 形实例几何：LineTo IX=2 (Y=H)、IX=3 (X=W,Y=H)，段带 IX=0 覆写（母版段覆写坑）
+        expect(rels.every((r) => /<Section N="Geometry" IX="0">/.test(r.body) && /<Row T="LineTo" IX="2"/.test(r.body) && /<Row T="LineTo" IX="3"/.test(r.body)), '关系线 L 形几何 + IX=0').toBe(true);
+        // 端标记子形状 6..9（Begin 对 Con1Y / End 对 Con2X/Con2Y）
+        expect(rels.every((r) => /MasterShape="6"/.test(r.body) && /MasterShape="9"/.test(r.body) && /<Row N="Con1Y"/.test(r.body) && /<Row N="Con2X"/.test(r.body)), '关系线端标记 6..9 + Con 行族').toBe(true);
         const connMatches = [...page.matchAll(/<Connect FromSheet="(\d+)" FromCell="(\w+)" FromPart="(\w+)" ToSheet="(\d+)" ToCell="([^"]+)" ToPart="(\d+)"/g)];
-        expect(connMatches.filter((m) => m[2] === 'EndX' && m[3] === '12' && /Connections.X4/.test(m[5]!) && m[6] === '103').length, 'EndX→X4 p103').toBe(rels.length);
-        expect(connMatches.filter((m) => m[2] === 'BeginX' && m[3] === '9' && /Connections.X3/.test(m[5]!) && m[6] === '102').length, 'BeginX→X3 p102').toBe(rels.length);
+        // 端边集合 = 官方端口（X1=左100/X2=右101/X3=下102/X4=上103）；每条关系 Begin 与 End 各一条
+        const portOk = (m: RegExpMatchArray) => {
+            const pm = /Connections\.X(\d)/.exec(m[5]!);
+            return !!pm && Number(m[6]) === 99 + Number(pm[1]);
+        };
+        expect(connMatches.filter((m) => m[2] === 'EndX' && m[3] === '12' && portOk(m)).length, 'EndX→端口 p100+行号').toBe(rels.length);
+        expect(connMatches.filter((m) => m[2] === 'BeginX' && m[3] === '9' && portOk(m)).length, 'BeginX→端口 p100+行号').toBe(rels.length);
         const err = [] as string[];
         void err;
     }
