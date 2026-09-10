@@ -8,7 +8,6 @@
 import { kMasterTemplates, type MasterTemplateSet } from './templates.js';
 import { kClassTemplates, type TypeMasterEntry } from './templates/class.js';
 import { kErTemplates } from './templates/er.js';
-import { kGanttTemplates } from './templates/gantt.js';
 import { kSequenceTemplates } from './templates/sequence.js';
 
 export interface StencilRecord {
@@ -60,16 +59,15 @@ export function findMasterInCatalog(catalog: MasterCatalog, nameU: string): Sten
 }
 
 /** 构建默认目录：节点记录（basic 家族 5 种）+ 连接线记录（flowchart 家族 1 种）
- *  + 专用图型类型记录（class/ER/gantt/sequence，取自官方模板解压包 verbatim，
- *  见 templates/ 下的生成模块；文件序号防撞：1/50/100/150/200/250）。 */
+ *  + 专用图型类型记录（class/ER/sequence，取自官方模板解压包 verbatim，
+ *  见 templates/ 下的生成模块；文件序号防撞：1/50/100/150/250）。 */
 export function buildMasterCatalog(): MasterCatalog | null {
     const nodeRec = buildRecord(filterNodes(kMasterTemplates), kMasterTemplates.bsRelsXml, 1);
     const connRec = buildRecord(filterConnector(kMasterTemplates), kMasterTemplates.fcRelsXml, 50);
     const classRec = buildRecord(kClassTemplates, '', 100);
     const erRec = buildRecord(kErTemplates, '', 150);
-    const ganttRec = buildRecord(kGanttTemplates, '', 200);
     const seqRec = buildRecord(kSequenceTemplates, '', 250);
-    const records = [nodeRec, connRec, classRec, erRec, ganttRec, seqRec].filter((r): r is StencilRecord => r !== null);
+    const records = [nodeRec, connRec, classRec, erRec, seqRec].filter((r): r is StencilRecord => r !== null);
     return records.length === 0 ? null : { records };
 }
 

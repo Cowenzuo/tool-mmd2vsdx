@@ -1,4 +1,4 @@
-﻿# parser（① mmd-parser）
+# parser（① mmd-parser）
 
 ## 1. 模块职能
 
@@ -12,19 +12,19 @@ parser 是管线第一段：mermaid 文本 → 契约 A。它负责"把图翻译
 src/parser/
 ├── index.ts              门面：Parser.convertText(text, opts) → 契约A
 ├── renderer.ts           SnapshotRenderer：浏览器生命周期与串行队列
-├── ext/                  浏览器端提取脚本（每图型一个 .mjs + 一个 .d.ts）
-│   ├── generic.mjs       通用骨架提取（flowchart/state/c4/block/timeline/xy 共用）
-│   ├── class.mjs  er.mjs  gantt.mjs  sequence.mjs  git.mjs
-│   ├── pie.mjs  quadrant.mjs  mindmap.mjs
+├── ext/                  浏览器端提取脚本
+│   ├── generic.mjs       通用骨架提取（flowchart/block）
+│   ├── class.mjs  er.mjs  sequence.mjs
+│   ├── bridge.mjs        页面桥（保留 mermaid 真实图型名，供归一化判支持）
 │   └── bundle.d.ts       注入脚本的契约声明
 ├── normalize/
-│   ├── index.ts          按 kind 分派归一化
-│   ├── generic.ts
-│   ├── class.ts  er.ts  gantt.ts  sequence.ts  git.ts
-│   ├── pie.ts  quadrant.ts  mindmap.ts
+│   ├── generic.ts        快照 → 契约 A（含 kind 判定：不支持即抛错）
 │   └── guards.ts         契约 A 校验与兜底实现
 └── types.ts              本包私有类型（快照 JSON 形状）
 ```
+
+> 支持范围（2026-09 收敛）：flowchart / block / class / er / sequence；
+> 其余图型不注入提取器，`mapKind` 抛「不支持的图型」。
 
 ## 3. 类与职责
 

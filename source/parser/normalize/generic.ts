@@ -9,6 +9,7 @@ import {
     defaultGenericEdge,
     defaultGenericShape,
     fillDefaults,
+    kDiagramKinds,
     type ContractA,
     type DiagramKind,
     type MessageKind,
@@ -21,43 +22,36 @@ export interface SnapshotLike {
     diagramType?: string;
     direction?: string;
     boundingBox?: { minX?: number; minY?: number; maxX?: number; maxY?: number };
-    /** DB 提取的图型语义块（pie/quadrant/git/sequence 等）。 */
-    pie?: Record<string, unknown>;
-    quadrant?: Record<string, unknown>;
-    git?: Record<string, unknown>;
+    /** DB 提取的图型语义块。 */
     sequence?: Record<string, unknown>;
-    mindmap?: Record<string, unknown>;
     classModel?: Record<string, unknown>;
     erModel?: Record<string, unknown>;
-    gantt?: Record<string, unknown>;
 }
 
-/** kind 映射：快照 diagramType → 契约 A kind；未知兜底 flowchart。 */
+/** 支持图型的 mermaid diagramType 别名（实测 getType() 取值）。 */
+const kKindTable: Record<string, DiagramKind> = {
+    flowchart: 'flowchart',
+    flowchart2: 'flowchart',
+    'flowchart-v2': 'flowchart',
+    block: 'block',
+    class: 'class',
+    classdiagram: 'class',
+    er: 'er',
+    sequence: 'sequence',
+    sequencediagram: 'sequence',
+};
+
+/** kind 映射：快照 diagramType → 契约 A kind。
+ *  不支持图型**直接抛错**——不做兜底降级（否则 gantt/pie 等会被静默画成流程图）。 */
 export function mapKind(diagramType: string | undefined): DiagramKind {
     const t = (diagramType ?? '').toLowerCase();
-    const table: Record<string, DiagramKind> = {
-        flowchart: 'flowchart',
-        flowchart2: 'flowchart',
-        state: 'state',
-        statediagram: 'state',
-        c4: 'c4',
-        block: 'block',
-        class: 'class',
-        classdiagram: 'class',
-        er: 'er',
-        sequence: 'sequence',
-        sequencediagram: 'sequence',
-        gantt: 'gantt',
-        git: 'git',
-        gitgraph: 'git',
-        pie: 'pie',
-        quadrant: 'quadrant',
-        quadrantchart: 'quadrant',
-        mindmap: 'mindmap',
-        timeline: 'timeline',
-        xy: 'xy',
-    };
-    return table[t] ?? 'flowchart';
+    const kind = kKindTable[t];
+    if (!kind) {
+        throw new Error(
+            `[parse] 不支持的图型：${diagramType ?? '(空)'}；当前支持 ${kDiagramKinds.join(' / ')}`,
+        );
+    }
+    return kind;
 }
 
 /** 快照差集：节点 id 取不到时用顺序编号兜底。 */
@@ -146,107 +140,7 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
         b.height = num(c['height']);
         a.clusters.push({ id: String(c['id'] ?? ''), label: String(c['label'] ?? ''), ...b });
     }
-    // DB/语义提取块：pie / quadrant
-    const pie = snap['pie'] as
-        | { title?: string; cx?: number; cy?: number; r?: number; slices?: Array<{ label?: string; value?: number; color?: string }> }
-        | undefined;
-    if (pie) {
-        a.kind = 'pie';
-        a.pie = {
-            title: String(pie.title ?? ''),
-            cx: num(pie.cx),
-            cy: num(pie.cy),
-            r: num(pie.r) || 185,
-            slices: (pie.slices ?? []).map((s) => ({
-                label: String(s.label ?? ''),
-                value: num(s.value),
-                color: String(s.color ?? ''),
-            })),
-        };
-    }
-    const quadrant = snap['quadrant'] as
-        | { title?: string; points?: Array<{ label?: string; x?: number; y?: number }>; axisTexts?: string[] }
-        | undefined;
-    if (quadrant && quadrant.points && quadrant.points.length > 0) {
-        a.kind = 'quadrant';
-        const axis = quadrant.axisTexts ?? [];
-        a.quadrant = {
-            title: String(quadrant.title ?? ''),
-            xLabelLow: axis[0] ?? '',
-            xLabelHigh: axis[1] ?? '',
-            yLabelLow: axis[2] ?? '',
-            yLabelHigh: axis[3] ?? '',
-            minX: 0,
-            minY: 0,
-            maxX: 400,
-            maxY: 400,
-            crossX: 200,
-            crossY: 200,
-            points: (quadrant.points ?? []).map((p) => ({
-                label: String(p.label ?? ''),
-                cx: num(p.x),
-                cy: num(p.y),
-            })),
-        };
-    }
-    const git = snap['git'] as
-        | {
-              branches?: string[];
-              commits?: Array<{
-                  id?: string;
-                  label?: string;
-                  tag?: string;
-                  branchIndex?: number;
-                  x?: number;
-                  y?: number;
-                  r?: number;
-                  merge?: boolean;
-                  highlight?: boolean;
-                  reverse?: boolean;
-                  parents?: string[];
-              }>;
-          }
-        | undefined;
-    if (git && git.commits && git.commits.length > 0) {
-        a.kind = 'git';
-        const commits = git.commits.map((c) => ({
-            id: String(c.id ?? ''),
-            label: String(c.label ?? ''),
-            tag: String(c.tag ?? ''),
-            branchIndex: num(c.branchIndex),
-            x: num(c.x),
-            y: num(c.y),
-            r: num(c.r) || 12,
-            merge: !!c.merge,
-            highlight: !!c.highlight,
-            reverse: !!c.reverse,
-        }));
-        a.git = {
-            commits,
-            branches: (git.branches ?? []).map((name, index) => ({
-                name: String(name),
-                index,
-                y: 0,
-                x1: 0,
-                x2: 0,
-                color: '#000000',
-            })),
-            arrows: [],
-        };
-        const arrows: Array<{ from: string; to: string; kind: string; branchIndex: number; waypoints: Array<{ x: number; y: number }> }> = [];
-        for (const c of git.commits) {
-            for (const p of c.parents ?? []) {
-                arrows.push({
-                    from: String(p),
-                    to: String(c.id ?? ''),
-                    kind: 'seq',
-                    branchIndex: num(c.branchIndex),
-                    waypoints: [],
-                });
-            }
-        }
-        a.git.arrows = arrows;
-    }
+    // DB 语义块：sequence（pie/quadrant/git/mindmap/gantt 已随图型收敛移除）
     const sequence = snap['sequence'] as
         | {
               actors?: Array<{ id?: string; label?: string; kind?: string; x?: number }>;
@@ -315,37 +209,6 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                           yBottom: num(o.yBottom),
                       }))
                     : undefined,
-            })),
-        };
-    }
-    const mindmap = snap['mindmap'] as
-        | {
-              rootId?: string;
-              nodes?: Array<{
-                  id?: string;
-                  label?: string;
-                  parentId?: string;
-                  depth?: number;
-                  x?: number;
-                  y?: number;
-                  width?: number;
-                  height?: number;
-              }>;
-          }
-        | undefined;
-    if (mindmap && mindmap.nodes && mindmap.nodes.length > 0) {
-        a.kind = 'mindmap';
-        a.mindmap = {
-            rootId: String(mindmap.rootId ?? ''),
-            nodes: (mindmap.nodes ?? []).map((n) => ({
-                id: String(n.id ?? ''),
-                label: String(n.label ?? ''),
-                parentId: String(n.parentId ?? ''),
-                depth: num(n.depth),
-                x: num(n.x),
-                y: num(n.y),
-                width: num(n.width),
-                height: num(n.height),
             })),
         };
     }
@@ -454,40 +317,6 @@ export function normalizeGeneric(snap: SnapshotLike, sourceText = ''): ContractA
                 toEdge: r.toEdge !== undefined ? String(r.toEdge) : undefined,
             })),
             layout: erModel.layout ?? undefined,
-        };
-    }
-    const gantt = snap['gantt'] as
-        | {
-              title?: string;
-              sections?: string[];
-              startSerial?: number;
-              endSerial?: number;
-              tasks?: Array<{
-                  name?: string;
-                  section?: string;
-                  startSerial?: number | null;
-                  duration?: number;
-                  milestone?: boolean;
-                  dependsOn?: string[];
-              }>;
-          }
-        | undefined;
-    if (gantt && gantt.tasks && gantt.tasks.length > 0) {
-        a.kind = 'gantt';
-        a.gantt = {
-            title: String(gantt.title ?? ''),
-            dateFormat: '',
-            startSerial: num(gantt.startSerial),
-            endSerial: num(gantt.endSerial),
-            sections: (gantt.sections ?? []).map((s) => String(s)),
-            tasks: (gantt.tasks ?? []).map((t) => ({
-                name: String(t.name ?? ''),
-                section: String(t.section ?? ''),
-                startSerial: num(t.startSerial),
-                duration: num(t.duration) || 1,
-                milestone: !!t.milestone,
-                dependsOn: (t.dependsOn ?? []).map((s) => String(s)),
-            })),
         };
     }
     return a;

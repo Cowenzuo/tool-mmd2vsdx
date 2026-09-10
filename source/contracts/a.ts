@@ -35,22 +35,14 @@ export function boundsHeight(b: BoundingBox): number {
 
 // ── 图型枚举（值即 mermaid 语义，不借用旧实现枚举） ──
 
-/** 契约 A 支持的图型。timeline/xy 暂走通用骨架兜底表现。 */
+/** 契约 A 支持的图型（软件行业常用 Visio 格式，2026-09 收敛）。
+ *  其它 mermaid 图型不再支持：解析层直接抛错，不做兜底降级。 */
 export const kDiagramKinds = [
     'flowchart',
-    'state',
-    'c4',
     'block',
     'class',
     'er',
-    'gantt',
     'sequence',
-    'git',
-    'pie',
-    'quadrant',
-    'mindmap',
-    'timeline',
-    'xy',
 ] as const;
 
 export type DiagramKind = (typeof kDiagramKinds)[number];
@@ -197,30 +189,6 @@ export interface ErModel {
     layout?: Record<string, { x: number; y: number; width: number; height: number }>;
 }
 
-// ── gantt 扩展块 ──
-
-export interface GanttTask {
-    name: string;
-    /** 所属 section，空=无。 */
-    section: string;
-    /** Excel 序列日期（1899-12-30=0）。 */
-    startSerial: number;
-    /** 天数。 */
-    duration: number;
-    /** 0 时长 = 里程碑。 */
-    milestone: boolean;
-    dependsOn: string[];
-}
-
-export interface GanttModel {
-    title: string;
-    dateFormat: string;
-    startSerial: number;
-    endSerial: number;
-    sections: string[];
-    tasks: GanttTask[];
-}
-
 // ── sequence 扩展块 ──
 
 export interface SeqActor {
@@ -301,97 +269,6 @@ export interface SequenceModel {
     fragments: SeqFragment[];
 }
 
-// ── git 扩展块 ──
-
-export interface GitCommit {
-    id: string;
-    label: string;
-    tag: string;
-    branchIndex: number;
-    x: number;
-    y: number;
-    r: number;
-    merge: boolean;
-    highlight: boolean;
-    reverse: boolean;
-}
-
-export interface GitBranch {
-    name: string;
-    index: number;
-    y: number;
-    x1: number;
-    x2: number;
-    color: string;
-}
-
-export interface GitArrow {
-    from: string;
-    to: string;
-    kind: string;
-    branchIndex: number;
-    waypoints: Point[];
-}
-
-export interface GitGraph {
-    commits: GitCommit[];
-    branches: GitBranch[];
-    arrows: GitArrow[];
-}
-
-// ── pie / quadrant / mindmap 扩展块 ──
-
-export interface PieSlice {
-    label: string;
-    value: number;
-    color: string;
-}
-
-export interface PieChart {
-    title: string;
-    cx: number;
-    cy: number;
-    r: number;
-    slices: PieSlice[];
-}
-
-export interface QuadrantPoint {
-    label: string;
-    cx: number;
-    cy: number;
-}
-
-export interface QuadrantChart {
-    title: string;
-    xLabelLow: string;
-    xLabelHigh: string;
-    yLabelLow: string;
-    yLabelHigh: string;
-    minX: number;
-    minY: number;
-    maxX: number;
-    maxY: number;
-    crossX: number;
-    crossY: number;
-    points: QuadrantPoint[];
-}
-
-export interface MindNode {
-    id: string;
-    label: string;
-    parentId: string;
-    depth: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
-
-export interface MindmapModel {
-    rootId: string;
-    nodes: MindNode[];
-}
-
 // ── 总装 ──
 
 export interface ContractA {
@@ -402,12 +279,7 @@ export interface ContractA {
     clusters: Cluster[];
     classModel?: ClassModel;
     erModel?: ErModel;
-    gantt?: GanttModel;
     sequence?: SequenceModel;
-    git?: GitGraph;
-    pie?: PieChart;
-    quadrant?: QuadrantChart;
-    mindmap?: MindmapModel;
 }
 
 // ── 默认工厂 ──
@@ -462,22 +334,6 @@ export function defaultContractA(): ContractA {
 }
 
 // ── 语义谓词 ──
-
-export function isGanttEmpty(g: GanttModel): boolean {
-    return g.tasks.length === 0;
-}
-
-export function isGitEmpty(g: GitGraph): boolean {
-    return g.commits.length === 0;
-}
-
-export function isPieEmpty(p: PieChart): boolean {
-    return p.slices.length === 0;
-}
-
-export function isQuadrantEmpty(q: QuadrantChart): boolean {
-    return q.points.length === 0;
-}
 
 export function isSequenceEmpty(s: SequenceModel): boolean {
     return s.actors.length === 0 && s.messages.length === 0;

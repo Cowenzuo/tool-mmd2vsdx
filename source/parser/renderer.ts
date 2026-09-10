@@ -30,7 +30,9 @@ export interface SnapshotJson {
     boundingBox: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
-const kExtractFiles = ['generic.mjs', 'pie.mjs', 'quadrant.mjs', 'state.mjs', 'git.mjs', 'sequence.mjs', 'mindmap.mjs', 'c4.mjs', 'xy.mjs', 'class.mjs', 'er.mjs', 'gantt.mjs', 'bridge.mjs'];
+// 提取器注入清单：只保留支持图型（2026-09 收敛：block/class/er/flowchart/sequence）。
+// 其余图型的提取器已删除——不支持的图型在归一化阶段直接抛错，不做兜底降级。
+const kExtractFiles = ['generic.mjs', 'sequence.mjs', 'class.mjs', 'er.mjs', 'bridge.mjs'];
 
 export class SnapshotRenderer {
     private browser: Browser | null = null;

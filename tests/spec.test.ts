@@ -27,17 +27,8 @@ const kCases = [
     { file: '05-flowchart-1', kind: 'flowchart', minShapes: 4, type: 'common' },
     { file: '06-flowchart-2', kind: 'flowchart', minShapes: 12, type: 'common' },
     { file: '01-block-1', kind: 'block', minShapes: 2, type: 'common' },
-    { file: '02-c4-1', kind: 'c4', minShapes: 4, type: 'common' },
-    { file: '16-state-1', kind: 'state', minShapes: 4, type: 'common' },
-    { file: '17-timeline-1', kind: 'timeline', minShapes: 0, type: 'common' },
-    { file: '18-xy-1', kind: 'xy', minShapes: 1, type: 'common' },
-    { file: '12-pie-1', kind: 'pie', minShapes: 6, type: 'noSpec' },
-    { file: '13-quadrant-1', kind: 'quadrant', minShapes: 4, type: 'noSpec' },
-    { file: '08-git-1', kind: 'git', minShapes: 8, type: 'noSpec' },
-    { file: '11-mindmap-1', kind: 'mindmap', minShapes: 8, type: 'noSpec' },
     { file: '03-class-1', kind: 'class', minShapes: 30, type: 'class' },
     { file: '04-er-1', kind: 'er', minShapes: 25, type: 'er' },
-    { file: '07-gantt-1', kind: 'gantt', minShapes: 40, type: 'gantt' },
     { file: '15-sequence-1', kind: 'sequence', minShapes: 2, type: 'sequence' },
     { file: '15-sequence-2', kind: 'sequence', minShapes: 3, type: 'sequence' },
     { file: '15-sequence-3', kind: 'sequence', minShapes: 40, type: 'sequence' },
@@ -201,7 +192,6 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
     const err: string[] = [];
     const xml = (u: string) => pkg.get(u)?.xml ?? '';
     const page = xml('/visio/pages/page1.xml');
-    const doc = xml('/visio/document.xml');
     const shapes = parseAllShapes(page);
     const has = (s: string, re: RegExp) => re.test(s);
 
@@ -457,41 +447,6 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
         void err;
     }
 
-    if (kind === 'gantt') {
-        // 母版实例化口径（docs/redesign/07 准则）：10 枚母版全部引用；Task bar/Milestone
-        // 为 Group 母版实例（母版 8 子形状 1301/1265 cell 承载；实例 User/Property 数据族）；
-        // 标尺格 Field 段在实例（官方：数据→Field 引用链）；pr 样式家族 24 枚由 document.xml 注入。
-        const masterRefs = [...page.matchAll(/<Shape[^>]*Master="(\d+)"/g)].map((m) => m[1]);
-        expect(masterRefs.length, 'Master 引用数（样本规模相关，≥40）').toBeGreaterThanOrEqual(40);
-        expect(new Set(masterRefs).size, '角色覆盖 ≥8 种母版').toBeGreaterThanOrEqual(8);
-        const nameUs = [...xml('/visio/masters/masters.xml').matchAll(/NameU="([^"]+)"[^>]*MasterType="(\d+)"/g)];
-        const byName = new Map(nameUs.map((m) => [m[1]!, m[2]!]));
-        for (const [n, mt] of [
-            ['Gantt Chart frame', '2'], ['Column', '2'], ['Sec scale cell', '2'], ['Pri scale cell', '2'],
-            ['Non working time', '2'], ['Row', '2'], ['Task bar', '2'], ['Text Entry', '2'], ['Milestone', '2'], ['Link lines', '1'],
-        ] as const) {
-            expect(byName.get(n), `gantt 母版 ${n} 存在`).toBe(mt);
-        }
-        // pr 样式家族（document.xml 注入，历史断言保留）
-        const pr = (doc.match(/NameU="pr /g) ?? []).length;
-        if (pr < 24) err.push(`gantt pr 样式家族 ${pr}/24（2.2/2.5）`);
-        // 实例关键面：Row/标尺/任务条/里程碑/连接线
-        expect(/<Section N="Field">/.test(page), 'gantt 标尺/文本 Field 段').toBe(true);
-        const rows = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /<Row N="HeaderWidth"/.test(s.body));
-        expect(rows.length, 'Row 实例数').toBeGreaterThanOrEqual(6);
-        const bars = shapes.filter((s) => /Type="Group"/.test(s.attrs) && /Master="\d+"/.test(s.attrs) && /<Row N="ScaledStartPos"/.test(s.body));
-        expect(bars.length, 'Task bar/Milestone 实例数').toBeGreaterThanOrEqual(7);
-        expect(bars.every((b) => /<Row N="GCChartGUID"/.test(b.body)), '任务条 GCChartGUID 数据行').toBe(true);
-        expect(bars.every((b) => /<Section N="Property">/.test(b.body)), '任务条 Property 段').toBe(true);
-        expect(bars.some((b) => /MasterShape/.test(b.body)), 'Task bar 嵌套子形状覆写').toBe(true);
-        if (!/LeftSide|RightSide/.test(page)) err.push('gantt 命名连接行缺失（Link lines 钉接）');
-        // Link lines：PAR 命名连接行钉接（1-D BeginX PAR 定义）
-        const links = shapes.filter((s) => /Master="\d+"/.test(s.attrs) && /N="BeginX"[^>]*PAR\(PNT/.test(s.body));
-        expect(links.length, 'Link lines 实例数').toBeGreaterThanOrEqual(1);
-        expect(links.every((l) => /RightSide/.test(l.body)), 'Link lines PAR 命名行钉接').toBe(true);
-        void err;
-    }
-
     if (kind === 'sequence') {
         // 母版实例化口径（官方 sequence 包）：
         //  - 生命线实例带 4 个嵌套子形状 MS6..9（官方实例如此；不写会被 Visio 现场实例化并与页面形状 ID 冲突）；
@@ -589,11 +544,6 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
         void err;
     }
 
-    if (kind === 'noSpec') {
-        // 无专篇素材：仅声明 L2 无准则锚点；此处不做机制断言（待研究素材扩充）
-        err.push('noSpec');
-        err.length = 0;
-    }
     return err;
 }
 
@@ -608,8 +558,7 @@ describe('结构规范：每图型解压包 vs 研究准则规格（缺一即败
             const b1 = new PartsAssembler().assemble(b0.parts);
             const pkg = OpcPackage.open(new Squeeze().pack(b1));
 
-            const errs = [...mustParts(pkg), ...l1Audit(pkg)];
-            if (c.type !== 'noSpec') errs.push(...l2Audit(c.type, pkg));
+            const errs = [...mustParts(pkg), ...l1Audit(pkg), ...l2Audit(c.type, pkg)];
 
             // 形状数下限（准则：图型内容不允许少节点）
             const page = pkg.get('/visio/pages/page1.xml')?.xml ?? '';
@@ -620,4 +569,18 @@ describe('结构规范：每图型解压包 vs 研究准则规格（缺一即败
             expect(errs, '结构规格缺失').toHaveLength(0);
         }, 120_000);
     }
+});
+
+describe('支持范围：不支持的图型直接报错（不兜底降级）', () => {
+    it('gantt 输入抛出「不支持的图型」', async (ctx) => {
+        if (!hasBrowser) ctx.skip();
+        const p = new Parser();
+        try {
+            await expect(
+                p.convertText('gantt\n    title x\n    section s\n    a: 2026-01-01, 1d'),
+            ).rejects.toThrow(/不支持的图型/);
+        } finally {
+            await p.shutdown();
+        }
+    }, 120_000);
 });

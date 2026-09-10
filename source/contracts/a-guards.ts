@@ -5,12 +5,7 @@ import { kDiagramKinds, type ContractA, type DiagramKind } from './a.js';
 const kKindBlocks: ReadonlyArray<{ kind: DiagramKind; block: string }> = [
     { kind: 'class', block: 'classModel' },
     { kind: 'er', block: 'erModel' },
-    { kind: 'gantt', block: 'gantt' },
     { kind: 'sequence', block: 'sequence' },
-    { kind: 'git', block: 'git' },
-    { kind: 'pie', block: 'pie' },
-    { kind: 'quadrant', block: 'quadrant' },
-    { kind: 'mindmap', block: 'mindmap' },
 ];
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -52,12 +47,7 @@ export function fillDefaults(a: Partial<ContractA>): ContractA {
         clusters: a.clusters ?? [],
         classModel: a.classModel,
         erModel: a.erModel,
-        gantt: a.gantt,
         sequence: a.sequence,
-        git: a.git,
-        pie: a.pie,
-        quadrant: a.quadrant,
-        mindmap: a.mindmap,
     };
 }
 

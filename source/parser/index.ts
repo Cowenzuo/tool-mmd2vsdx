@@ -23,7 +23,13 @@ export class Parser {
             if (opts.retryOnFailure === false) throw e;
             throw e;
         }
-        return normalizeGeneric(snap, text);
+        try {
+            return normalizeGeneric(snap, text);
+        } catch (e) {
+            if (e instanceof MermaidParseError) throw e;
+            // 归一化抛出的普通错误（如不支持的图型）统一成解析错误类型
+            throw new MermaidParseError(String((e as Error)?.message ?? e).replace(/^\[parse\]\s*/, ''));
+        }
     }
 
     /** 关闭浏览器资源（应用退出前调用）。 */

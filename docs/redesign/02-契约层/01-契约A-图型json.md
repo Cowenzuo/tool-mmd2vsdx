@@ -1,4 +1,4 @@
-﻿# 契约 A：图型 json
+# 契约 A：图型 json
 
 > 契约 A 是 parser 的唯一输出、图型包的唯一输入：一份"画了什么"的中间态。
 > 设计依据是 research 各篇对图型语义的拆解：语义进各自扩展块，几何保持
@@ -23,21 +23,16 @@ src/contracts/
 
 ```
 ContractA {
-  kind: DiagramKind;              // 'flowchart'|'state'|'c4'|'block'|'class'|'er'
-                                  // |'gantt'|'sequence'|'git'|'pie'|'quadrant'
-                                  // |'mindmap'|'timeline'|'xy'
+  kind: DiagramKind;              // 'flowchart'|'block'|'class'|'er'|'sequence'
+                                  // （2026-09 收敛；其余图型解析层直接抛错）
   meta: Meta;                     // 标题/方向/像素边界/原始文本
   shapes?: GenericShape[];        // 通用骨架（扁平图类）
   edges?: GenericEdge[];          // 通用边（含 waypoints 与箭头）
   clusters?: Cluster[];           // 子图簇
   classModel?: ClassModel;        // class 专用
   erModel?: ErModel;              // ER 专用
-  gantt?: GanttModel;             // gantt 专用
   sequence?: SequenceModel;       // sequence 专用
-  git?: GitGraph;                 // git 专用
   pie?: PieChart;                 // pie 专用
-  quadrant?: QuadrantChart;       // quadrant 专用
-  mindmap?: MindmapModel;         // mindmap 专用
 }
 ```
 

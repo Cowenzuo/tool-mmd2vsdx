@@ -7,7 +7,6 @@ import { buildMasterCatalog, buildRecord } from '../source/common/masters/assets
 import { MasterPacker } from '../source/common/masters/packer.js';
 import { kClassTemplates } from '../source/common/masters/templates/class.js';
 import { kErTemplates } from '../source/common/masters/templates/er.js';
-import { kGanttTemplates } from '../source/common/masters/templates/gantt.js';
 import { kSequenceTemplates } from '../source/common/masters/templates/sequence.js';
 
 const root = 'docs/research/标准研究模板-手动创建vsdx并解压';
@@ -51,7 +50,6 @@ describe('M1 装配机制：官方母版模板', () => {
         for (const [dir, tpl] of [
             ['class', kClassTemplates],
             ['er-all-in-one', kErTemplates],
-            ['gantt', kGanttTemplates],
             ['sequence', kSequenceTemplates],
         ] as const) {
             const packs = dir === 'class'
@@ -77,7 +75,6 @@ describe('M1 装配机制：官方母版模板', () => {
         const seqRec = buildRecord(kSequenceTemplates, '', 250)!;
         expect(/NameU="Message"[^>]*MasterType="29"/.test(seqRec.mastersXml)).toBe(true);
         expect(/NameU="Activation"[^>]*MasterType="1"/.test(seqRec.mastersXml)).toBe(true);
-        expect(/NameU="Gantt Chart frame"[^>]*MasterType="2"/.test(buildRecord(kGanttTemplates, '', 200)!.mastersXml)).toBe(true);
     });
 
     it('MasterPacker：打包内容与官方 verbatim、masters.xml 条目 MasterType 保真', () => {

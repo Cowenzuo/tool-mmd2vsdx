@@ -1,5 +1,9 @@
 # redesign —— 本次重构的结构设计
 
+> **支持范围（2026-09 收敛）**：只支持 **flowchart / block / class / er / sequence**
+> 五类图型。本目录中仍提到 state/c4/gantt/git/pie/quadrant/mindmap/timeline/xy 的
+> 段落均为**历史设计记录**（对应实现已删除），以本声明为准。
+
 > 本目录放本次重构的目标结构与**详细设计**；现状文档（模块结构/数据流/验收报告）
 > 见本目录 `现状-*.md`（由旧 docs/architecture/ 迁入），两者分工不叠。设计结论以
 > 本目录为准，实施中如改动目标结构，先改这里再动代码。
@@ -18,22 +22,17 @@ docs/redesign/
 │   └── 02-契约B-部件清单.md
 ├── 03-解析层/                        ①：mermaid 文本 → 契约 A
 │   └── 01-parser.md
-├── 04-转义层/                        ②-⑪：契约 A → xml 部件（10 篇）
-│   ├── 01-通用包.md                  ② flowchart/state/c4/block/timeline/xy
+├── 04-转义层/                        ②-⑥：契约 A → xml 部件
+│   ├── 01-通用包.md                  ② flowchart/block
 │   ├── 02-class包.md                 ③
 │   ├── 03-ER包.md                    ④
-│   ├── 04-gantt包.md                 ⑤
-│   ├── 05-sequence包.md              ⑥
-│   ├── 06-git包.md                   ⑦
-│   ├── 07-pie包.md                   ⑧
-│   ├── 08-quadrant包.md              ⑨
-│   ├── 09-mindmap包.md               ⑩
-│   └── 10-公用库.md                  ⑪ 九包共享零件
-├── 05-打包层/                        ⑬-⑭：契约 B → .vsdx
-│   ├── 01-xml部件栈.md               ⑬ 收拢/补全/校验
-│   └── 02-压缩库.md                  ⑭ zip 打包
+│   ├── 05-sequence包.md              ⑤
+│   └── 10-公用库.md                  ⑥ 各包共享零件
+├── 05-打包层/                        ⑦-⑧：契约 B → .vsdx
+│   ├── 01-xml部件栈.md               ⑦ 收拢/补全/校验
+│   └── 02-压缩库.md                  ⑧ zip 打包
 ├── 06-验证与旧代码处置.md            验收项；旧代码只作参照与资产来源
-├── 07-母版形状库方案.md              专用图型母版实例化整改方案（class/ER/gantt/sequence；mindmap 待素材）
+├── 07-母版形状库方案.md              专用图型母版实例化整改方案（class/ER/sequence）
 ├── 现状-模块结构与边界.md            现状：分层与依赖（check:arch 白名单一致）
 ├── 现状-数据流与主流程.md            现状：mermaid → 契约 A/B → 字节 全链路
 ├── 现状-验收报告.md                  现状：验收记录与演进

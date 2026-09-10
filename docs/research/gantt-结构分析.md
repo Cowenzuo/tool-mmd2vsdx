@@ -1,5 +1,9 @@
 # gantt 图 .vsdx 内部结构分析（图型专篇）
 
+> ⚠ **归档（2026-09）**：gantt 图型已从本工程移除支持（保留 block/class/er/flowchart/
+> sequence 五类）。本篇与 `标准研究模板-手动创建vsdx并解压/gantt/` 素材仅作研究证据保留，
+> 不再驱动实现。
+
 > 素材：`docs/research/标准研究模板-手动创建vsdx并解压/gantt/`，Visio 手工绘制的甘特图，非本工程产物。
 > 定位：图型专篇第三篇。通用格式知识见
 > [通用visio结构分析.md](通用visio结构分析.md) 第〇至五章，容器机制基础

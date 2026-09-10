@@ -2,17 +2,11 @@
 import type { ContractA, ContractB, XmlPart } from './contracts/index.js';
 import { part } from './contracts/index.js';
 import { CommonRenderer, buildPagesXml } from './diag/common.js';
-import { PieRenderer } from './diag/pie.js';
-import { QuadrantRenderer } from './diag/quadrant.js';
-import { GitRenderer } from './diag/git.js';
 import { SeqRenderer, sequencePageSize } from './diag/sequence.js';
-import { MindmapRenderer } from './diag/mindmap.js';
 import { ClassRenderer, classPageSize } from './diag/class.js';
 import { ErRenderer, erPageSize } from './diag/er.js';
-import { GanttRenderer, ganttPageSize } from './diag/gantt.js';
 import { buildDocumentPart, buildOfficialDocumentPart, buildOfficialErDocumentPart, buildOfficialSequenceDocumentPart } from './common/styles/writer.js';
 import { StyleRegistry } from './common/styles/model.js';
-import { injectPrStyles } from './common/styles/pr.js';
 import { buildConnectorStyleXml } from './common/styles/connector.js';
 import type { MasterCatalog } from './common/masters/assets.js';
 import { buildMasterCatalog } from './common/masters/assets.js';
@@ -24,8 +18,9 @@ export interface ConvertOptions {
     pxPerInch?: number;
 }
 
-/** 已实现的图型包清单（其余走通用骨架占位，golden 达标后逐个转正）。 */
-export const kImplementedKinds = new Set(['flowchart', 'pie', 'quadrant', 'state', 'git', 'block', 'timeline', 'sequence', 'mindmap', 'c4', 'xy', 'class', 'er', 'gantt']);
+/** 已实现的图型包清单（2026-09 收敛到软件行业常用 5 类）。
+ *  其余图型在解析层直接抛错，不再有"通用骨架占位"的降级路径。 */
+export const kImplementedKinds = new Set(['flowchart', 'block', 'class', 'er', 'sequence']);
 
 const kSkeletonMasterName = 'Rectangle';
 
@@ -90,11 +85,6 @@ function wantedErMasters(m: { entities: Array<{ attributes: Array<{ primaryKey: 
     return names;
 }
 
-/** gantt 分支：全套 10 枚官方母版（结构按母版承载，按需全量打包）。 */
-function wantedGanttMasters(): string[] {
-    return ['Gantt Chart frame', 'Column', 'Sec scale cell', 'Pri scale cell', 'Non working time', 'Row', 'Task bar', 'Text Entry', 'Milestone', 'Link lines'];
-}
-
 /** sequence 分支所需母版名（按契约消息/片段语义收集）。 */
 function wantedSequenceMasters(m: { actors: Array<{ kind: string }>; messages: Array<{ kind: string }>; activations: unknown[]; fragments: Array<{ kind: string; operands?: unknown[] }> }): string[] {
     const names: string[] = [];
@@ -141,8 +131,6 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
     if (a.kind !== 'class' && a.kind !== 'er' && a.kind !== 'sequence' && !docXml.includes('NameU="Connector"')) {
         docXml = docXml.replace('</StyleSheets>', buildConnectorStyleXml() + '\n</StyleSheets>');
     }
-    // gantt：注入 pr 样式家族（gantt 专篇 2.2：24 枚）
-    if (a.kind === 'gantt') docXml = injectPrStyles(docXml);
     const doc = part('/visio/document.xml', 'application/vnd.ms-visio.drawing.main+xml', docXml);
     parts.push(doc);
     // 页面部分
@@ -150,24 +138,6 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
     // 连接线母版来自 flowchart 官方模具（Dynamic connector），节点来自 basic_shape。
     const catalog = opts.stencil ?? loadShapeCatalog();
     const cfg = { pxPerInch: opts.pxPerInch, stencil: catalog ?? undefined };
-    if (a.kind === 'pie' && a.pie) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new PieRenderer().render(a, pageH, opts.pxPerInch ?? 96));
-        return { parts };
-    }
-    if (a.kind === 'quadrant' && a.quadrant) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new QuadrantRenderer().render(a, pageH, opts.pxPerInch ?? 96));
-        return { parts };
-    }
-    if (a.kind === 'git' && a.git) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new GitRenderer().render(a, pageH, opts.pxPerInch ?? 96));
-        return { parts };
-    }
     if (a.kind === 'sequence' && a.sequence) {
         const packed = new MasterPacker(catalog).pack(wantedSequenceMasters(a.sequence));
         parts.push(...packed.parts);
@@ -177,12 +147,6 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
         // 实测把 11.96×8.01IN 变成 23.80×11.69IN 并把图形整体平移——页面尺寸必须由我们决定。
         parts.push(buildPagesXml(a2, { ...cfg, drawingResizeType: '2' }));
         parts.push(new SeqRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
-        return { parts };
-    }
-    if (a.kind === 'mindmap' && a.mindmap) {
-        parts.push(...packSkeletonMasters(catalog));
-        parts.push(buildPagesXml(a, cfg));
-        parts.push(new MindmapRenderer().render(a, pageH, opts.pxPerInch ?? 96));
         return { parts };
     }
     if (a.kind === 'class' && a.classModel) {
@@ -203,16 +167,7 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
         parts.push(new ErRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
         return { parts };
     }
-    if (a.kind === 'gantt' && a.gantt) {
-        const packed = new MasterPacker(catalog).pack(wantedGanttMasters());
-        parts.push(...packed.parts);
-        const { w, h } = ganttPageSize(a);
-        const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
-        parts.push(buildPagesXml(a2, cfg));
-        parts.push(new GanttRenderer().render(a2, pageH, opts.pxPerInch ?? 96, packed.masterIds));
-        return { parts };
-    }
-    // 其它图型：通用骨架直译
+    // 其它图型（flowchart / block）：通用骨架直译
     const common = new CommonRenderer().render(a, cfg);
     for (const p of common.parts) {
         if (p.uri === '/visio/document.xml') continue;
