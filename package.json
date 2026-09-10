@@ -1,6 +1,6 @@
 {
   "name": "mmd2vsdx",
-  "version": "0.1.0-alpha1",
+  "version": "0.1.0-alpha2",
   "description": "Mermaid → Visio VSDX converter (pure Node/TypeScript, no Visio dependency)",
   "type": "module",
   "private": true,
