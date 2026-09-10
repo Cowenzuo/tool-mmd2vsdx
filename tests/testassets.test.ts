@@ -17,8 +17,8 @@ import {
 import { stylesXmlFor } from '../src/vsdxdoc/masters/masterLibrary.js';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const assetFile = path.join(repoRoot, 'assets', 'stencils', 'stencil-data.json');
-const visioDir = path.join(repoRoot, 'resources', 'visio');
+const assetFile = path.join(repoRoot, 'resources', 'visio-binary', 'stencil-data.json');
+const visioDir = path.join(repoRoot, 'resources', 'visio-template');
 // 公开克隆不含模具文件（合规红线）→ 依赖真实资产的用例自动跳过
 const assetsPresent = existsSync(assetFile);
 const visioPresent = existsSync(path.join(visioDir, 'flowchart.vssx'));
@@ -74,7 +74,7 @@ describe('指纹判定（纯函数，不依赖文件）', () => {
 });
 
 describe.skipIf(!visioPresent)('stencilAssets 模具目录现场提取', () => {
-    it('单文件提取（resources/visio 开发模具）', () => {
+    it('单文件提取（resources/visio-template 开发模具）', () => {
         const f = path.join(visioDir, 'flowchart.vssx');
         const { kind, encoded } = extractStencilFile(f);
         expect(kind).toBe('flowchart');

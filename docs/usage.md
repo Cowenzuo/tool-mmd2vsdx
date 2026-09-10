@@ -18,8 +18,8 @@ npm run typecheck && npm test && npm run check:arch
 - `dist/` 自包含（可整体拷贝到任意 Node ≥22.2.0 环境，但需同目录 `node_modules`
   含 playwright/mermaid，或随包一起装）；
 - 运行期 Chromium 首次 launch 约 1s（预热后 ~100ms/图）；
-- `resources/visio/*.vssx`（官方模具原件）只用于开发期再生成，运行不需要；
-  **官方模具资产不随包分发**——运行期按 §〇·一 的供应机制自动获取。
+- `resources/visio-template/*.vssx`（官方模具原件）只用于本地开发再生成，
+  运行不需要；**官方模具资产不随包分发**——运行期按 §〇·一 的供应机制自动获取。
 
 ## 〇·一、母版资产供给（官方模具不随包）
 
@@ -29,7 +29,7 @@ npm run typecheck && npm test && npm run check:arch
 
 | 优先级 | 来源 | 适用 |
 | --- | --- | --- |
-| 1 | `--stencil-asset <file>`（库 API：`configureStencils({assetFile})`） | 预生成资产 JSON（`assets/stencils/stencil-data.json` 形态，646KB）——**私自分发形态 B**：开发机用 `node scripts/gen-stencils.mjs` 生成后，把该文件单独交给目标机（不经公开渠道），对方零依赖可用 |
+| 1 | `--stencil-asset <file>`（库 API：`configureStencils({assetFile})`） | 预生成资产 JSON（`resources/visio-binary/stencil-data.json` 形态，646KB）——**私自分发形态 B**：开发机用 `node scripts/gen-stencils.mjs` 生成后，把该文件单独交给目标机（不经公开渠道），对方零依赖可用 |
 | 2 | `--stencil-dir <dir>`（库 API：`configureStencils({stencilDir})`） | 官方模具目录（含 .vssx/.vstx 原件）——**私自分发形态 A**：直接给模具目录，现场提取（内部按内容指纹识别 8 类，目录里其它无关模具自动忽略） |
 | 3 | 缺省自动 | **首次转换自动搜寻本机 Visio** 安装目录（Windows 常见布局），现场提取；结果缓存到 `%LOCALAPPDATA%\mmd2vsdx\stencil-data.json`（按模具文件指纹失效），二次启动免提取 |
 | 4 | `--no-stencil-search` | 显式关闭自动搜寻（配合前两者使用） |
@@ -44,7 +44,7 @@ npm run typecheck && npm test && npm run check:arch
 
 私自分发快速上手（形态 B，最省事）：
 ```bash
-# 分发侧（你有模具/或本仓库 assets 已生成）
+# 分发侧（你有模具原件 resources/visio-template/，或本地已生成 visio-binary 资产）
 node scripts/gen-stencils.mjs <visio_dir> my-stencil-data.json   # 生成资产文件
 # 接收侧（目标工程/服务器，无 Visio 也可）
 mmd2vsdx --stencil-asset my-stencil-data.json in.mmd out/

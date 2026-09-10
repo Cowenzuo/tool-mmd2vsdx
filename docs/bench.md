@@ -2,7 +2,7 @@
 
 > 冒烟口径：本仓库 vitest（testapp）内计时；浏览器为 Playwright 1.61.1 / chromium-1228。
 > 完整对比 C++ 基线需同机跑 gen_samples 计时（可后续补充），设计结论见
-> docs/reference/ts-port-original/01-效率评估.md（瓶颈=Chromium 渲染，与语言无关）。
+> docs/archived/reference/ts-port-original/01-效率评估.md（瓶颈=Chromium 渲染，与语言无关）。
 
 ## 数据（实测）
 

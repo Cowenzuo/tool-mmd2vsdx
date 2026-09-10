@@ -1,4 +1,6 @@
-// tests/helpers.ts — 共享测试工具（fixtures 定位、临时目录、结构比较、资产加载）
+// tests/helpers.ts — 共享测试工具（样例素材定位、临时目录、结构比较、资产加载）
+// 样例素材统一在 resources/test-examples/（mmd-input 源稿 / svg-json-medium
+// 浏览器快照 / vsdx-output 金标准参照），tests 只留断言逻辑。
 import { mkdtempSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -6,14 +8,15 @@ import path from 'node:path';
 import { ensureStencilAssets } from '../src/vsdxdoc/masters/stencilAssets.js';
 
 export const testsDir = fileURLToPath(new URL('.', import.meta.url));
-export const fixturesDir = path.join(testsDir, 'fixtures');
-export const goldenDir = path.join(fixturesDir, 'golden');
-export const snapshotDir = path.join(fixturesDir, 'snapshot');
+export const examplesDir = path.join(testsDir, '..', 'resources', 'test-examples');
+export const goldenDir = path.join(examplesDir, 'vsdx-output');
+export const snapshotDir = path.join(examplesDir, 'svg-json-medium');
 
-/** 仓库内开发资产路径（assets/stencils/stencil-data.json）。公开克隆不含
- *  模具相关文件（合规红线，见 docs/usage.md §〇·一）——本地/私有 CI 提供。 */
+/** 仓库内本地资产路径（resources/visio-binary/stencil-data.json，visio-template
+ *  的压缩提取物）。公开克隆不含模具相关文件（合规红线，见 docs/usage.md §〇·一）
+ *  ——本地/私有 CI 提供。 */
 export function repoStencilAssetFile(): string {
-    return path.join(testsDir, '..', 'assets', 'stencils', 'stencil-data.json');
+    return path.join(testsDir, '..', 'resources', 'visio-binary', 'stencil-data.json');
 }
 
 /** 母版资产是否可用（公开克隆为 false → 真实母版用例经 skipIf 跳过）。 */

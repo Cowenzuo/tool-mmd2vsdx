@@ -8,12 +8,14 @@
 > - `01-数据流与主流程.md` —— 转换流水线、进程生命周期、开发期资源管线
 > - `03-代码审核报告.md` —— 分层深度审核的问题清单与处理结论
 > - `diagrams/` —— Mermaid 结构图（.mmd，可在 Mermaid Live Editor / 本工具产物中查看）
+>
+> 本次重构的目标结构设计在 `docs/redesign/`，本目录只描述现状。
 
 ## 一、工程定位一句话
 
 把 Mermaid 文本 →（Chromium 渲染快照）→ 统一中间表示（IR/Diagram）→ 自研 OPC 容器与
 Visio XML 部件 → `.vsdx` 文件。全部格式能力自研（XML 栈、ZIP、VSDX 部件模型），
-**1:1 移植自已验证的 C++17 工程**（`docs/reference/archive` 存原始工程文档），
+**1:1 移植自已验证的 C++17 工程**（`docs/archived/reference/archive` 存原始工程文档），
 测试以 C++ 基线的 16 样本 golden `.vsdx` 做结构等价比对。
 
 ## 二、目录速览（37 个 .ts，约 1 万行；另含 14 个 .mjs 浏览器注入脚本与 1 份生成资产）
@@ -52,9 +54,11 @@ Visio XML 部件 → `.vsdx` 文件。全部格式能力自研（XML 栈、ZIP�
 
 ## 四、测试与门禁（与架构配套的验证面）
 
-- `npm run typecheck` / `npm run build`（build = tsc + 资产复制，见 01 §资源管线）
-- `npm test`：9 个测试文件 / 186 用例；`tests/fixtures/golden/*.vsdx`（16 样本，
-  由 C++ 基线生成并再生成的字节参照）+ `snapshot/*.json`（渲染快照夹具，跑测试不启动浏览器）
+- `npm run typecheck` / `npm run build`（build = clean + tsc + 资产复制，见 01 §资源管线）
+- `npm test`：10 个测试文件 / 201 用例；样例素材统一在 `resources/test-examples/`
+  —— `vsdx-output/*.vsdx`（16 样本，C++ 基线字节参照，金标准）+ `svg-json-medium/*.json`
+  （渲染快照夹具，跑测试不启动浏览器）；真实母版用例依赖本地模具资产，
+  公开克隆自动跳过（见 tests/helpers.ts）
 - `scripts/batch-convert.mjs` 用于真实批量（256 文件容错转换 + `_report.json`）
 
 ## 五、已知文档化偏差（刻意保留，勿当缺陷修）

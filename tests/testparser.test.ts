@@ -12,7 +12,7 @@ import { OpcPackager } from '../src/opcpkg/opcpackager.js';
 import { MmdError } from '../src/core/errors.js';
 import { testsDir } from './helpers.js';
 
-const kInputDir = path.join(testsDir, '..', 'resources', 'testio', 'input');
+const kInputDir = path.join(testsDir, '..', 'resources', 'test-examples', 'mmd-input');
 const kGeneric = ['01-block-1', '02-c4-1', '03-class-1', '04-er-1', '05-flowchart-1',
     '06-flowchart-2', '11-mindmap-1', '16-state-1', '17-timeline-1', '18-xy-1'];
 

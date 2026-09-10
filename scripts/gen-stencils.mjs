@@ -2,7 +2,7 @@
 /**
  * gen-stencils.mjs — 官方模具 → TS 资产生成（对标 scripts/extract_stencil.py）。
  *
- * 读取 resources/visio/*.vssx|vstx（8 份官方模具），按 stencil 提取：
+ * 读取 resources/visio-template/*.vssx|vstx（8 份官方模具），按 stencil 提取：
  *   visio/masters/masters.xml、visio/masters/_rels/masters.xml.rels、
  *   rels 引用的 masterN.xml、document.xml 中的 StyleSheets/Colors/FaceNames
  *   （包为 <VisioStyles> 根），每模具压缩为 gzip(base64(JSON)) 资产，写入
@@ -11,13 +11,13 @@
  * 说明：
  *   - 本脚本自包含（不含 ZIP 三方库）：内嵌轻量 zip 读取（EOCD+中央目录+
  *     inflateRawSync），与 src/opcpkg/zipArchive.ts 同源语义、仅服务读取；
- *   - 产物 stencil-data.json 提交仓库（开发资产，assets/stencils/）。运行时
+ *   - 产物 stencil-data.json 提交仓库（开发资产，resources/visio-binary/）。运行时
  *     "资产供应"设计（docs/architecture 03 §G-9 落地）：npm 包不随分此资产——
  *     目标机首次转换自动搜寻本机 Visio 官方模具现场提取，或经
  *     --stencil-dir（模具目录）/ --stencil-asset（本产物文件，私自分发形态）
  *     显式导入；本产物同时供开发/CI/测试加载；
  *   - 用法：node scripts/gen-stencils.mjs [visio_dir] [out_json]
- * 默认 visio_dir=resources/visio，out=assets/stencils/stencil-data.json
+ * 默认 visio_dir=resources/visio-template，out=resources/visio-binary/stencil-data.json
  */
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { gunzipSync, gzipSync, inflateRawSync } from 'node:zlib';
@@ -27,9 +27,9 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const visioDir = process.argv[2] ? path.resolve(process.argv[2])
-    : path.join(root, 'resources', 'visio');
+    : path.join(root, 'resources', 'visio-template');
 const outFile = process.argv[3] ? path.resolve(process.argv[3])
-    : path.join(root, 'assets', 'stencils', 'stencil-data.json');
+    : path.join(root, 'resources', 'visio-binary', 'stencil-data.json');
 
 // ── 轻量 zip 读取（自包含；raw deflate） ──
 function readZipEntries(buf) {

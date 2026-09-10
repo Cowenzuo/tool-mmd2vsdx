@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * make-fixtures.mjs — 用基线 mermaid-snapshot（HTTP 服务模式）为 16 个验收样本
- * 采集 snapshot JSON 快照，落盘 tests/fixtures/snapshot/<stem>.json。
+ * 采集 snapshot JSON 快照，落盘 resources/test-examples/svg-json-medium/<stem>.json。
  *
  * 用途：M0–M2（无浏览器依赖）离线测试的输入事实基准；M3 收编后与真实渲染对照。
  * 用法：node scripts/make-fixtures.mjs [--snapshot <snapshot.mjs 路径>] [--out <目录>]
@@ -15,9 +15,9 @@ import path from 'node:path';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
 const SRC_REPO = 'D:\\_dev\\mmd2vsdx';
-const DEFAULT_INPUT = path.join(SRC_REPO, 'resources', 'testio', 'input');
+const DEFAULT_INPUT = path.join(repoRoot, 'resources', 'test-examples', 'mmd-input');
 const DEFAULT_SNAPSHOT = path.join(SRC_REPO, 'mermaid-snapshot', 'snapshot.mjs');
-const DEFAULT_OUT = path.join(repoRoot, 'tests', 'fixtures', 'snapshot');
+const DEFAULT_OUT = path.join(repoRoot, 'resources', 'test-examples', 'svg-json-medium');
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);

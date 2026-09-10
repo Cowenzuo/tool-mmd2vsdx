@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<PageContents xmlns='http://schemas.microsoft.com/office/visio/2012/main'
+    xmlns:r='http://schemas.openxmlformats.org/officeDocument/2006/relationships' xml:space='preserve'>
+    <Shapes>
+        <Shape ID='1' NameU='Rectangle' Name='矩形' Type='Shape' Master='2'>
+            <Cell N='PinX' V='2.266439705236128'/>
+            <Cell N='PinY' V='8.35816150639786'/>
+            <Text>AAA
+            </Text>
+        </Shape>
+        <Shape ID='2' Type='Shape' Master='2'>
+            <Cell N='PinX' V='4.136518445393608'/>
+            <Cell N='PinY' V='8.35816150639786'/>
+            <Cell N='LineWeight' V='0.01388888888888889' U='PT'/>
+            <Section N='Character'>
+                <Row IX='0'>
+                    <Cell N='Size' V='0.5' U='PT'/>
+                </Row>
+            </Section>
+            <Text>
+                <cp IX='0'/>
+BBB
+            </Text>
+        </Shape>
+    </Shapes>
+</PageContents>

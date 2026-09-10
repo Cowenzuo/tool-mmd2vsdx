@@ -8,7 +8,7 @@ import { application } from '../dist/app/application.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
-const inputDir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(root, 'resources', 'testio', 'input');
+const inputDir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(root, 'resources', 'test-examples', 'mmd-input');
 const outDir = process.argv[3] ? path.resolve(process.argv[3]) : path.join(root, 'temp', 'output');
 const reportPath = process.argv[4] ? path.resolve(process.argv[4]) : path.join(outDir, '_report.json');
 

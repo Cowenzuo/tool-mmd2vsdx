@@ -2,8 +2,8 @@
 //
 // 资产供应设计（03 审核 G-9 落地；规避官方模具再分发风险）：
 //   - npm 包不随分模具资产。运行期按优先级取资产：
-//       1) assetFile —— 预生成资产 JSON（assets/stencils/stencil-data.json 形态；
-//          私自分发形态 B：把该文件单独分发，不经过公开渠道）；
+//       1) assetFile —— 预生成资产 JSON（resources/visio-binary/stencil-data.json
+//          形态；私自分发形态 B：把该文件单独分发，不经过公开渠道）；
 //       2) stencilDir —— 官方模具目录（*.vssx/*.vstx 原件；私自分发形态 A）；
 //       3) search !== false —— 自动搜寻本机 Visio 安装目录（Windows 常见布局），
 //          现场提取；提取结果缓存到用户缓存目录（按模具文件指纹失效）；
