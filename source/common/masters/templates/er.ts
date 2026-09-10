@@ -1,7 +1,7 @@
-// 本文件由 temp/audit/gen-er-templates.mjs 一次性生成（勿手改）。
-// 来源：docs/research/标准研究模板-手动创建vsdx并解压/er-all-in-one/ 官方模板解压包（5 枚：Entity/PKAttr/PKSep/Attr/Relationship）；
+// 本文件由 docs/开发经验日志/scripts/gen-er-templates.mjs 一次性生成（勿手改）。
+// 来源：docs/research/标准研究模板-手动创建vsdx并解压/er-all-in-one/ 官方模板解压包（5 枚）；
 // 内容为母版 MasterContents 原文（verbatim），目录条目属性由 assets.ts buildRecord 合成；
-// NameU 为准；Name/Prompt（GBK 乱码）与 Icon 不携带（与既有模板同策）。
+// NameU 为准；Name/Prompt（GBK 乱码）与 Icon 不携带。
 
 export interface TypeMasterEntry {
     /** 官方目录条目 MasterType（34=成员行、29=消息、541/1=1-D 连接线、2=组）。 */
