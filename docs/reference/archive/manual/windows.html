@@ -1,0 +1,57 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>windows.xml &amp; custom.xml</title>
+<style>:root{--bg:#1a1a2e;--fg:#e0e0e0;--accent:#4fc3f7;--border:#333;--code-bg:#16213e}body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--fg);margin:0;display:flex}nav{width:260px;background:#0f0f1a;padding:20px;border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto}nav h2{color:var(--accent);font-size:16px}nav a{display:block;color:#aaa;text-decoration:none;padding:6px 0 6px 12px;font-size:14px;border-left:2px solid transparent}nav a:hover,nav a.active{color:var(--accent);border-left-color:var(--accent)}main{flex:1;padding:30px 50px;max-width:900px}h1{color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:10px}h2{color:#82b1ff;margin-top:30px}code{background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px}pre{background:var(--code-bg);padding:15px;border-radius:6px;overflow-x:auto;font-size:13px}table{border-collapse:collapse;width:100%;margin:15px 0}th,td{border:1px solid var(--border);padding:8px 12px;font-size:14px}th{background:#1a1a3e;color:var(--accent)}.note{background:#1b3a1b;border-left:4px solid #4caf50;padding:10px 15px;margin:15px 0}</style></head><body>
+<nav><h2>VSDX 格式手册</h2><a href="index.html">总览</a><a href="structure.html">1. ZIP/OPC</a><a href="content-types.html">2. Content Types</a><a href="rels.html">3. Relationships</a><a href="document.html">4. document.xml</a><a href="pages.html">5. pages</a><a href="masters.html">6. Masters</a><a href="shapes.html">7. Shape</a><a href="connectors.html">8. Connector</a><a href="cells.html">9. Cell/Section/Row</a><a href="text-position.html">10. 文本定位</a><a href="windows.html" class="active">11. windows.xml</a><a href="custom.html">12. custom.xml</a></nav>
+<main>
+<h1>11. windows.xml</h1>
+<pre>&lt;Windows xmlns="...visio/2012/main"&gt;
+  &lt;Window ID="0" WindowType="Drawing"
+          ContainerType="Page" Page="0" ViewScale="1"&gt;
+    &lt;ShowRulers&gt;1&lt;/ShowRulers&gt;
+    &lt;ShowGrid&gt;0&lt;/ShowGrid&gt;
+    &lt;ShowPageBreaks&gt;1&lt;/ShowPageBreaks&gt;
+    &lt;ShowGuides&gt;1&lt;/ShowGuides&gt;
+    &lt;ShowConnectionPoints&gt;1&lt;/ShowConnectionPoints&gt;
+    &lt;GlueSettings&gt;9&lt;/GlueSettings&gt;
+    &lt;SnapSettings&gt;295&lt;/SnapSettings&gt;
+    &lt;DynamicGridEnabled&gt;1&lt;/DynamicGridEnabled&gt;
+  &lt;/Window&gt;
+&lt;/Windows&gt;</pre>
+<p>定义 Visio 窗口的初始状态。虽然不是严格必需，但没有它 Visio 可能报错。</p>
+
+<h1 style="margin-top:40px">12. custom.xml — Visio 自定义属性</h1>
+<pre>&lt;Properties xmlns="...custom-properties"
+            xmlns:vt="...docPropsVTypes"&gt;
+  &lt;property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+            pid="2" name="_VPID_ALTERNATENAMES"&gt;
+    &lt;vt:lpwstr/&gt;
+  &lt;/property&gt;
+  &lt;property fmtid="..." pid="3" name="BuildNumberCreated"&gt;
+    &lt;vt:i4&gt;1179401801&lt;/vt:i4&gt;
+  &lt;/property&gt;
+  &lt;property fmtid="..." pid="4" name="BuildNumberEdited"&gt;
+    &lt;vt:i4&gt;1179401801&lt;/vt:i4&gt;
+  &lt;/property&gt;
+  &lt;property fmtid="..." pid="5" name="IsMetric"&gt;
+    &lt;vt:bool&gt;false&lt;/vt:bool&gt;
+  &lt;/property&gt;
+  &lt;property fmtid="..." pid="6" name="TimeEdited"&gt;
+    &lt;vt:filetime&gt;2026-07-27T00:00:00Z&lt;/vt:filetime&gt;
+  &lt;/property&gt;
+  &lt;property fmtid="..." pid="7" name="RecalcDocument"&gt;
+    &lt;vt:bool&gt;true&lt;/vt:bool&gt;
+  &lt;/property&gt;
+&lt;/Properties&gt;</pre>
+
+<h2>属性说明</h2>
+<table>
+<tr><th>属性</th><th>类型</th><th>说明</th></tr>
+<tr><td>_VPID_ALTERNATENAMES</td><td>lpwstr</td><td>Visio 内部标识</td></tr>
+<tr><td>BuildNumberCreated</td><td>i4</td><td>创建版本号</td></tr>
+<tr><td>BuildNumberEdited</td><td>i4</td><td>编辑版本号</td></tr>
+<tr><td>IsMetric</td><td>bool</td><td>是否公制（false=英制）</td></tr>
+<tr><td>TimeEdited</td><td>filetime</td><td>最后编辑时间</td></tr>
+<tr><td><strong>RecalcDocument</strong></td><td><strong>bool</strong></td><td><strong>true=打开时重新计算所有公式（关键！）</strong></td></tr>
+</table>
+
+<div class="note"><strong>FMTID</strong>: 所有 Visio 属性使用固定 FMTID <code>{D5CDD505-2E9C-101B-9397-08002B2CF9AE}</code></div>
+</main></body></html>

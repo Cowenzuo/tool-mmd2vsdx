@@ -1,0 +1,222 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：core（数据层）模块内部类型清单
+%%
+%% 本图 = core 模块内部结构。core 不设门面，收纳「跨模块共享类型」。
+%%
+%% 分组标准：按「功能语义域」划分（不按语法类别）：
+%%
+%%   base  通用基础：无任何功能模块语义绑定，放哪儿都能用
+%%         Point / BoundingBox / Error(+Code)
+%%   IR    图语义域：mmdparse 产出、vsdxdoc 消费的「图」
+%%         结构：Diagram/Node/Edge/Cluster
+%%         枚举：NodeShape/EdgeStyle/ArrowType/DiagramType（图语义：元素 + 图类型）
+%%   vsdx  VSDX 文档语义域：vsdxdoc 门面的输入/输出契约
+%%         ID：PageId/ShapeId
+%%         值：ShapeStyle
+%%         输入规格：CreateOptions/PageSpec/ShapeSpec/ConnectorSpec
+%%         （DiagramType 借用自 IR，仅用于模具翻译）
+%%
+%% 明确不属 core（留各自模块）：
+%%   - opcpkg：Package/XmlDocument/XmlUtils/Relationships/ContentTypes/ZipArchive/PartUri/...
+%%   - mmdparse：Parser/NodeJsProcess/jsonToDiagram（单例门面）
+%%   - vsdxdoc：ShapeModel/ConnectorModel/PageModel/DocumentCore/常量/坐标变换/...
+%%   - app：Application（单例编排，串行转换）
+%%
+%% 类型别名（非类）：
+%%   PageId = std::uint32_t
+%%   ShapeId = std::uint32_t
+%%
+%% 规范约定（遵循 mermaid classDiagram 语法）：
+%%   - 成员一行一个：+name: type ；方法：+name() returnType（括号后有空格）
+%%   - 枚举用 <<Enumeration>> 标注，枚举值以 + 前缀成员列出
+%%   - 类型别名用 <<TypeAlias>> 标注，底层类型以成员行展示（非真实成员）
+%%   - 说明性文字一律放 %% 注释，不塞进成员框
+%%   - 泛型用 ~ 包裹（如 vector~Node~）
+%%   - namespace 块内只允许 class 定义，关系一律放块外
+%%
+%% 组合关系 = 数据所有权（真实成员）；跨组引用用裸类名（Mermaid 支持）
+%% ============================================================
+classDiagram
+direction TB
+
+%% ---- base：通用基础（无功能模块语义绑定）----
+namespace base {
+    class Point {
+        +x: double
+        +y: double
+    }
+    class BoundingBox {
+        +minX: double
+        +minY: double
+        +maxX: double
+        +maxY: double
+        +width() double
+        +height() double
+    }
+    class Error {
+        +code: Code
+        +what() string
+    }
+    class Code {
+        <<Enumeration>>
+        +NodeNotFound
+        +JsonParseError
+        +SubprocessCrashed
+        +MermaidError
+    }
+    %% Code 为 Error 的内部嵌套枚举（Error::Code）
+}
+
+%% ---- IR：图语义域 ----
+namespace IR {
+    class Diagram {
+        +nodes: vector~Node~
+        +edges: vector~Edge~
+        +clusters: vector~Cluster~
+        +bounds: BoundingBox
+        +diagramType: string
+        +direction: string
+        +svg: string
+    }
+    class Node {
+        +id: string
+        +label: string
+        +shape: NodeShape
+        +x: double
+        +y: double
+        +width: double
+        +height: double
+        +parentId: string
+        +styleClass: string
+        +dividers: vector~double~
+    }
+    class Edge {
+        +from: string
+        +to: string
+        +label: string
+        +style: EdgeStyle
+        +arrowHead: ArrowType
+        +arrowTail: ArrowType
+        +waypoints: vector~Point~
+        +fromMultiplicity: string
+        +toMultiplicity: string
+    }
+    class Cluster {
+        +id: string
+        +label: string
+        +x: double
+        +y: double
+        +width: double
+        +height: double
+    }
+    class NodeShape {
+        <<Enumeration>>
+        +Rect
+        +RoundRect
+        +Diamond
+        +Circle
+        +Ellipse
+    }
+    class EdgeStyle {
+        <<Enumeration>>
+        +Normal
+        +Dotted
+        +Thick
+    }
+    class ArrowType {
+        <<Enumeration>>
+        +None
+        +Arrow
+        +Circle
+        +OpenArrow
+    }
+    class DiagramType {
+        <<Enumeration>>
+        +Auto
+        +Basic
+        +Flowchart
+        +Class
+        +Sequence
+        +ER
+        +Gantt
+        +Timeline
+        +Calendar
+    }
+}
+
+%% ---- vsdx：VSDX 文档语义域 ----
+namespace vsdx {
+    class PageId {
+        <<TypeAlias>>
+        +value: uint32_t
+    }
+    %% 别名：PageId = std::uint32_t（value 展示底层类型，非真实成员）
+    class ShapeId {
+        <<TypeAlias>>
+        +value: uint32_t
+    }
+    %% 别名：ShapeId = std::uint32_t（value 展示底层类型，非真实成员）
+    class ShapeStyle {
+        +fillColor: string
+        +lineColor: string
+        +textColor: string
+        +lineWidthPoints: double
+        +fontSizePoints: double
+    }
+    class CreateOptions {
+        +outputScale: double
+        +marginLeft: double
+        +marginRight: double
+        +marginTop: double
+        +marginBottom: double
+        +useConnectorMaster: bool
+        +diagramType: DiagramType
+    }
+    class PageSpec {
+        +name: string
+        +width: double
+        +height: double
+    }
+    class ShapeSpec {
+        +logicalId: string
+        +text: string
+        +kind: NodeShape
+        +x: double
+        +y: double
+        +width: double
+        +height: double
+        +style: ShapeStyle
+        +dividers: vector~double~
+    }
+    class ConnectorSpec {
+        +logicalId: string
+        +text: string
+        +source: ShapeId
+        +target: ShapeId
+        +waypoints: vector~Point~
+        +style: EdgeStyle
+        +arrowHead: ArrowType
+        +arrowTail: ArrowType
+        +fromMultiplicity: string
+        +toMultiplicity: string
+    }
+}
+
+%% ---- 组合关系（数据所有权；namespace 块外，跨组用裸类名）----
+Diagram *-- Node
+Diagram *-- Edge
+Diagram *-- Cluster
+Diagram *-- BoundingBox
+Diagram *-- DiagramType : diagramType
+Node *-- NodeShape : shape
+Node ..> Point : 坐标
+Edge *-- EdgeStyle : style
+Edge *-- ArrowType : 箭头
+Edge *-- Point : waypoints
+Error *-- Code : code
+CreateOptions *-- DiagramType : diagramType
+ShapeSpec *-- NodeShape : kind
+ShapeSpec *-- ShapeStyle : style
+ConnectorSpec *-- Point : waypoints
+ConnectorSpec *-- EdgeStyle : style
+ConnectorSpec *-- ArrowType : 箭头

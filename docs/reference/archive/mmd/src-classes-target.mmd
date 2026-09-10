@@ -1,0 +1,887 @@
+%% ============================================================
+%% mermaid-c — 目标架构类图（to-be，重构蓝图 v2）
+%% 生成时间：2026-08-04
+%% 状态：已完成（2026-08-05 P0-P10 重构收官，全部落地；本图为设计历史存档，
+%%       当前实现以 src-classes.mmd as-is 图为准）
+%%
+%% 分层（依赖单向向下，全图无环）：
+%%   L0 core    纯领域模型（IR + 领域异常）—— 零依赖
+%%   L1 opc     OPC 容器（ZIP/XML/Package）—— 独立模块，不依赖 core
+%%   L2 vsdx    应用域：api（公共句柄）/ model（内部模型+值类型）
+%%              / render（渲染策略）/ masters（母版服务）/ io（序列化）
+%%   L3 parse   解析基础设施：IParser 接口 + MermaidParser + NodeJsProcess
+%%   L4 app     应用门面：Mermaid（持 IParser，依赖接口）
+%%
+%% 设计原则：
+%%   1. 单一职责：DocumentImpl 拆为 model/render/masters/io 四域 + 薄协调者
+%%   2. 接口倒置：api 依赖 Renderer 接口、app 依赖 IParser 接口
+%%   3. 单向依赖无环：L0←L1←L2←L3←L4，层内子系统亦无回边
+%%   4. 消除镜像：IR Node/Edge 为唯一领域模型；render 直接产出 model，
+%%      不再经 ShapeSpec/ConnectorSpec 中转（DTO 仅保留在公共 API 边界）
+%%   5. 死代码清理：append* 几何原语与 erMultiplicityText 删除（不复活，
+%%      与 v2.1 图决策一致；ER 多重性走 Relationship master + ShowMulti 机制）
+%%   6. 保留务实决策：model 持有 xmlNodePtr（VSDX 即 XML，节点生命周期=
+%%      所属 XmlDocument），通过访问器封装、避免跨文档共享节点
+%%
+%% as-is → to-be 映射（概要）：
+%%   mermaidc_API         → app::Mermaid（对外保留自由函数薄包装）
+%%   Engine/jsonToDiagram → parse::MermaidParser
+%%   NodeProcess          → parse::NodeJsProcess
+%%   DocumentImpl         → api::DocumentCore（薄协调者，持 Package+模型+服务）
+%%   PageData/ShapeData/  → model::PageModel / ShapeModel / ConnectorModel
+%%   ConnectorData        （PageModel 补回 relationshipId + 缓存节点）
+%%   ShapeStyle           → model（值类型下沉，供 api DTO 与 model 共用）
+%%   DiagramType          → 保持 api（VSDX/模具域枚举，不迁 core）
+%%   render_dispatch      → render::Renderer 策略族（renderShape/renderConnector）
+%%   connector_helpers    → render::ConnectorBinder（不含 erMultiplicityText）
+%%   stencil_helpers/     → masters::MasterLibrary（含 resolveDiagramType）
+%%   LoadedStencil
+%%   opc_xml_helpers      → opc::XmlUtils
+%%   低层 XML 自由函数    → io::XmlBuilder（补全清单）+ io::DocumentParts
+%%   open 反序列化        → io::VsdxReader（新增，对应 openImpl）
+%%   flushXmlParts/ensure → io::VsdxWriter（含原子保存文件工具）
+%%   Recalc/repair
+%%   validate             → io::Validator
+%%   CoordinateTransform  → api（使用方为 fromDiagrams）
+%% ============================================================
+classDiagram
+direction TB
+
+%% ═══════════════════ L0 core：纯领域模型（零依赖） ═══════════════════
+namespace core {
+
+    class Point {
+        +double x
+        +double y
+    }
+
+    class BoundingBox {
+        +double minX
+        +double minY
+        +double maxX
+        +double maxY
+        +width() double
+        +height() double
+    }
+
+    class Node {
+        +string id
+        +string label
+        +NodeShape shape
+        +double x
+        +double y
+        +double width
+        +double height
+        +string styleClass
+        +string parentId
+        +double[] dividers
+    }
+
+    class Edge {
+        +string from
+        +string to
+        +string label
+        +EdgeStyle style
+        +ArrowType arrowHead
+        +ArrowType arrowTail
+        +Point[] waypoints
+        +string fromMultiplicity
+        +string toMultiplicity
+    }
+
+    class Cluster {
+        +string id
+        +string label
+        +double x
+        +double y
+        +double width
+        +double height
+    }
+
+    %% diagramType 保持 string（mermaid 类型为开放集合，闭枚举会丢信息）
+    class Diagram {
+        +Node[] nodes
+        +Edge[] edges
+        +Cluster[] clusters
+        +string diagramType
+        +string direction
+        +BoundingBox bounds
+        +string svg
+    }
+
+    %% 枚举
+    class NodeShape {
+        <<enumeration>>
+        Rect
+        RoundRect
+        Diamond
+        Circle
+        Ellipse
+    }
+
+    class EdgeStyle {
+        <<enumeration>>
+        Normal
+        Dotted
+        Thick
+    }
+
+    class ArrowType {
+        <<enumeration>>
+        None
+        Arrow
+        Circle
+        OpenArrow
+    }
+
+    %% 领域异常（全系统唯一，各层可抛出）
+    class Error {
+        +ErrorCode code
+        +Error(ErrorCode, string)
+    }
+
+    class ErrorCode {
+        <<enumeration>>
+        NodeNotFound
+        JsonParseError
+        SubprocessCrashed
+        MermaidError
+    }
+}
+
+%% ═══════════════════ L1 opc：OPC 容器（独立模块） ═══════════════════
+namespace opc {
+
+    class PartUri {
+        +parse(string) PartUri
+        +resolve(source, target) PartUri
+        +packageRelationships() PartUri
+        +sourceFromRelationships(relationshipsUri) PartUri
+        +string()
+        +relationshipsUri() PartUri
+    }
+
+    class XmlDocument {
+        +parse(payload, name) XmlDocument
+        +create(root, ns, prefix) XmlDocument
+        +get() xmlDocPtr
+        +root() xmlNodePtr
+        +serialize() uint8[]
+    }
+
+    %% 原 opc_xml_helpers 类化
+    class XmlUtils {
+        <<static>>
+        +isElement(node, ns, localName) bool
+        +attribute(node, name) string
+        +hasAttribute(node, name) bool
+        +setAttribute(node, name, value)
+    }
+
+    class RelationshipTargetMode {
+        <<enumeration>>
+        Internal
+        External
+    }
+
+    class Relationship {
+        +string id
+        +string type
+        +string target
+        +RelationshipTargetMode targetMode
+    }
+
+    class Relationships {
+        +parse(payload, source) Relationships
+        +create(source) Relationships
+        +source() PartUri
+        +items() Relationship[]
+        +findById(id) Relationship
+        +findByType(type) Relationship[]
+        +resolveTarget(rel) PartUri
+        +add(type, target, mode, id) string
+        +remove(id)
+        +serialize() uint8[]
+    }
+
+    class ContentTypes {
+        +parse(payload) ContentTypes
+        +create() ContentTypes
+        +contentTypeFor(part) string
+        +defaults() map<string,string>
+        +overrides() map<string,string>
+        +setDefault(ext, contentType)
+        +setOverride(part, contentType)
+        +removeOverride(part)
+        +serialize() uint8[]
+    }
+
+    class ZipArchive {
+        <<static>>
+        +read(path, limits) ZipEntry[]
+        +write(path, entries, limits)
+    }
+
+    class ZipEntry {
+        +string name
+        +uint8[] data
+        +ZipCompression compression
+    }
+
+    class ZipLimits {
+        +size_t maxEntries
+        +uint64 maxArchiveBytes
+        +uint64 maxEntryBytes
+        +uint64 maxTotalUncompressedBytes
+    }
+
+    class ZipCompression {
+        <<enumeration>>
+        Store
+        Deflate
+    }
+
+    class ZipErrorCode {
+        <<enumeration>>
+        IoError
+        InvalidArchive
+        UnsupportedFeature
+        UnsafeEntryName
+        DuplicateEntry
+        CrcMismatch
+        LimitExceeded
+    }
+
+    class ZipError {
+        +ZipError(code, message)
+        +ZipErrorCode code
+    }
+
+    class OpcPart {
+        +PartUri uri
+        +string contentType
+        +uint8[] payload
+        +ZipCompression compression
+        +bool dirty
+    }
+
+    class Package {
+        +open(path, limits) Package
+        +create() Package
+        +contains(uri) bool
+        +part(uri) OpcPart
+        +partUris() PartUri[]
+        +addPart(uri, contentType, payload, compression)
+        +removePart(uri)
+        +relationships(source) Relationships
+        +setRelationships(rels)
+        +contentTypes() ContentTypes
+        +validate()
+        +save(path, limits)
+    }
+}
+
+%% ═══════════════════ L2 vsdx：应用域 ═══════════════════
+%% ── 2a. api：公共句柄、协调者与 DTO ──
+namespace api {
+
+    %% 句柄类（Pimpl：持有 DocumentCore*）
+    class Shape {
+        +id() ShapeId
+        +logicalId() string
+        +text() string
+        +setText(text)
+        +setBounds(x, y, w, h)
+        +setStyle(style)
+        -DocumentCore* core_
+        -PageId page_
+        -ShapeId id_
+    }
+
+    class Connector {
+        +id() ShapeId
+        +logicalId() string
+        +text() string
+        +setText(text)
+        +setWaypoints(points)
+        -DocumentCore* core_
+        -PageId page_
+        -ShapeId id_
+    }
+
+    class Page {
+        +id() PageId
+        +name() string
+        +setName(name)
+        +width() double
+        +height() double
+        +shapeIds() ShapeId[]
+        +connectorIds() ShapeId[]
+        +shape(id) Shape
+        +connector(id) Connector
+        +addShape(spec) Shape
+        +addConnector(spec) Connector
+        +removeShape(id)
+        -DocumentCore* core_
+        -PageId id_
+    }
+
+    %% 薄协调者（原 DocumentImpl 拆解后）：持基础设施 + 模型 + 服务，只做委托
+    class DocumentCore {
+        +DocumentCore(options)
+        +DocumentCore(package, options)
+        +renderDiagram(diagram) PageModel
+        +nextPagePartUri() PartUri
+        +save(path)
+        +validate() ValidationReport
+        -DocumentModel model_
+        -opc::Package package_
+        -unique_ptr<XmlDocument> documentXml_
+        -unique_ptr<XmlDocument> pagesXml_
+        -unique_ptr<Relationships> pagesRelationships_
+        -MasterLibrary masters_
+        -Renderer renderer_
+        -VsdxWriter writer_
+        -Validator validator_
+    }
+
+    class Document {
+        +create(options) Document
+        +fromDiagrams(diagrams, options) Document
+        +open(path) Document
+        +pageIds() PageId[]
+        +page(id) Page
+        +addPage(spec) Page
+        +removePage(id)
+        +validate() ValidationReport
+        +save(path)
+        -DocumentCore core_
+    }
+
+    %% DiagramType 保持 vsdx（VSDX/模具域枚举）
+    class DiagramType {
+        <<enumeration>>
+        Auto
+        Basic
+        Flowchart
+        Class
+        Sequence
+        ER
+        Gantt
+        Timeline
+        Calendar
+    }
+
+    class CreateOptions {
+        +double outputScale
+        +double marginLeft
+        +double marginRight
+        +double marginTop
+        +double marginBottom
+        +bool useConnectorMaster
+        +DiagramType diagramType
+    }
+
+    %% 公共 DTO（仅 API 边界，引用 model::ShapeStyle）
+    class ShapeSpec {
+        +string logicalId
+        +string text
+        +NodeShape kind
+        +double x
+        +double y
+        +double width
+        +double height
+        +ShapeStyle style
+        +double[] dividers
+    }
+
+    class ConnectorSpec {
+        +string logicalId
+        +ShapeId source
+        +ShapeId target
+        +string text
+        +Point[] waypoints
+        +EdgeStyle style
+        +ArrowType arrowHead
+        +ArrowType arrowTail
+        +string fromMultiplicity
+        +string toMultiplicity
+    }
+
+    class PageSpec {
+        +string name
+        +double width
+        +double height
+    }
+
+    class ValidationSeverity {
+        <<enumeration>>
+        Warning
+        Error
+    }
+
+    class ValidationIssue {
+        +ValidationSeverity severity
+        +string code
+        +string partUri
+        +string xmlPath
+        +string message
+    }
+
+    %% 坐标变换（使用方为 fromDiagrams）
+    class PageMargins {
+        +double left
+        +double right
+        +double top
+        +double bottom
+    }
+
+    class PagePoint {
+        +double x
+        +double y
+    }
+
+    class PageBounds {
+        +double minX
+        +double minY
+        +double maxX
+        +double maxY
+    }
+
+    %% 另有 point(const Point&) 重载
+    class CoordinateTransform {
+        +CoordinateTransform(diagram, outputScale, margins)
+        +point(x, y) PagePoint
+        +length(px) double
+        +pageWidth() double
+        +pageHeight() double
+        +sourceBounds() PageBounds
+    }
+
+    %% 便捷入口
+    class writeVsdx {
+        <<function>>
+        +writeVsdx(path, diagram, options)
+        +writeVsdx(path, diagrams, options)
+    }
+}
+
+%% ── 2b. model：内部文档对象模型 + 值类型 ──
+namespace model {
+
+    %% 样式值类型（下沉，供 api DTO 与内部模型共用）
+    class ShapeStyle {
+        +string fillColor
+        +string lineColor
+        +string textColor
+        +double lineWidthPoints
+        +double fontSizePoints
+    }
+
+    class DocumentModel {
+        +page(id) PageModel
+        +addPage(spec) PageModel
+        +removePage(id)
+        +uniquePageName(requested) string
+        +markDirty(id)
+        +pageIds() PageId[]
+        +PageModel[] pages
+        +PageId nextPageId
+        +bool needsRecalculation
+    }
+
+    class PageModel {
+        +shape(id) ShapeModel
+        +addShape(shape) ShapeModel
+        +removeShape(id)
+        +connector(id) ConnectorModel
+        +addConnector(connector) ConnectorModel
+        +removeConnector(id)
+        +PageId id
+        +string name
+        +double width
+        +double height
+        +PartUri partUri
+        +string relationshipId
+        +unique_ptr<XmlDocument> xml
+        +xmlNodePtr metadataNode
+        +xmlNodePtr shapesNode
+        +xmlNodePtr connectsNode
+        +ShapeId nextShapeId
+        +ShapeModel[] shapes
+        +ConnectorModel[] connectors
+    }
+
+    class ShapeModel {
+        +ShapeId id
+        +string logicalId
+        +string text
+        +NodeShape kind
+        +double x
+        +double y
+        +double width
+        +double height
+        +ShapeStyle style
+        +bool managed
+        +string masterId
+        +double[] dividers
+        +xmlNodePtr node
+    }
+
+    class ConnectorModel {
+        +ShapeId id
+        +string logicalId
+        +string text
+        +ShapeId source
+        +ShapeId target
+        +Point[] waypoints
+        +EdgeStyle style
+        +ArrowType arrowHead
+        +ArrowType arrowTail
+        +string fromMultiplicity
+        +string toMultiplicity
+        +bool managed
+        +xmlNodePtr node
+        +xmlNodePtr beginConnect
+        +xmlNodePtr endConnect
+    }
+}
+
+%% ── 2c. render：渲染策略族（替代 render_dispatch 自由函数）──
+namespace render {
+
+    %% 接口贴合增量渲染语义（addShape 即渲染，公共行为不变）
+    class Renderer {
+        <<interface>>
+        +renderShape(page, shape) void
+        +renderConnector(page, connector) void
+        +refreshConnectors(page, shapeId) void
+    }
+
+    class RendererFactory {
+        +create(type) Renderer
+    }
+
+    class FlowchartRenderer {
+        +renderShape(page, shape) void
+        +renderConnector(page, connector) void
+        +refreshConnectors(page, shapeId) void
+    }
+
+    class ClassDiagramRenderer {
+        +renderShape(page, shape) void
+        +renderConnector(page, connector) void
+        +refreshConnectors(page, shapeId) void
+    }
+
+    class ERRenderer {
+        +renderShape(page, shape) void
+        +renderConnector(page, connector) void
+        +refreshConnectors(page, shapeId) void
+    }
+
+    %% 连接线绑定（原 connector_helpers 6 函数，不含 erMultiplicityText）
+    class ConnectorBinder {
+        +bind(source, target, waypoints) ConnectorBinding
+        +choosePort(shape, dx, dy) PortBinding
+        +cleanWaypoints(points) Point[]
+        +arrowValue(arrow) int
+        +setConnect(connect, connectorId, fromCell, fromPart, targetId)
+    }
+
+    %% 绑定结果 struct
+    class PortBinding {
+        +unsigned index
+        +string cell
+        +int toPart
+        +Point point
+    }
+
+    class ConnectorBinding {
+        +PortBinding begin
+        +PortBinding end
+        +Point[] path
+    }
+}
+
+%% ── 2d. masters：母版服务（替代 stencil_helpers + LoadedStencil，有状态）──
+namespace masters {
+
+    class MasterInfo {
+        +string nameU
+        +string name
+        +int masterType
+        +int originalId
+        +string relId
+        +string fileName
+    }
+
+    class MasterSelection {
+        +string stencil
+        +string[] nameUs
+    }
+
+    %% 有状态类：模具缓存 + 选择 + 映射 + 打包（含 resolveDiagramType）
+    class MasterLibrary {
+        +load(stencil) void
+        +selectForType(type) MasterSelection
+        +resolveDiagramType(requested, diagrams) DiagramType
+        +masterNameForShape(type, kind) string
+        +masterChildShapeIds(nameU) int[]
+        +pack(package, selection) map<string,int>
+        +mergeStyles(document, stylesXml)
+        +masterIdFor(nameU) int
+        +officeStencilPath(fileName) string
+        -map<string,LoadedStencil> cache_
+    }
+
+    class LoadedStencil {
+        +string name
+        +MasterInfo[] masters
+        +string mastersXml
+        +map<string,string> contents
+        +string stylesXml
+    }
+}
+
+%% ── 2e. io：序列化（写 + 读 + 校验 + XML 构建）──
+namespace io {
+
+    %% 低层 XML 构建器（原 ~39 个自由函数类化，清单补全）
+    class XmlBuilder {
+        +appendCell(parent, name, value)
+        +appendTextChild(parent, ns, localName, value)
+        +setNumericCell(sheet, name, value, unit, formula)
+        +setStringCell(sheet, name, value, unit)
+        +setNamespacedAttribute(node, ns, localName, value)
+        +namespacedAttribute(node, localName, uri) string
+        +appendSection(shape, name, index)
+        +appendRow(section, type, index, name)
+        +appendNamedRow(section, name)
+        +ensureNamespace(doc, root, uri, prefix)
+        +directChild(parent, ns, localName) xmlNodePtr
+        +directCell(sheet, name) xmlNodePtr
+        +directSection(sheet, name, index) xmlNodePtr
+        +insertSheetChild(sheet, localName) xmlNodePtr
+        +number(value) string
+        +xmlString(value) string
+        +namespaceUri(node) string
+        +cellValue(sheet, name) string
+        +parseDouble(value, fallback) double
+        +parseId(value, context) uint32
+        +replaceShapeText(shape, text)
+        +shapeText(shape) string
+        +findMermaidIdRow(shape, ns) xmlNodePtr
+        +validColor(value) bool
+        +validateStyle(style)
+    }
+
+    %% 文档部件工厂（原 create*Xml 自由函数）
+    class DocumentParts {
+        +createDocumentXml() XmlDocument
+        +createPagesXml() XmlDocument
+        +createPageXml() XmlDocument
+        +createAppProperties() XmlDocument
+        +createCoreProperties() XmlDocument
+        +createWindowsXml(type) XmlDocument
+        +createCustomProperties() XmlDocument
+    }
+
+    %% 模型 → OPC 部件（原 flushXmlParts/ensureRecalc/repair + 原子保存）
+    class VsdxWriter {
+        +write(model, package) void
+        +flushPages(model, package) void
+        +ensureRecalc(model, package) void
+        +repairReferences(model, package, removedId) void
+        +saveAtomic(package, path) void
+        +isSupportedVisioNamespace(value) bool
+    }
+
+    %% 包 → 模型（新增，对应 openImpl 反序列化）
+    class VsdxReader {
+        +read(package) DocumentModel
+        +parsePage(package, partUri) PageModel
+    }
+
+    class Validator {
+        +validate(model) ValidationReport
+    }
+}
+
+%% ═══════════════════ L3 parse：解析基础设施 ═══════════════════
+namespace parse {
+
+    class IParser {
+        <<interface>>
+        +parse(text) Diagram
+    }
+
+    %% 实现 IParser（原 Engine + jsonToDiagram）
+    class MermaidParser {
+        +MermaidParser(nodePath, scriptPath)
+        +parse(text) Diagram
+        -NodeJsProcess process_
+    }
+
+    %% 原 NodeProcess（Windows 子进程）
+    class NodeJsProcess {
+        +start()
+        +send(text) string
+        +isRunning() bool
+        +stop()
+        -startProcess()
+        -readLine() string
+        -cleanup()
+    }
+}
+
+%% ═══════════════════ L4 app：应用门面 ═══════════════════
+namespace app {
+
+    %% 原 mermaidc_API；持 IParser 接口（DIP）；对外保留自由函数薄包装
+    class Mermaid {
+        +initialize()
+        +parse(text) Diagram
+        +shutdown()
+        -IParser parser_
+    }
+}
+
+%% ═══════════════════════════ 关系（单向向下，无环） ═══════════════════════════
+
+%% ── 0. 标准库 ──
+class runtime_error {
+    <<external>>
+}
+
+%% ── 1. core：IR 组合 ──
+Diagram *-- Node : nodes
+Diagram *-- Edge : edges
+Diagram *-- Cluster : clusters
+Diagram *-- BoundingBox : bounds
+Edge *-- Point : waypoints
+Node *-- NodeShape : shape 成员
+Edge *-- EdgeStyle : style 成员
+Edge *-- ArrowType : 箭头类型
+Error *-- ErrorCode : code 成员
+runtime_error <|-- Error
+
+%% ── 2. opc：容器组合与依赖 ──
+Package *-- OpcPart : parts_
+Package *-- ContentTypes : contentTypes_
+Package ..> Relationships : 序列化/解析
+Package ..> ZipArchive : open/save
+Package ..> ZipLimits : 安全限制
+Package ..> PartUri : 部件键
+Relationships *-- Relationship : items_
+Relationships *-- XmlDocument : 文档模型
+Relationships ..> PartUri : resolveTarget
+Relationships ..> XmlUtils : 属性操作
+ContentTypes *-- XmlDocument : 文档模型
+ContentTypes ..> XmlUtils : 属性操作
+ContentTypes ..> PartUri : contentTypeFor
+ZipArchive ..> ZipEntry : 读写条目
+ZipArchive ..> ZipLimits : 安全限制
+ZipArchive ..> ZipError : 失败抛出
+Relationship *-- RelationshipTargetMode : targetMode 成员
+ZipEntry *-- ZipCompression : compression 成员
+OpcPart *-- ZipCompression : compression 成员
+ZipError *-- ZipErrorCode : code 成员
+runtime_error <|-- ZipError
+
+%% ── 3. api：公共门面（依赖各服务）──
+Document *-- DocumentCore : Pimpl（聚合）
+DocumentCore *-- DocumentModel : 模型
+DocumentCore *-- Package : OPC 包（opc）
+DocumentCore *-- XmlDocument : unique_ptr (documentXml/pagesXml)
+DocumentCore *-- MasterLibrary : 母版服务
+DocumentCore ..> Renderer : 渲染委托（接口）
+DocumentCore ..> VsdxWriter : 写盘委托
+DocumentCore ..> Validator : 校验委托
+DocumentCore ..> CoordinateTransform : fromDiagrams 换算
+Document ..> Page : page(id) 返回句柄
+Document ..> CreateOptions : create/fromDiagrams
+Document ..> PageSpec : addPage
+Document ..> ValidationIssue : validate 返回
+Page ..> Shape : shape(id) 返回句柄
+Page ..> Connector : connector(id) 返回句柄
+Page ..> ShapeSpec : addShape 参数
+Page ..> ConnectorSpec : addConnector 参数
+writeVsdx ..> Document : 便捷入口
+ValidationIssue *-- ValidationSeverity : severity 成员
+CreateOptions *-- DiagramType : diagramType 成员
+CoordinateTransform ..> Diagram : 构造输入（core）
+CoordinateTransform *-- PageMargins : margins 成员
+CoordinateTransform ..> PagePoint : point 返回
+CoordinateTransform *-- PageBounds : sourceBounds 成员
+
+%% ── 句柄反向指针（句柄类持 DocumentCore*）──
+Page ..> DocumentCore : 句柄指针
+Shape ..> DocumentCore : 句柄指针
+Connector ..> DocumentCore : 句柄指针
+
+%% ── 4. model：内部模型（依赖 core + opc）──
+DocumentModel *-- PageModel : pages
+PageModel *-- ShapeModel : shapes
+PageModel *-- ConnectorModel : connectors
+PageModel *-- XmlDocument : unique_ptr (xml)
+PageModel *-- PartUri : partUri
+ShapeModel *-- ShapeStyle : style 成员
+ConnectorModel *-- ShapeStyle : style 成员
+ShapeSpec ..> ShapeStyle : DTO 引用（api→model）
+Shape ..> ShapeStyle : setStyle 参数（api→model）
+
+%% ── 5. render：渲染策略（依赖 model + io + masters + core）──
+FlowchartRenderer ..|> Renderer : 实现
+ClassDiagramRenderer ..|> Renderer : 实现
+ERRenderer ..|> Renderer : 实现
+RendererFactory ..> Renderer : 创建
+Renderer ..> PageModel : 输出（model）
+Renderer ..> ShapeModel : 输出（model）
+Renderer ..> ConnectorModel : 输出（model）
+FlowchartRenderer ..> ConnectorBinder : 连接线绑定
+ClassDiagramRenderer ..> ConnectorBinder : 连接线绑定
+ERRenderer ..> ConnectorBinder : 连接线绑定
+Renderer ..> MasterLibrary : 母版名解析
+Renderer ..> XmlBuilder : 几何/单元写入（io）
+ConnectorBinder ..> ShapeModel : 端口解析
+ConnectorBinder ..> PortBinding : choosePort 返回
+ConnectorBinder ..> ConnectorBinding : bind 返回
+
+%% ── 6. masters：母版服务（依赖 opc + core）──
+MasterLibrary ..> MasterInfo : 元数据
+MasterLibrary ..> MasterSelection : selectForType
+MasterLibrary ..> LoadedStencil : 缓存
+MasterLibrary ..> Package : pack 写入（opc）
+MasterLibrary ..> DiagramType : 选择/推导（api）
+LoadedStencil *-- MasterInfo : masters
+
+%% ── 7. io：序列化（依赖 model + opc + masters）──
+VsdxWriter ..> DocumentModel : 读模型
+VsdxWriter ..> PageModel : 读页
+VsdxWriter ..> Package : 写 OPC（opc）
+VsdxWriter ..> XmlBuilder : 构建 XML
+VsdxWriter ..> MasterLibrary : 母版
+VsdxWriter ..> XmlDocument : 产出（opc）
+VsdxReader ..> Package : 读 OPC（opc）
+VsdxReader ..> DocumentModel : 产出
+VsdxReader ..> PageModel : 产出
+VsdxReader ..> XmlDocument : 解析（opc）
+DocumentParts ..> XmlBuilder : 构建
+DocumentParts ..> XmlDocument : 产出（opc）
+XmlBuilder ..> XmlDocument : 产出（opc）
+XmlBuilder ..> XmlUtils : 复用（opc）
+Validator ..> DocumentModel : 校验
+Validator ..> ValidationIssue : 报告
+
+%% ── 8. parse：解析基础设施（依赖 core）──
+MermaidParser ..|> IParser : 实现
+MermaidParser *-- NodeJsProcess : 子进程
+MermaidParser ..> Diagram : 解析返回（core）
+MermaidParser ..> Error : 抛出（core）
+NodeJsProcess ..> Error : 抛出（core）
+
+%% ── 9. app：应用门面（依赖 IParser 接口，DIP）──
+Mermaid ..> IParser : 依赖接口
+Mermaid ..> Diagram : parse 返回（core）
+Mermaid ..> Error : 异常传播（core）

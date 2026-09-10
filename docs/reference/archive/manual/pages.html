@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>pages.xml &amp; pageN.xml</title>
+<style>:root{--bg:#1a1a2e;--fg:#e0e0e0;--accent:#4fc3f7;--border:#333;--code-bg:#16213e}body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--fg);margin:0;display:flex}nav{width:260px;background:#0f0f1a;padding:20px;border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto}nav h2{color:var(--accent);font-size:16px}nav a{display:block;color:#aaa;text-decoration:none;padding:6px 0 6px 12px;font-size:14px;border-left:2px solid transparent}nav a:hover,nav a.active{color:var(--accent);border-left-color:var(--accent)}main{flex:1;padding:30px 50px;max-width:900px}h1{color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:10px}h2{color:#82b1ff;margin-top:30px}code{background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px}pre{background:var(--code-bg);padding:15px;border-radius:6px;overflow-x:auto;font-size:13px}table{border-collapse:collapse;width:100%;margin:15px 0}th,td{border:1px solid var(--border);padding:8px 12px;font-size:14px}th{background:#1a1a3e;color:var(--accent)}</style></head><body>
+<nav><h2>VSDX 格式手册</h2><a href="index.html">总览</a><a href="structure.html">1. ZIP/OPC</a><a href="content-types.html">2. Content Types</a><a href="rels.html">3. Relationships</a><a href="document.html">4. document.xml</a><a href="pages.html" class="active">5. pages</a><a href="masters.html">6. Masters</a><a href="shapes.html">7. Shape</a><a href="connectors.html">8. Connector</a><a href="cells.html">9. Cell/Section/Row</a><a href="text-position.html">10. 文本定位</a><a href="windows.html">11. windows.xml</a><a href="custom.html">12. custom.xml</a></nav>
+<main>
+<h1>5. pages.xml &amp; pageN.xml</h1>
+
+<h2>pages.xml — 页面索引</h2>
+<pre>&lt;Pages xmlns="...visio/2012/main"
+       xmlns:r="...relationships"&gt;
+  &lt;Page ID="0" NameU="Page-1" Name="Page-1"
+        ViewScale="1" ViewCenterX="4.25" ViewCenterY="5.5"&gt;
+    &lt;PageSheet LineStyle="0" FillStyle="0" TextStyle="0"&gt;
+      &lt;Cell N="PageWidth" V="8.5" U="IN"/&gt;
+      &lt;Cell N="PageHeight" V="11" U="IN"/&gt;
+      &lt;Cell N="PageScale" V="1" U="IN"/&gt;
+      &lt;Cell N="DrawingScale" V="1" U="IN"/&gt;
+      &lt;Cell N="DrawingSizeType" V="0"/&gt;
+      &lt;Cell N="DrawingScaleType" V="0"/&gt;
+      &lt;Cell N="InhibitSnap" V="0"/&gt;
+      &lt;Cell N="UIVisibility" V="0"/&gt;
+      &lt;Cell N="DrawingResizeType" V="1"/&gt;
+      &lt;Cell N="PlaceStyle" V="2"/&gt;
+      &lt;Cell N="RouteStyle" V="6"/&gt;
+      &lt;Cell N="PageShapeSplit" V="1"/&gt;
+    &lt;/PageSheet&gt;
+    &lt;Rel r:id="rId1"/&gt;  &lt;!-- 指向 page1.xml --&gt;
+  &lt;/Page&gt;
+&lt;/Pages&gt;</pre>
+
+<h2>pageN.xml — 页面内容</h2>
+<pre>&lt;PageContents xmlns="...visio/2012/main"
+              xmlns:r="...relationships"&gt;
+  &lt;Shapes&gt;
+    &lt;Shape ID="1" ...&gt;...&lt;/Shape&gt;
+    ...
+  &lt;/Shapes&gt;
+  &lt;Connects&gt;
+    &lt;Connect FromSheet="5" FromCell="BeginX" FromPart="9"
+             ToSheet="1" ToCell="Connections.X2" ToPart="101"/&gt;
+    ...
+  &lt;/Connects&gt;
+&lt;/PageContents&gt;</pre>
+
+<h2>页面尺寸单位</h2>
+<p>PageWidth/PageHeight 使用英寸 (U="IN")。坐标系统中 Y 轴向下增加，需要做 Y 翻转转换。</p>
+</main></body></html>

@@ -1,0 +1,159 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：opcpkg（OPC 打包模块）类图（v2 修正版）
+%%
+%% 本图 = 模块重构验收标准与实现参考。
+%%
+%% 设计：单例打包器。XmlParts（XML 部件集合）进，.vsdx 文件出。
+%%   XmlParts(vsdxdoc 输出) -> OpcPackager.pack() -> .vsdx 文件
+%%
+%% v2 变化（docs/architecture/interface-contract.md）：
+%%   - xml 子域（XmlDocument/XmlUtils）已拆出为独立模块 src/xml/
+%%     （命名空间 xml::），opcpkg 仅引用，不再拥有
+%%   - XmlParts 契约归 core（core/xmlparts.hpp），opcpkg 消费使用
+%%
+%% 职责：OPC 容器（通用，docx/xlsx/vsdx 通用）：
+%%   - 部件管理（增删查）
+%%   - ContentTypes / Relationships 自动维护
+%%   - PartUri 路径规范
+%%   - ZIP 序列化（最终 .vsdx 落盘）
+%%
+%% 门面边界（验收红线）：
+%%   - 对外只暴露 OpcPackager（单例）
+%%   - 内部 container/uri/rels/ct/zip 子域全隐藏
+%%   - 不依赖 vsdxdoc（不关心 VSDX 语义，只收 XmlParts）
+%%   - 依赖 core（XmlParts/Error）+ xml（XmlDocument）
+%%
+%% 内部子域（对应 OPC 规范组成）：
+%%   container  OPC 容器：Package + OpcPart
+%%   uri        部件路径：PartUri
+%%   rels       关系：Relationships + Relationship
+%%   ct         内容类型：ContentTypes
+%%   zip        ZIP 读写：ZipArchive + ZipEntry + ZipLimits
+%%
+%% 标准 UML 约定：<<singleton>> / <<interface>>
+%% 组合 *-- | 依赖 ..> | namespace 不作关系端点 | 泛型不含量逗号
+%% ============================================================
+classDiagram
+direction TB
+
+%% ================ 门面（单例打包器） ================
+class OpcPackager {
+    <<singleton>>
+    +shared() OpcPackager
+    +pack(xmlParts: XmlParts, path: filesystem~path~)
+    +open(path: filesystem~path~) Package
+}
+%% pack：XmlParts 进 -> OPC 规范化 + ZIP -> .vsdx 文件
+%% open：读取已有 .vsdx（测试/读取链用）
+
+%% ================ 输入类型（core 契约） ================
+class XmlParts {
+    <<core 契约>>
+    +parts: vector~XmlPart~
+}
+%% XmlParts 定义于 core/xmlparts.hpp（v2 归属 core），vsdxdoc 输出、opcpkg 消费
+
+%% ================ container：OPC 容器 ================
+namespace container {
+    class Package {
+        +addPart(uri: PartUri, contentType: string, payload: bytes)
+        +removePart(uri: PartUri)
+        +contains(uri: PartUri) bool
+        +part(uri: PartUri) OpcPart
+        +partUris() vector~PartUri~
+        +relationships(source: PartUri) Relationships
+        +setRelationships(rels: Relationships)
+        +contentTypes() ContentTypes
+        +validate()
+        +save(path: filesystem~path~)
+    }
+    class OpcPart {
+        +uri: PartUri
+        +contentType: string
+        +payload: bytes
+        +compression: ZipCompression
+        +dirty: bool
+    }
+}
+%% Package = 内存 OPC 容器（addPart 自动登记 ContentTypes，
+%% setRelationships 自动生成 _rels，save 时 ZIP 序列化）
+
+%% ================ uri：部件路径 ================
+namespace uri {
+    class PartUri {
+        +parse(value: string_view) PartUri
+        +resolve(source: PartUri, target: string_view) PartUri
+        +packageRelationships() PartUri
+        +relationshipsUri() PartUri
+        +string() string
+    }
+}
+
+%% ================ rels：关系 ================
+namespace rels {
+    class Relationships {
+        +parse(payload: bytes, source: PartUri) Relationships
+        +create(source: PartUri) Relationships
+        +findById(id: string) Relationship
+        +findByType(type: string) vector~Relationship~
+        +resolveTarget(rel: Relationship) PartUri
+        +serialize() bytes
+    }
+    class Relationship {
+        +id: string
+        +type: string
+        +target: string
+        +targetMode: RelationshipTargetMode
+    }
+}
+
+%% ================ ct：内容类型 ================
+namespace ct {
+    class ContentTypes {
+        +parse(payload: bytes) ContentTypes
+        +create() ContentTypes
+        +contentTypeFor(part: PartUri) string
+        +setDefault(ext: string, contentType: string)
+        +setOverride(part: PartUri, contentType: string)
+        +removeOverride(part: PartUri)
+        +serialize() bytes
+    }
+}
+%% [Content_Types].xml 的维护者（.vsdx 合法性的骨架）
+
+%% ================ zip：ZIP 读写 ================
+namespace zip {
+    class ZipArchive {
+        +read(path: filesystem~path~, limits: ZipLimits) vector~ZipEntry~
+        +write(path: filesystem~path~, entries: vector~ZipEntry~, limits: ZipLimits)
+    }
+    class ZipEntry {
+        +name: string
+        +data: bytes
+        +compression: ZipCompression
+    }
+    class ZipLimits {
+        +maxEntries: size
+        +maxArchiveBytes: u64
+        +maxEntryBytes: u64
+    }
+}
+
+%% ================= 关系 =================
+OpcPackager *-- Package : 使用容器
+OpcPackager ..> XmlParts : 输入（core 契约）
+Package *-- OpcPart : 部件表
+Package *-- ContentTypes : 持有
+Package ..> Relationships : 关系
+Package ..> PartUri : 部件路径
+Package ..> ZipArchive : 打包/解包
+ContentTypes ..> XmlDocument : xml 模块（src/xml/）
+Relationships ..> XmlDocument : xml 模块（src/xml/）
+Relationships *-- Relationship : 条目
+ZipArchive ..> ZipEntry
+ZipArchive ..> ZipLimits
+
+%% ================= 跨模块（core / xml） =================
+OpcPackager ..> XmlParts : core
+ContentTypes ..> XmlDocument : xml
+Relationships ..> XmlDocument : xml

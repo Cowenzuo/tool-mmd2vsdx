@@ -1,0 +1,67 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：mmdparse（Mermaid 解析模块）类图（标准 UML 结构）
+%%
+%% 本图 = 模块重构验收标准与实现参考。
+%%
+%% 门面模式设计（单例门面 + 内部闭环）：
+%%   - 门面：Parser（<<singleton>>，模块唯一对外入口）
+%%   - 接口极简：parse(mmd) -> Diagram；失败抛 Error；shutdown() 释放进程
+%%   - 内部闭环：Parser 持有常驻 NodeJsProcess（HTTP 客户端，托管
+%%     mermaid-snapshot 服务子进程，多次 parse 复用同一服务/Chromium，
+%%     Node.js 无需每任务启动一次）+ jsonToDiagram（JSON -> Diagram）
+%%   - 跨模块：app 只依赖 Parser::shared()；禁止接触 NodeJsProcess/jsonToDiagram
+%%
+%% 命名空间：mmd2vsdx::mmdparse（当前物理位置 src/mmdparse/）
+%% core 依赖：Diagram / Error / NodeShape / EdgeStyle / ArrowType / DiagramType
+%%
+%% 标准 UML 约定：
+%%   <<singleton>> 单例  |  <<function>> 自由函数
+%%   组合 *--  |  依赖 ..>  |  属性 +可见性名: 类型  |  方法 +名(参数) 返回类型
+%% ============================================================
+classDiagram
+direction TB
+
+%% ---- 门面（单例）----
+class Parser {
+    <<singleton>>
+    -process_: NodeJsProcess
+    +shared() Parser
+    +parse(text: string_view) Diagram
+    +shutdown()
+}
+%% Parser 私有构造（单例）；shared() 返回全局唯一实例（单一 Node.js 子进程）
+
+%% ---- 内部：mermaid-snapshot HTTP 服务客户端 ----
+class NodeJsProcess {
+    -nodePath_: string
+    -scriptPath_: string
+    -port_: int
+    -started_: bool
+    +start()
+    +send(text: string_view) string
+    +isRunning() bool
+    +stop()
+}
+%% NodeJsProcess 内部还含 Windows 句柄（hProcess_/hThread_/hStdOutRead_）
+%% 托管：CreateProcess 拉起 `node snapshot.mjs --http --port 0`（动态端口），
+%% 通信经 WinHTTP POST /convert；进程随 Parser 生命周期存活，崩溃自动重启
+
+%% ---- 内部：JSON 转换 ----
+class jsonToDiagram {
+    <<function>>
+    +jsonToDiagram(j: json) Diagram
+}
+%% jsonToDiagram 内部映射表：kShapeMap / kEdgeStyleMap / kArrowMap
+
+%% ---- 模块内关系 ----
+Parser *-- NodeJsProcess : 持有
+Parser ..> jsonToDiagram : 调用
+
+%% ---- core 依赖 ----
+Parser ..> Diagram : 产出
+Parser ..> Error : 抛出
+NodeJsProcess ..> Error : 抛出
+Parser ..> DiagramType : 产出类型
+jsonToDiagram ..> NodeShape : 映射
+jsonToDiagram ..> EdgeStyle : 映射
+jsonToDiagram ..> ArrowType : 映射

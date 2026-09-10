@@ -1,0 +1,77 @@
+%% io.mmd — io 层：序列化（写盘）（src/vsdx/io/）
+%% 跨模块依赖：model（DocumentCore 等）、masters（MasterLibrary）、opc（Package/XmlUtils）
+%% 注意：读取链（VsdxReader）已移出主库 → tests/vsdx_reader.*（仅测试/校对用）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+%% P6a：低层 XML 构建（写方向；读取专用函数已随读取链移出主库）
+class XmlBuilder {
+    <<static>>
+    +number(value) string
+    +xmlString(value) string
+    +namespaceUri(node) string
+    +appendChild(parent, localName) xmlNodePtr
+    +appendTextChild(parent, ns, localName, value) xmlNodePtr
+    +ensureNamespace(doc, root, uri, prefix) xmlNsPtr
+    +setNamespacedAttribute(node, ns, name, value)
+    +directChild(parent, ns, localName) xmlNodePtr
+    +appendCell(parent, name, value...) xmlNodePtr
+    +parseDouble(value, fallback) double
+    +directCell(sheet, name) xmlNodePtr
+    +insertSheetChild(sheet, localName) xmlNodePtr
+    +setNumericCell(sheet, name, value...) xmlNodePtr
+    +setStringCell(sheet, name, value...) xmlNodePtr
+    +appendSection(shape, name) xmlNodePtr
+    +appendRow(section, type, index) xmlNodePtr
+    +appendNamedRow(section, name) xmlNodePtr
+    +replaceShapeText(shape, text)
+}
+
+%% P6b：文档部件工厂（create*Xml + addPageMetadata）
+class DocumentParts {
+    <<static>>
+    +createDocumentXml() XmlDocument
+    +createPagesXml() XmlDocument
+    +createPageXml() XmlDocument
+    +createAppProperties() XmlDocument
+    +createCoreProperties() XmlDocument
+    +createWindowsXml(type) XmlDocument
+    +createCustomProperties() XmlDocument
+    +officeStencilPath(fileName) string
+    +addPageMetadata(core, page) xmlNodePtr
+    -stencilFileForType(type) string
+}
+
+%% P6c：参数/模型校验
+class Validator {
+    <<static>>
+    +validColor(value) bool
+    +validateStyle(style)
+    +validateShapeBounds(x, y, w, h)
+}
+
+%% P6d：写盘（create/save/flushXmlParts/ensureRecalc/repair/replace）
+class VsdxWriter {
+    <<static>>
+    +create(options) unique_ptr<DocumentCore>
+    +save(core, path)
+    +flushXmlParts(core)
+    +ensureRecalcDocument(core)
+    +repairPageReferences(core, removedId)
+    +isSupportedVisioNamespace(value) bool
+    +temporarySibling(target) path
+    +replaceFile(temporary, target)
+}
+
+%% ── io 内部关系 ──
+VsdxWriter ..> DocumentParts : 组装部件
+VsdxWriter ..> XmlBuilder : 低层构建
+VsdxWriter ..> Validator : save 前校验
+DocumentParts ..> XmlBuilder : 部件构建
+
+%% ── 跨模块（标注，不画连线）──
+%% VsdxWriter ..> MasterLibrary : 打包母版（masters）
+%% VsdxWriter ..> DocumentCore : 操作 impl（detail）
+%% DocumentParts ..> XmlUtils : 属性设置（opc）
+%% Document ..> VsdxWriter : 创建与保存委托（api 依赖本层）

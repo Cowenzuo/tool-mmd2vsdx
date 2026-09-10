@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>Connector 连接线</title>
+<style>:root{--bg:#1a1a2e;--fg:#e0e0e0;--accent:#4fc3f7;--border:#333;--code-bg:#16213e}body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--fg);margin:0;display:flex}nav{width:260px;background:#0f0f1a;padding:20px;border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto}nav h2{color:var(--accent);font-size:16px}nav a{display:block;color:#aaa;text-decoration:none;padding:6px 0 6px 12px;font-size:14px;border-left:2px solid transparent}nav a:hover,nav a.active{color:var(--accent);border-left-color:var(--accent)}main{flex:1;padding:30px 50px;max-width:900px}h1{color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:10px}h2{color:#82b1ff;margin-top:30px}h3{color:#b388ff}code{background:var(--code-bg);padding:2px 6px;border-radius:3px;font-size:13px}pre{background:var(--code-bg);padding:15px;border-radius:6px;overflow-x:auto;font-size:13px}table{border-collapse:collapse;width:100%;margin:15px 0}th,td{border:1px solid var(--border);padding:8px 12px;font-size:14px}th{background:#1a1a3e;color:var(--accent)}.note{background:#1b3a1b;border-left:4px solid #4caf50;padding:10px 15px;margin:15px 0}.warn{background:#3a2a1b;border-left:4px solid #ff9800;padding:10px 15px;margin:15px 0}.diff{background:#2a1a3a;border-left:4px solid #e040fb;padding:10px 15px;margin:15px 0}</style></head><body>
+<nav><h2>VSDX 格式手册</h2><a href="index.html">总览</a><a href="structure.html">1. ZIP/OPC</a><a href="content-types.html">2. Content Types</a><a href="rels.html">3. Relationships</a><a href="document.html">4. document.xml</a><a href="pages.html">5. pages</a><a href="masters.html">6. Masters</a><a href="shapes.html">7. Shape</a><a href="connectors.html" class="active">8. Connector</a><a href="cells.html">9. Cell/Section/Row</a><a href="text-position.html">10. 文本定位</a><a href="windows.html">11. windows.xml</a><a href="custom.html">12. custom.xml</a></nav>
+<main>
+<h1>8. Connector 连接线</h1>
+
+<h2>Visio 手动添加的连接器（完整 XML 示例）</h2>
+<pre>&lt;Shape ID='7' NameU='Dynamic connector' Name='Dynamic connector'
+       Type='Shape' Master='4'&gt;
+  &lt;Cell N='PinX' V='10.27' U='IN' F='Inh'/&gt;
+  &lt;Cell N='PinY' V='0.867' U='IN' F='Inh'/&gt;
+  &lt;Cell N='Width' V='5.29' U='IN' F='GUARD(EndX-BeginX)'/&gt;
+  &lt;Cell N='Height' V='0.245' U='IN' F='GUARD(EndY-BeginY)'/&gt;
+  &lt;Cell N='LocPinX' V='2.65' U='IN' F='Inh'/&gt;
+  &lt;Cell N='LocPinY' V='0.122' U='IN' F='Inh'/&gt;
+  &lt;Cell N='BeginX' V='7.625' U='IN'
+         F='PAR(PNT(Sheet.1!Connections.X3,Sheet.1!Connections.Y3))'/&gt;
+  &lt;Cell N='BeginY' V='0.745' U='IN'
+         F='PAR(PNT(Sheet.1!Connections.X3,Sheet.1!Connections.Y3))'/&gt;
+  &lt;Cell N='EndX' V='12.917' U='IN'
+         F='PAR(PNT(Sheet.2!Connections.X3,Sheet.2!Connections.Y3))'/&gt;
+  &lt;Cell N='EndY' V='0.990' U='IN'
+         F='PAR(PNT(Sheet.2!Connections.X3,Sheet.2!Connections.Y3))'/&gt;
+  &lt;Cell N='LayerMember' V=''/&gt;
+  &lt;Cell N='BegTrigger' V='2'
+         F='_XFTRIGGER(Sheet.1!EventXFMod)'/&gt;
+  &lt;Cell N='EndTrigger' V='2'
+         F='_XFTRIGGER(Sheet.2!EventXFMod)'/&gt;
+  &lt;Cell N='TxtPinX' V='2.768' F='Inh'/&gt;
+  &lt;Cell N='TxtPinY' V='-0.1875' F='Inh'/&gt;
+  &lt;Cell N='TxtHeight' V='0.200' F='Inh'/&gt;
+  &lt;Cell N='TxtLocPinY' V='0.100' F='Inh'/&gt;
+
+  &lt;Section N='Control'&gt;
+    &lt;Row N='TextPosition'&gt;
+      &lt;Cell N='X' V='2.768'/&gt;
+      &lt;Cell N='Y' V='-0.1875'/&gt;
+      &lt;Cell N='XDyn' V='2.768' F='Inh'/&gt;
+      &lt;Cell N='YDyn' V='-0.1875' F='Inh'/&gt;
+    &lt;/Row&gt;
+  &lt;/Section&gt;
+
+  &lt;Section N='Geometry' IX='0'&gt;
+    &lt;Row T='LineTo' IX='2'&gt;&lt;Cell N='Y' V='-0.1875'/&gt;&lt;/Row&gt;
+    &lt;Row T='LineTo' IX='3'&gt;&lt;Cell N='X' V='5.29'/&gt;&lt;Cell N='Y' V='-0.1875'/&gt;&lt;/Row&gt;
+    &lt;Row T='LineTo' IX='4'&gt;&lt;Cell N='X' V='5.29'/&gt;&lt;Cell N='Y' V='0.245'/&gt;&lt;/Row&gt;
+  &lt;/Section&gt;
+
+  &lt;Text&gt;测试&lt;/Text&gt;
+&lt;/Shape&gt;</pre>
+
+<h2>连接器关键特征</h2>
+
+<table>
+<tr><th>特征</th><th>值</th><th>来源</th></tr>
+<tr><td>Master</td><td><code>Master='4'</code></td><td>Dynamic Connector 母版</td></tr>
+<tr><td>1-D 行为</td><td>ObjType=2, NoAlignBox=1, DynFeedback=2, GlueType=2</td><td>全部继承自 Master</td></tr>
+<tr><td>端点绑定</td><td>BeginX/EndX 用 <code>PAR(PNT(...))</code></td><td>固定到形状连接点</td></tr>
+<tr><td>或端点绑定</td><td>用 <code>_WALKGLUE(...)</code></td><td>Visio 动态路由</td></tr>
+<tr><td>形状移动跟踪</td><td>BegTrigger/EndTrigger 用 <code>_XFTRIGGER(Sheet.N!EventXFMod)</code></td><td>形状移动时触发重路由</td></tr>
+<tr><td>Geometry</td><td>3 个 LineTo（无 MoveTo！起点隐式在 BeginX/BeginY）</td><td>页面实例覆盖</td></tr>
+<tr><td>文本位置</td><td>TxtPinX/Y F=Inh (SETATREF), Control X/Y 无公式</td><td>见第 10 章</td></tr>
+<tr><td>箭头</td><td>EndArrow V=4 (或 13 等)</td><td>页面实例覆盖</td></tr>
+</table>
+
+<h2>Connect 记录</h2>
+<p>在 <code>&lt;Connects&gt;</code> 元素中，每个连接器有两个 Connect 记录：</p>
+<pre>&lt;Connect FromSheet='7' FromCell='BeginX' FromPart='9'
+         ToSheet='1' ToCell='Connections.X3' ToPart='102'/&gt;
+&lt;Connect FromSheet='7' FromCell='EndX' FromPart='12'
+         ToSheet='2' ToCell='Connections.X3' ToPart='102'/&gt;</pre>
+<table>
+<tr><th>属性</th><th>Begin 端</th><th>End 端</th></tr>
+<tr><td>FromSheet</td><td colspan="2">连接器自身的 Shape ID</td></tr>
+<tr><td>FromCell</td><td>BeginX</td><td>EndX</td></tr>
+<tr><td>FromPart</td><td>9</td><td>12</td></tr>
+<tr><td>ToSheet</td><td colspan="2">目标形状的 Shape ID</td></tr>
+<tr><td>ToCell</td><td colspan="2">目标形状的连接点 Cell（如 Connections.X3）</td></tr>
+<tr><td>ToPart</td><td colspan="2">对应连接点的 ToPart 值（100+X1, 101+X2, ...）</td></tr>
+</table>
+
+<div class="warn"><strong>注意</strong>：连接器 <strong>必须</strong> 有 Master（Dynamic Connector）才能正确表现为 1-D 线段（无外接矩形框、可修改线型、显示顶点控制柄）。纯手动设置 ObjType=2 等 Cell 无法完全替代 Master 的 1-D 行为。</div>
+
+<h2>Dynamic Connector Master 提供的 Cell</h2>
+<p>以下 Cell 由 Master 提供，页面上连接器实例无需重复设置（F="Inh"）：</p>
+<table>
+<tr><th>Cell</th><th>值/公式</th><th>作用</th></tr>
+<tr><td>ObjType</td><td>2</td><td><strong>1-D 形状</strong>（否则 Visio 认为是矩形）</td></tr>
+<tr><td>NoAlignBox</td><td>1</td><td>禁止对齐框（选中时不显示矩形）</td></tr>
+<tr><td>DynFeedback</td><td>2</td><td>动态反馈</td></tr>
+<tr><td>GlueType</td><td>2</td><td>粘附类型</td></tr>
+<tr><td>LockHeight</td><td>1</td><td>锁定高度</td></tr>
+<tr><td>LockCalcWH</td><td>1</td><td>锁定计算宽高</td></tr>
+<tr><td>NoLiveDynamics</td><td>1</td><td>禁用实时动态</td></tr>
+<tr><td>ShapeSplittable</td><td>1</td><td>允许形状分割</td></tr>
+<tr><td>ResizeMode</td><td>0</td><td>调整大小模式</td></tr>
+<tr><td>PinX/PinY</td><td>GUARD((BeginX+EndX)/2)</td><td>居中公式</td></tr>
+<tr><td>LocPinX/LocPinY</td><td>GUARD(Width*0.5)</td><td>本地原点居中</td></tr>
+<tr><td>Angle/FlipX/FlipY</td><td>GUARD(0DA)/GUARD(FALSE)</td><td>方向锁定</td></tr>
+<tr><td>TxtPinX/Y</td><td>SETATREF(Controls.TextPosition)</td><td>文本拖动绑定</td></tr>
+<tr><td>TxtWidth</td><td>MAX(TEXTWIDTH(TheText),5*Char.Size)</td><td>动态文本宽度</td></tr>
+<tr><td>TxtHeight</td><td>TEXTHEIGHT(TheText,TxtWidth)</td><td>动态文本高度</td></tr>
+<tr><td>XCon</td><td>IF(OR(STRSAME(SHAPETEXT(TheText),""),HideText),5,0)</td><td>连接点行为</td></tr>
+</table>
+</main></body></html>

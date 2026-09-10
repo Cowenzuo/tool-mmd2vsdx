@@ -1,0 +1,62 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：mmdtransform（翻译模块）类图
+%%
+%% 本图 = 模块重构验收标准与实现参考。
+%%
+%% 设计：轻量翻译层。mermaid 文本进，Diagram（IR）出。
+%%   关键定位（用户确认）：
+%%     - 本模块不解析 Mermaid——解析/渲染/结构提取全部在远端
+%%       mermaid-snapshot（Node + Chromium）完成
+%%     - 本模块只做「翻译编排 + 契约映射」：
+%%         translate(text) = SnapshotClient.convert(text) -> JSON
+%%                          -> JsonToDiagram(JSON) -> Diagram
+%%     - mmdparse 是历史遗留命名（早期确有解析职责），现更名 mmdtransform
+%%
+%% 门面边界（验收红线）：
+%%   - 对外只暴露 Translator（单例）：translate / shutdown
+%%   - 内部 SnapshotClient + JsonToDiagram 全隐藏
+%%   - 依赖 http::client（SnapshotClient 调 mermaid-snapshot）
+%%   - 服务定位（argv/环境变量/CMake 宏）在 SnapshotClient 内部完成
+%%
+%% 架构依据：docs/重构v2/src-classes.mmd（第一级）
+%% ============================================================
+classDiagram
+direction TB
+
+%% ---- 门面（单例，翻译编排）----
+class Translator {
+    <<singleton>>
+    -snapshotClient_: SnapshotClient
+    +shared() Translator
+    +translate(text: string_view) Diagram
+    +setScriptPath(path: string)
+    +shutdown()
+}
+%% translate：文本 -> SnapshotClient(HTTP) -> JSON -> JsonToDiagram -> Diagram
+%% 首次调用自动 start + warmup；失败抛 Error
+
+%% ---- 内部：服务客户端（定义于 http::client，本模块持有使用）----
+class SnapshotClient {
+    +convert(text: string) string
+    +health() bool
+    +start()
+    +stop()
+}
+%% 详图见 level2-http.mmd（http::client 子域）
+
+%% ---- 内部：JSON -> IR 契约映射 ----
+class JsonToDiagram {
+    <<function>>
+    +jsonToDiagram(j: json) Diagram
+}
+%% 纯函数映射：nodes/edges/clusters/bounds + 枚举映射表
+%% （NodeShape/EdgeStyle/ArrowType）+ 语义数据
+%% （gantt/git/pie/quadrant/sequence 子对象）
+
+%% ---- 模块内关系 ----
+Translator *-- SnapshotClient : owns
+Translator ..> JsonToDiagram : calls
+
+%% ---- core 依赖 ----
+Translator ..> Diagram : produces
+Translator ..> Error : throws

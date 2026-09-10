@@ -1,0 +1,43 @@
+%% ============================================================
+%% mermaid-c — 模块总览（flowchart）
+%% 分层：core / opc / vsdx{api,model,detail,render,masters,io} / parse / app
+%% 依赖单向向下无环；每模块详细类图见同目录 <module>.mmd
+%% ============================================================
+flowchart TB
+    APP["app · 应用编排<br/>Mermaid + 公共 API 薄包装"]
+    PARSE["parse · 解析域<br/>IParser / MermaidParser / NodeJsProcess"]
+    CORE["core · IR 领域模型<br/>Point/Node/Edge/Diagram/Error"]
+    API["api · 公共句柄<br/>Document/Page/Shape/Connector + DTO"]
+    MODEL["model · 内部模型<br/>ShapeModel/ConnectorModel/PageModel"]
+    RENDER["render · 渲染策略<br/>Renderer 族 + ConnectorBinder"]
+    MASTERS["masters · 母版库<br/>MasterLibrary"]
+    IO["io · 序列化<br/>XmlBuilder/DocumentParts/Validator/VsdxWriter"]
+    DETAIL["detail · 协调者<br/>DocumentCore"]
+    OPC["opc · 打包工具<br/>Package/Relationships/XmlDocument/ZipArchive"]
+
+    APP -->|调用| PARSE
+    PARSE -->|产出| CORE
+    API -->|创建/委托| IO
+    API -->|持 Pimpl| DETAIL
+    API -->|使用值类型| MODEL
+    DETAIL -->|持有| MODEL
+    DETAIL -->|持有| OPC
+    RENDER -->|操作| MODEL
+    RENDER -->|查母版| MASTERS
+    RENDER -->|低层构建| IO
+    IO -->|组装| MODEL
+    IO -->|打包母版| MASTERS
+    IO -->|操作| DETAIL
+    IO -->|OPC 读写| OPC
+    MASTERS -->|OPC 打包| OPC
+
+    style APP fill:#e8f5e9
+    style PARSE fill:#e8f5e9
+    style CORE fill:#fff3e0
+    style API fill:#e3f2fd
+    style MODEL fill:#e3f2fd
+    style RENDER fill:#e3f2fd
+    style MASTERS fill:#e3f2fd
+    style IO fill:#e3f2fd
+    style DETAIL fill:#e3f2fd
+    style OPC fill:#fce4ec

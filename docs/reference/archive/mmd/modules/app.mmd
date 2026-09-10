@@ -1,0 +1,28 @@
+%% app.mmd — app 层：应用编排（src/app/mermaid.hpp + src/mermaidc.cpp + mermaidc.hpp）
+%% 跨模块依赖：parse（IParser 接口，DIP）、core（Diagram/Error）
+%% 全量关系见 ../src-classes.mmd
+classDiagram
+direction LR
+
+%% P9：应用层编排（原 mermaidc.cpp 全局函数收编）
+class Mermaid {
+    +shared() Mermaid
+    +initialize()
+    +parse(text) Diagram
+    +shutdown()
+    -unique_ptr<IParser> parser_
+}
+
+%% mermaidc_API：公共 API 薄包装（mermaidc.hpp），委托 Mermaid::shared()
+class mermaidc_API {
+    <<function>>
+    +initialize()
+    +parse(text) Diagram
+    +shutdown()
+}
+
+%% ── app 内部关系 ──
+Mermaid ..> IParser : unique_ptr 解析器生命周期（依赖 parse）
+mermaidc_API ..> Mermaid : 委托
+mermaidc_API ..> Diagram : parse 返回（依赖 core）
+mermaidc_API ..> Error : 异常传播（依赖 core）

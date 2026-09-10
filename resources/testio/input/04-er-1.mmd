@@ -1,0 +1,45 @@
+erDiagram
+    CUSTOMER {
+        string id PK
+        string name
+        string email
+    }
+    ADDRESS {
+        string id PK
+        string street
+        string city
+    }
+    ORDER {
+        string id PK
+        date created
+    }
+    ORDER_LINE {
+        string id PK
+        int quantity
+        float price
+    }
+    PRODUCT {
+        string id PK
+        string name
+        float price
+    }
+    CATEGORY {
+        string id PK
+        string name
+    }
+    SUPPLIER {
+        string id PK
+        string name
+    }
+    EMPLOYEE {
+        string id PK
+        string name
+        string title
+    }
+    CUSTOMER ||--o{ ADDRESS : has
+    CUSTOMER ||--o{ ORDER : places
+    EMPLOYEE |o--o{ ORDER : processes
+    ORDER ||--|{ ORDER_LINE : contains
+    PRODUCT ||--o{ ORDER_LINE : appears_in
+    CATEGORY }|--o{ PRODUCT : has
+    SUPPLIER ||--o{ PRODUCT : supplies

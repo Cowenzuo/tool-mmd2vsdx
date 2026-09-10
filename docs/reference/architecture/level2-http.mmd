@@ -1,0 +1,63 @@
+%% ============================================================
+%% mmd2vsdx - 第二级：http（通信模块）类图
+%%
+%% 设计：纯通信层，零业务依赖。client / server 两个子域：
+%%   client：向 mermaid-snapshot 请求初步转译，获得结构和位置信息（IR）
+%%     - HttpClient     通用 WinHTTP 封装（POST/GET/JSON/超时/错误）
+%%     - SnapshotClient mermaid-snapshot 专用：服务定位（argv/环境变量/
+%%       CMake 宏）+ 生命周期（拉起/健康检查/崩溃重启）+ convert/health
+%%   server：接收下游 mmd→vsdx 请求
+%%     - HttpServer     通用 HTTP 服务（路由注册、JSON 解析、串行队列）
+%%     - ConvertHandler 业务回调接口（app 注入实现，http 不依赖业务模块）
+%%
+%% 门面边界（验收红线）：
+%%   - 本模块不设单例门面（无状态通信能力集）
+%%   - client 仅被 mmdtransform 使用；server 仅被 app 装配
+%%   - server 业务经 ConvertHandler 回调注入，禁止依赖业务模块
+%%
+%% 标准 UML 约定：<<interface>>
+%% 组合 *-- | 依赖 ..> | namespace 不作关系端点 | 泛型不含量逗号
+%% ============================================================
+classDiagram
+direction TB
+
+%% ---- client：向 mermaid-snapshot 请求 ----
+namespace client {
+    class HttpClient {
+        +post(host: string, port: int, path: string, body: string) string
+        +get(host: string, port: int, path: string) string
+        +setTimeout(ms: int)
+    }
+    class SnapshotClient {
+        +setScriptPath(path: string)
+        +start()
+        +stop()
+        +convert(text: string) string
+        +health() bool
+    }
+}
+
+%% ---- server：对外 mmd→vsdx 服务 ----
+namespace server {
+    class HttpServer {
+        +listen(port: int, handler: ConvertHandler)
+        +stop()
+    }
+    class ConvertHandler {
+        <<interface>>
+        +convert(mmd: string, options: json) ConvertResult
+    }
+}
+
+%% ---- 关系 ----
+SnapshotClient *-- HttpClient : uses
+HttpServer ..> ConvertHandler : invokes
+
+%% ---- core 依赖 ----
+HttpClient ..> Error : throws
+SnapshotClient ..> Error : throws
+
+%% ---- 对外边界（由外部模块使用，本图不画跨模块依赖）----
+%%   mmdtransform ..> SnapshotClient : 翻译编排
+%%   app ..> HttpServer : 服务装配
+%%   app ..> ConvertHandler : 注入实现
