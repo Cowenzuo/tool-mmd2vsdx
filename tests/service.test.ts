@@ -1,5 +1,5 @@
 // M1 适配层验收：转换 / 校验 / 检视 / 批量，含路径策略与错误契约
-// 对应用例见 docs/版本开发过程/alpha3/需求规格.md 第六节
+// 对应用例见 docs/接口协议.md（回执、错误码与路径规则）
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

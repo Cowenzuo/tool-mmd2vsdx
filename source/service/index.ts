@@ -1,5 +1,5 @@
 // service 门面：库 API、CLI、MCP 三个入口共用这一层
-// 对应 docs/版本开发过程/alpha3/方案.md：入口只做参数校验与回执整形，转换逻辑在这里
+// 对应 docs/接口协议.md：入口只做参数校验与回执整形，转换逻辑在这里
 import { Parser } from '../parser/index.js';
 import { toServiceError } from './errors.js';
 import {

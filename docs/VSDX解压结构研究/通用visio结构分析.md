@@ -1676,7 +1676,7 @@ ToCell 均写 **PinY**、ToPart=3。走线吸附的目标落点 cell 在 PinX �
 Xn 一路取到 X23、ToPart 取到 122，规律不变，见
 [sequence-结构分析.md](sequence-结构分析.md) 第 2 章；gantt 的任务条
 使用命名连接行 LeftSide.X/RightSide.X，ToCell 不再是 Connections.Xn，
-见 [gantt-结构分析.md](gantt-结构分析.md) 第 4 章，语义入 W-12。
+该专篇随 gantt 图型移除已删除（见 git 历史），语义入 W-12。
 
 Connects 是清单式记录，即使形状里的公式丢了，解析器也能靠它知道谁粘谁。
 数值的官方出处仍待核，经验规律以本组素材为准。
@@ -2475,7 +2475,7 @@ xml，Override 覆盖 16 个部件：docProps 三件、主文档、母版区九�
 | W-9 | 无 BegTrigger/EndTrigger | 连接线实例没有触发器 cell | 待核机制影响 |
 | W-10 | Xn 行号约定与 OriginalID | Xn=行 IX=n-1 为四份素材实证；连接线母版 Shape 带 OriginalID='0'，矩形母版无 | 待核官方出处 |
 | W-11 | Xn 约定对自定义行布局的适用边界 | Xn=IX(n-1) 命名约定不变；行到位置的映射随母版而异，类系列为左/右/下/上四中间点 | 待核官方出处，详见 class-结构分析.md |
-| W-12 | 命名连接行寻址 | gantt 任务条 Connections.LeftSide.X/RightSide.X，ToPart 仍取 100/101 | 待核，详见 gantt-结构分析.md |
+| W-12 | 命名连接行寻址 | gantt 任务条 Connections.LeftSide.X/RightSide.X，ToPart 仍取 100/101 | 待核（原 gantt 专篇已删，见 git 历史） |
 | W-13 | 自动连接双端 WALKGLUE 参数顺序 | basic-5：Begin=`_WALKGLUE(BegTrigger,EndTrigger,WalkPreference)`、End=`_WALKGLUE(EndTrigger,BegTrigger,WalkPreference)`——两端镜像，不能粘贴同一文本 | 已确认（basic-5 实证），官方出处待核 |
 | W-14 | ConFixedCode 取值分布 | basic-3 单端走线=5、basic-5 双端自动=6、c4-1=6；与粘附模式相关 | 待核：5 与 6 的语义边界 |
 | W-15 | 走线吸附 Connects 落点 cell | basic-3 走线端 ToCell='PinX'；basic-5 双端 ToCell='PinY'；ToPart 均为 3 | 待核：PinX/PinY 的选取规律（方向依赖？） |

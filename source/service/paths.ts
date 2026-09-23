@@ -1,5 +1,5 @@
 // 输出路径策略：允许根、realpath 归一（含 Windows 大小写）、三级回退、覆盖规则
-// 对应 docs/版本开发过程/alpha3/方案.md 第六节
+// 对应 docs/接口协议.md 的路径规则一节
 import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { ServiceError } from './errors.js';

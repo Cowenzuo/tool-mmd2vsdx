@@ -1,8 +1,8 @@
 # VSDX解压结构研究 —— Visio 产物的内部结构
 
 > **支持范围（2026-09 收敛）**：本工程只支持 **flowchart / block / class / er / sequence**
-> 五类图型。本目录中 `c4-1/`、`gantt/` 素材与 `gantt-结构分析.md` 属**归档研究**，
-> 对应图型已移除支持（证据资产保留，不再驱动实现）。
+> 五类图型。本目录中 `c4-1/` 与 `gantt/` 素材属**归档研究**，
+> 对应图型已移除支持（证据资产保留，不再驱动实现；gantt 专篇已删，见 git 历史）。
 
 > 研究方法：对**真实 Visio 图纸的解压包**逐文件逐层拆解，建立
 > "各类型图 → 底层文件 → 内部 XML"的实证认知库。
@@ -26,7 +26,7 @@
 | `c4-1/` | 自产样本：C4 系统上下文图（Person/System/System_Ext + 2 条 Rel + 标题，`02-c4-1.mmd`） | **对照样本（非手工绘制）**：页面 IN 制；节点实例自足式写法（全几何/全连接点/全样式 cell）；母版 ID 100–108 九枚整套带；连接线条目与梯形共用一个母版文件（W-1 待核）；无 page1.xml.rels；无 thumbnail；docProps 最小填写 + RecalcDocument；供第六章剖析 |
 | `class/` | 手工 UML 类图：2 类 + 1 接口 + 2 枚举（含成员行/分隔符）+ 依赖/接口实现/继承三关系 | **复合形状**素材：容器与成员机制（Group + LISTSHEETREF 公式家族）；类系列连接点四行布局（左/右/下/上中点）；关系专用母版（虚线/实心三角，EndArrow 12/14）；master7 与 master9 逐字节相同；Trigger 元素首见；EllipticalArcTo 圆角行；详见 [class-结构分析.md](class-结构分析.md) |
 | `ER/` | 手工 ER 图：3 实体 + 主键/普通属性行 + 分隔线 + 2 关系线 | 数据库语义容器：msvShapeCategories=Database;DbEntity；列表项母版注册 USE("Primary Key Attribute")；主键属性行/普通属性行两枚母版（PrimaryKey=1/0）+ 分隔线；关系线钉在属性行上的实证；详见 [ER-结构分析.md](ER-结构分析.md) |
-| `gantt/` | 手工甘特图：框架 + 列 + 两级标尺 + 6 任务行 + 任务条/里程碑/文本条目 + 连接线（65 顶层/113 形状） | **样式表家族**：document.xml 31 枚（24 枚 pr 前缀、两簇继承）；任务条/里程碑大型 Group 母版（8 子形状、1301/1265 个 cell、Property 段）；命名连接行 LeftSide/RightSide.X（W-12）；Field 段首见；Link lines MasterType=1；原名 gannt 已规范；详见 [gantt-结构分析.md](gantt-结构分析.md) |
+| `gantt/` | 手工甘特图：框架 + 列 + 两级标尺 + 6 任务行 + 任务条/里程碑/文本条目 + 连接线（65 顶层/113 形状） | **样式表家族**：document.xml 31 枚（24 枚 pr 前缀、两簇继承）；任务条/里程碑大型 Group 母版（8 子形状、1301/1265 个 cell、Property 段）；命名连接行 LeftSide/RightSide.X（W-12）；Field 段首见；Link lines MasterType=1；原名 gannt 已规范。gantt 图型已移除支持，专篇随之删除（git 历史可取），素材仅作研究证据 |
 | `sequence/` | 手工时序图：3 生命线（2 对象 + 1 参与者）+ 6 激活 + 2 片段 + 4 消息 | **时间点连接行**：生命线母版带 100 枚连接行（6.35mm 步长、IF/MODULUS 公式），Xn/ToPart 扩到 X23/122，ToPart=100+IX 规律延伸；激活条 1-D + 100 行；消息四类母版（Return 虚线、Self/Async 箭头 3/4）；MasterType=29 消息族、=1 激活条；详见 [sequence-结构分析.md](sequence-结构分析.md) |
 | `class-all-in-one/` | 用 all-in-one 模具绘制的 UML 类图：131 形状、16 条目母版（含 7 类线型：依赖、接口实现、继承、定向关联、聚合、复合等） | **现行模板来源**：class 模板 = `class` ∪ `class-all-in-one`。旧 `class/` 缺线型母版、还带冗余件，只作对照 |
 | `er-all-in-one/` | 用 all-in-one 模具绘制的 ER 图：52 形状、5 条目母版（Entity、Primary Key Attribute、Primary Key Separator、Attribute、Relationship） | **现行模板来源**：er 模板 = `er-all-in-one`，关系母版 MasterType=541 |
@@ -57,15 +57,14 @@
 | [通用visio结构分析.md](通用visio结构分析.md) | **规范版**（现行）：五步体例，第〇至六章已完成，长期维护（第六章为 C4 自产样本案例——该样本已随图型收敛删除，章节作归档；5.6 索引 Group/容器机制） |
 | [class-结构分析.md](class-结构分析.md) | **图型专篇**：UML 类图的行为层机制（Group 体系、容器与成员公式、关系形状） |
 | [ER-结构分析.md](ER-结构分析.md) | **图型专篇**：数据库语义容器、列表项母版注册、关系线钉属性行 |
-| [gantt-结构分析.md](gantt-结构分析.md) | **图型专篇（归档）**：pr 样式表家族、任务条大型母版、命名连接行、Field 段——gantt 已移除支持 |
 | [sequence-结构分析.md](sequence-结构分析.md) | **图型专篇**：时间点连接行（100 行时间格）、激活条、消息族、片段与操作数 |
 
 ## 待办
 
-- 图型专篇现行三篇（class / ER / sequence）已驱动实现完成；gantt 篇与素材为归档；
+- 图型专篇现行三篇（class / ER / sequence）已驱动实现完成；gantt 素材仅作归档；
 - 自产产物对照（03-class-1、04-er-1、15-sequence-1…4.vsdx）作为验收样本持续维护；
-- 公式级解剖：sequence 片段/操作数、class 容器公式已完成；gantt 任务条
-  8 子形状 1300 cell、标尺 Field/AXISFORMAT 引用链（g-6/g-5）随图型收敛不再推进；
+- 公式级解剖：sequence 片段/操作数、class 容器公式已完成；gantt 相关（任务条
+  8 子形状 1300 cell、标尺 Field/AXISFORMAT 引用链）随图型收敛不再推进；
 - 待核清单：规范版各章补充注解的 ❓ 条目与第六章 W-1……W-17（basic-5 新增
   W-13…W-17：双端 WALKGLUE 参数镜像顺序、ConFixedCode 5/6 分布、
   ToCell PinX/PinY 选取、WalkPreference 显式写出），素材扩充时

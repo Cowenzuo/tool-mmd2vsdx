@@ -1,5 +1,5 @@
 // service 错误契约：错误码与修复建议（CLI 与 MCP 回执共用）
-// 对应 docs/版本开发过程/alpha3/需求规格.md FR-10
+// 对应 docs/接口协议.md 的错误码表
 import { MermaidParseError } from '../parser/renderer.js';
 
 export type ServiceErrorCode =
