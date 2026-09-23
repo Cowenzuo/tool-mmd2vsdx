@@ -1,13 +1,18 @@
-// service 错误契约：错误码与修复建议（CLI 与 MCP 回执共用）
+// service 错误契约：错误码与修复建议，HTTP 层按它映射状态码
 // 对应 docs/接口协议.md 的错误码表
-import { MermaidParseError } from '../parser/renderer.js';
+import { MermaidParseError, RenderTimeoutError } from '../parser/renderer.js';
 
 export type ServiceErrorCode =
-    | 'unsupported_kind'
     | 'parse_error'
-    | 'path_denied'
-    | 'too_large'
+    | 'unsupported_kind'
     | 'invalid_argument'
+    | 'not_found'
+    | 'method_not_allowed'
+    | 'forbidden'
+    | 'too_large'
+    | 'unsupported_media_type'
+    | 'queue_full'
+    | 'timeout'
     | 'renderer_unavailable'
     | 'internal';
 
@@ -41,9 +46,16 @@ const kBrowserHints = /Executable doesn't exist|browserType\.launch|Failed to la
 /** 不支持的图型：解析层抛的是「不支持的图型：xxx」。 */
 const kUnsupportedHint = /不支持的图型/;
 
-/** 任意异常 → ServiceError（CLI 与 MCP 的公开边界统一走它）。 */
+/** 任意异常 → ServiceError（HTTP 层的公开边界统一走它）。 */
 export function toServiceError(e: unknown): ServiceError {
     if (e instanceof ServiceError) return e;
+    if (e instanceof RenderTimeoutError) {
+        return new ServiceError(
+            'timeout',
+            e.message,
+            '重试一次；反复超时说明这张图触发了渲染侧的病态输入，把原文反馈回来',
+        );
+    }
     const raw = e instanceof Error ? e.message : String(e);
     if (kBrowserHints.test(raw)) {
         return new ServiceError(
@@ -61,7 +73,7 @@ export function toServiceError(e: unknown): ServiceError {
                 '当前只支持 flowchart、block、class、er、sequence 五类图型，不支持时不降级',
             );
         }
-        return new ServiceError('parse_error', message, '检查 mermaid 语法；可先用 mmd2vsdx_validate 定位问题');
+        return new ServiceError('parse_error', message, '检查 mermaid 语法；空输入也会报这一条');
     }
     return new ServiceError('internal', raw || '未知错误');
 }

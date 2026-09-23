@@ -1,70 +1,40 @@
-// service 门面：库 API、CLI、MCP 三个入口共用这一层
-// 对应 docs/接口协议.md：入口只做参数校验与回执整形，转换逻辑在这里
-import { Parser } from '../parser/index.js';
+// service 门面：转换内核。服务进程用它，不落盘、不碰路径。
+// 对应 docs/接口协议.md：HTTP 层只做传输与回执整形，转换逻辑在这里。
+import { Parser, type RendererState } from '../parser/index.js';
 import { toServiceError } from './errors.js';
-import {
-    convertBatch,
-    convertToFile,
-    type BatchItem,
-    type BatchReceipt,
-    type ConvertReceipt,
-    type ConvertRequest,
-} from './convert.js';
-import { inspectFile, type InspectReceipt } from './inspect.js';
-import { createPathPolicy, type PathPolicy } from './paths.js';
-import { validateText, type ValidateReceipt } from './validate.js';
+import { renderVsdx } from './render.js';
+import { receiptOf, type RenderReceipt } from './receipt.js';
 
-export interface ServiceConfig {
-    /** 输出根目录，等价环境变量 MMD2VSDX_OUTPUT_DIR。 */
-    outputDir?: string | undefined;
-    /** 工作目录，默认进程工作目录；测试可注入。 */
-    cwd?: string | undefined;
+export interface ConvertResult {
+    /** .vsdx 字节，直接交给调用方。 */
+    bytes: Buffer;
+    receipt: RenderReceipt;
 }
 
 export class ServiceSession {
     private readonly parser = new Parser();
-    readonly policy: PathPolicy;
 
-    constructor(cfg: ServiceConfig = {}) {
-        this.policy = createPathPolicy({
-            outputDir: cfg.outputDir ?? process.env['MMD2VSDX_OUTPUT_DIR'],
-            cwd: cfg.cwd,
-        });
-    }
-
-    /** 单次转换。 */
-    async convert(req: ConvertRequest): Promise<ConvertReceipt> {
+    /** 转换：mermaid 文本 → vsdx 字节加回执。任何失败抛 ServiceError。 */
+    async convert(text: unknown, timeoutMs = 0): Promise<ConvertResult> {
         try {
-            return await convertToFile(this.parser, this.policy, req);
+            const { bytes, a } = await renderVsdx(this.parser, text, timeoutMs);
+            return { bytes, receipt: receiptOf(a, bytes) };
         } catch (e) {
             throw toServiceError(e);
         }
     }
 
-    /** 批量转换，逐项隔离失败。 */
-    async convertMany(items: BatchItem[], outDir?: string, overwrite = false): Promise<BatchReceipt> {
-        try {
-            return await convertBatch(this.parser, this.policy, items, outDir, overwrite);
-        } catch (e) {
-            throw toServiceError(e);
-        }
+    /** 浏览器状态：cold / warming / ready，供 /health 观察。 */
+    get chromium(): RendererState {
+        return this.parser.state;
     }
 
-    /** 只解析的校验，失败也返回回执。 */
-    async validate(text: unknown): Promise<ValidateReceipt> {
-        return validateText(this.parser, text);
+    /** 预热浏览器。失败不致命，只是首个请求要自己吃冷启动。 */
+    async warmup(): Promise<void> {
+        await this.parser.warmup();
     }
 
-    /** 检视自产产物。 */
-    inspect(file: string): InspectReceipt {
-        try {
-            return inspectFile(this.policy, file);
-        } catch (e) {
-            throw toServiceError(e);
-        }
-    }
-
-    /** 关掉浏览器资源（进程退出前调用）。 */
+    /** 关掉浏览器资源；可重复调用。 */
     async shutdown(): Promise<void> {
         await this.parser.shutdown();
     }
@@ -72,8 +42,11 @@ export class ServiceSession {
 
 export { ServiceError, toServiceError } from './errors.js';
 export type { ServiceErrorCode, ServiceErrorInfo } from './errors.js';
-export type { ConvertRequest, ConvertReceipt, BatchItem, BatchReceipt, BatchItemResult } from './convert.js';
-export type { ValidateReceipt } from './validate.js';
-export type { InspectReceipt, InspectPart } from './inspect.js';
-export type { PathPolicy } from './paths.js';
-export { kMaxBatchItems, kMaxInputBytes, kMaxOutputBytes } from './limits.js';
+export type { RenderReceipt } from './receipt.js';
+export {
+    kDefaultIdleBrowserSec,
+    kDefaultTimeoutMs,
+    kMaxInputBytes,
+    kMaxOutputBytes,
+    kMaxQueue,
+} from './limits.js';

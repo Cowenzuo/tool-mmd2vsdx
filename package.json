@@ -1,7 +1,7 @@
 {
   "name": "mmd2vsdx",
   "version": "0.1.0-alpha3",
-  "description": "Mermaid → Visio VSDX converter (pure Node/TypeScript, no Visio dependency)",
+  "description": "Mermaid → Visio VSDX converter as a local HTTP service (pure Node/TypeScript, no Visio dependency)",
   "type": "module",
   "private": true,
   "engines": {
@@ -25,20 +25,14 @@
     "mermaid": "10.9.8",
     "playwright": "1.61.1"
   },
-  "main": "./dist/convert.js",
+  "main": "./dist/server/index.js",
   "bin": {
-    "mmd2vsdx": "./bin/mmd2vsdx.mjs"
+    "mmd2vsdx-server": "./bin/mmd2vsdx-server.mjs"
   },
   "files": [
     "dist",
     "bin",
     "README.md",
     "LICENSE"
-  ],
-  "exports": {
-    ".": "./dist/convert.js",
-    "./service": "./dist/service/index.js",
-    "./dist/*": "./dist/*",
-    "./package.json": "./package.json"
-  }
+  ]
 }

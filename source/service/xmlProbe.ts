@@ -1,16 +1,11 @@
-// 产物探针：从契约 B 的部件里读出页面尺寸、形状数、文本清单（检视与回执共用）
-import { attr, elementChildren, parseDocument, textOf, type XmlNode } from '../common/xml/index.js';
+// 产物探针：从产物部件里读出页面尺寸与形状数，回执的元数据靠它
+import { attr, elementChildren, parseDocument, type XmlNode } from '../common/xml/index.js';
 import type { XmlPart } from '../contracts/index.js';
 
 export interface PageProbe {
     name: string;
     widthIn: number;
     heightIn: number;
-}
-
-export interface PageStats {
-    shapeCount: number;
-    texts: string[];
 }
 
 function walk(node: XmlNode, visit: (n: XmlNode) => void): void {
@@ -48,20 +43,15 @@ export function probePages(parts: XmlPart[]): PageProbe[] {
         });
 }
 
-/** 页面统计：形状总数与文本清单（去重、限量）。 */
-export function probePageStats(parts: XmlPart[], maxTexts: number): PageStats {
+/** 页面形状总数：回执里的 shapeCount 靠它。 */
+export function probeShapeCount(parts: XmlPart[]): number {
     let shapeCount = 0;
-    const texts: string[] = [];
     for (const p of parts) {
         if (!/^\/visio\/pages\/page\d+\.xml$/.test(p.uri)) continue;
         const root = parseDocument(p.xml);
         walk(root, (n) => {
             if (n.name === 'Shape') shapeCount++;
-            else if (n.name === 'Text' && texts.length < maxTexts) {
-                const t = textOf(n).trim();
-                if (t && !texts.includes(t)) texts.push(t);
-            }
         });
     }
-    return { shapeCount, texts };
+    return shapeCount;
 }
