@@ -19,12 +19,7 @@ export interface ContractB {
 export function part(uri: string, contentType: string, xml: string): XmlPart {
     return { uri, contentType, xml };
 }
-
-export function defaultContractB(): ContractB {
-    return { parts: [] };
-}
-
-export interface BValidation {
+interface BValidation {
     ok: boolean;
     errors: string[];
 }
@@ -49,12 +44,4 @@ export function addPart(b: ContractB, p: XmlPart): ContractB {
         throw new Error(`[contractB] 部件 uri 已存在：${p.uri}`);
     }
     return { parts: [...b.parts, p] };
-}
-
-/** 合并两份契约 B；重复 uri 时后者覆盖前者（母版/文档并入页面部件的语义）。 */
-export function mergeParts(a: ContractB, b: ContractB): ContractB {
-    const map = new Map<string, XmlPart>();
-    for (const p of a.parts) map.set(p.uri, p);
-    for (const p of b.parts) map.set(p.uri, p);
-    return { parts: [...map.values()] };
 }

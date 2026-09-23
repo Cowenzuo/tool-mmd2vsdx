@@ -6,7 +6,7 @@ import { parseLogLevel, type LogLevel } from './log.js';
 /** 契约版本：HTTP 契约的版本号，破坏性变更才升，写在 /health 里。 */
 export const kContractVersion = 1;
 /** 默认端口，属于公开契约，改它等于破坏兼容。 */
-export const kDefaultPort = 17321;
+const kDefaultPort = 17321;
 /** 只绑回环，不提供改地址的开关。 */
 export const kHost = '127.0.0.1';
 
@@ -32,7 +32,7 @@ export interface ServerConfig {
     logLevel: LogLevel;
 }
 
-export type ParsedArgs =
+type ParsedArgs =
     | { kind: 'run'; config: ServerConfig }
     | { kind: 'help' }
     | { kind: 'version' };

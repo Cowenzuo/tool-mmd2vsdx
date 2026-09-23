@@ -2,7 +2,7 @@
 // 上限语义与 /health 的 queue、maxQueue 一致，见 docs/接口协议.md 第 7 节
 import { ServiceError } from '../service/errors.js';
 
-export class QueueFullError extends ServiceError {
+class QueueFullError extends ServiceError {
     constructor(max: number) {
         super('queue_full', `排队请求已达上限 ${max} 个`, '退避后重试；不要并发轰炸，服务内部本来就串行');
     }

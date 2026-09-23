@@ -17,7 +17,7 @@ export interface StencilRecord {
     contents: Record<string, string>;
 }
 
-export interface StencilMaster {
+interface StencilMaster {
     nameU: string;
     /** 目录条目里的 Rel r:id。 */
     relId: string;
@@ -48,16 +48,6 @@ export function findMasterEntry(record: StencilRecord, nameU: string): StencilMa
     }
     return null;
 }
-
-/** 跨记录目录查找：按记录顺序逐枚找 NameU，返回带来源记录的条目。 */
-export function findMasterInCatalog(catalog: MasterCatalog, nameU: string): StencilMaster | null {
-    for (const record of catalog.records) {
-        const entry = findMasterEntry(record, nameU);
-        if (entry) return entry;
-    }
-    return null;
-}
-
 /** 构建默认目录：节点记录（basic 家族 5 种）+ 连接线记录（flowchart 家族 1 种）
  *  + 专用图型类型记录（class/ER/sequence，取自官方模板解压包 verbatim，
  *  见 templates/ 下的生成模块；文件序号防撞：1/50/100/150/250）。 */

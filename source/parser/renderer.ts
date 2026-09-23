@@ -48,7 +48,7 @@ export class RendererClosedError extends Error {
     }
 }
 
-export interface SnapshotJson {
+interface SnapshotJson {
     nodes: Array<Record<string, unknown>>;
     edges: Array<Record<string, unknown>>;
     clusters: Array<Record<string, unknown>>;

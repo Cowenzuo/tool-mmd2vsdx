@@ -3,7 +3,7 @@ import { makeElement, parseDocument, setAttribute } from '../common/xml/xmlNode.
 import { serializeDocument } from '../common/xml/xmlNode.js';
 import { kRelsContentType, kXmlContentType } from '../common/xml/constants.js';
 
-export interface ContentTypeOverride {
+interface ContentTypeOverride {
     partName: string;
     contentType: string;
 }

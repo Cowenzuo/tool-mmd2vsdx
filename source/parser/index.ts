@@ -9,7 +9,7 @@ import {
 } from './renderer.js';
 import { normalizeGeneric, type SnapshotLike } from './normalize/generic.js';
 
-export interface ParserOptions {
+interface ParserOptions {
     /** 单次渲染超时毫秒数，0 或省略表示不限时（服务层按请求传）。 */
     renderTimeoutMs?: number;
 }

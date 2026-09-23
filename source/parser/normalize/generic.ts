@@ -43,7 +43,7 @@ const kKindTable: Record<string, DiagramKind> = {
 
 /** kind 映射：快照 diagramType → 契约 A kind。
  *  不支持图型**直接抛错**——不做兜底降级（否则 gantt/pie 等会被静默画成流程图）。 */
-export function mapKind(diagramType: string | undefined): DiagramKind {
+function mapKind(diagramType: string | undefined): DiagramKind {
     const t = (diagramType ?? '').toLowerCase();
     const kind = kKindTable[t];
     if (!kind) {

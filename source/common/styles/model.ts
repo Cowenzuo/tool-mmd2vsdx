@@ -8,7 +8,7 @@ import { cell } from '../intents.js';
 import { kFont } from './fonts.js';
 
 /** 文档内样式 ID 常量（与 Visio 模板惯例对齐：0-6 基底）。 */
-export const kStyleIdBase = {
+const kStyleIdBase = {
     noStyle: 0,
     textOnly: 1,
     none: 2,
@@ -18,7 +18,7 @@ export const kStyleIdBase = {
     basic: 7,
 } as const;
 
-export interface StyleSheetSpec {
+interface StyleSheetSpec {
     nameU: string;
     /** 显示名（空=用 NameU）。 */
     name?: string;
@@ -29,17 +29,6 @@ export interface StyleSheetSpec {
     cells: CellIntent[];
     sections?: SectionIntent[];
 }
-
-export type StyleKey =
-    | 'noStyle'
-    | 'textOnly'
-    | 'none'
-    | 'normal'
-    | 'guide'
-    | 'theme'
-    | 'basic'
-    | 'connector'
-    | string; // pr 家族等按名注册
 
 /** 注册表：KEY → 规格 + 文档内 ID。默认含基底 7 枚。 */
 export class StyleRegistry {

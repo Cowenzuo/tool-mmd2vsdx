@@ -259,7 +259,7 @@ function newShapeNode(): XmlNode {
 }
 
 /** 唯一可见的警告收集槽（spec/CLI 可读；每次 render 前清空）。 */
-export const kClassWarnings: string[] = [];
+const kClassWarnings: string[] = [];
 
 function warn(ctx: Ctx, msg: string): void {
     ctx.warnings.push(msg);

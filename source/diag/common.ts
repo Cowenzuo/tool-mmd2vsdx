@@ -20,7 +20,7 @@ import type { MasterCatalog } from '../common/masters/assets.js';
 import type { CellIntent, RowIntent } from '../common/intents.js';
 import { kVisioNamespace } from '../common/xml/constants.js';
 
-export interface RenderOptions {
+interface RenderOptions {
     pageName?: string;
     /** 像素到英寸比例（默认 96dpi）。 */
     pxPerInch?: number;
@@ -54,7 +54,7 @@ export class CommonRenderer {
 }
 
 /** 本图用到的母版名（按出现序去重；有边则加连接线母版）。 */
-export function wantedNames(a: ContractA): string[] {
+function wantedNames(a: ContractA): string[] {
     const names: string[] = [];
     const push = (n: string) => {
         if (!names.includes(n)) names.push(n);
@@ -151,7 +151,7 @@ export function buildPagesXml(a: ContractA, opts: RenderOptions): XmlPart {
 }
 
 /** page1.xml：Shapes（自足式节点 + 连接线）+ Connects。 */
-export function buildPage1Xml(a: ContractA, opts: RenderOptions): XmlPart {
+function buildPage1Xml(a: ContractA, opts: RenderOptions): XmlPart {
     const root = makeElement('PageContents');
     const shapes = makeElement('Shapes');
     const connects = makeElement('Connects');

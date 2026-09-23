@@ -173,7 +173,7 @@ export class SeqRenderer {
  *  行号**累计**——直接用消息下标会让跨行构件与相邻消息压在同一行。
  *  注意：Visio 公式的 `Connections.Xk` 是 **1-based**——存储行 IX=k-1，故钉接号 = 行号+1
  *  （X0 无效，实测钉接失败会回退母版默认值）。 */
-export function sequenceRows(messages: Array<{ kind: string }>): { start: number[]; end: number[]; total: number } {
+function sequenceRows(messages: Array<{ kind: string }>): { start: number[]; end: number[]; total: number } {
     const start: number[] = [];
     const end: number[] = [];
     let cursor = 0;

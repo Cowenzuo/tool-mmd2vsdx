@@ -12,7 +12,7 @@ import type { MasterCatalog } from './common/masters/assets.js';
 import { buildMasterCatalog } from './common/masters/assets.js';
 import { MasterPacker } from './common/masters/packer.js';
 
-export interface ConvertOptions {
+interface ConvertOptions {
     /** 官方模具目录（可为空：自足式）。 */
     stencil?: MasterCatalog;
     pxPerInch?: number;

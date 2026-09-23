@@ -1,7 +1,7 @@
 // 文本组：run 分段与转义（docs/开发过程/01-结构设计.md）
 
 /** 文本分段意图：一段文本 = 若干 run；多行用字面换行（research basic-4 观察）。 */
-export interface RunSegment {
+interface RunSegment {
     text: string;
     /** 该 run 之前是否有换行（首行 0，后续行 1）。 */
     newlinesBefore: number;
@@ -29,15 +29,4 @@ export function splitRuns(text: string): RunSegment[] {
     }
     if (runs.length === 0) runs.push({ text: '', newlinesBefore: 0 });
     return runs;
-}
-
-/** 文本块宽度估算：最长行 × 单字符宽（宽度校准见 text/layout 阶段）。 */
-export function estimateTextWidth(text: string, charWidthInch = 0.0556): number {
-    const w = Math.max(0, ...splitRuns(text).map((r) => r.text.length));
-    return w * charWidthInch;
-}
-
-/** 文本块高度估算：行数 × 行高。 */
-export function estimateTextHeight(text: string, lineHeightInch = 0.1389): number {
-    return Math.max(1, splitRuns(text).length) * lineHeightInch;
 }

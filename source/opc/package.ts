@@ -4,7 +4,7 @@ import { PartUri } from './partUri.js';
 import { buildContentTypes, parseContentTypes } from './contentTypes.js';
 import { kRelsContentType } from '../common/xml/constants.js';
 
-export interface PackagePart {
+interface PackagePart {
     uri: string;
     contentType: string;
     /** 文本内容（zip 条目原字节按 utf8）。 */

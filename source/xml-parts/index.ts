@@ -15,7 +15,7 @@ function decl(root: XmlNode): string {
     });
 }
 
-export interface PublicOptions {
+interface PublicOptions {
     /** 文档标题/作者，默认 mmd2vsdx。 */
     title?: string;
     creator?: string;

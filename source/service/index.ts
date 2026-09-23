@@ -5,7 +5,7 @@ import { toServiceError } from './errors.js';
 import { renderVsdx } from './render.js';
 import { receiptOf, type RenderReceipt } from './receipt.js';
 
-export interface ConvertResult {
+interface ConvertResult {
     /** .vsdx 字节，直接交给调用方。 */
     bytes: Buffer;
     receipt: RenderReceipt;

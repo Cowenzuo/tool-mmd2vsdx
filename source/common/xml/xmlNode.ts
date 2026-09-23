@@ -3,12 +3,12 @@
 // 特点：有序属性、混合内容（文本与元素子节点）、无 DTD、确定性输出。
 // 序列化策略：纯元素树按 2 空格缩进；含文本子节点的子树内联（保文本语义）。
 
-export interface XmlAttr {
+interface XmlAttr {
     name: string;
     value: string;
 }
 
-export type XmlChild = XmlNode | string;
+type XmlChild = XmlNode | string;
 
 export interface XmlNode {
     /** 元素名（可带前缀，如 'cp:coreProperties'）。 */
@@ -20,25 +20,11 @@ export interface XmlNode {
 export function makeElement(name: string): XmlNode {
     return { name, attrs: [], children: [] };
 }
-
-export function appendChild(parent: XmlNode, child: XmlNode): void {
-    parent.children.push(child);
-}
-
-export function appendTextChild(parent: XmlNode, text: string): void {
-    parent.children.push(text);
-}
-
 export function setAttribute(node: XmlNode, name: string, value: string): void {
     const a = node.attrs.find((x) => x.name === name);
     if (a) a.value = value;
     else node.attrs.push({ name, value });
 }
-
-export function removeAttribute(node: XmlNode, name: string): void {
-    node.attrs = node.attrs.filter((x) => x.name !== name);
-}
-
 export function attr(node: XmlNode, name: string): string | null {
     return node.attrs.find((x) => x.name === name)?.value ?? null;
 }
@@ -46,18 +32,9 @@ export function attr(node: XmlNode, name: string): string | null {
 export function elementChildren(node: XmlNode): XmlNode[] {
     return node.children.filter((c): c is XmlNode => typeof c !== 'string');
 }
-
-export function directChild(node: XmlNode, name: string): XmlNode | null {
-    return elementChildren(node).find((c) => c.name === name) ?? null;
-}
-
-export function textOf(node: XmlNode): string {
-    return node.children.filter((c): c is string => typeof c === 'string').join('');
-}
-
 // ── 序列化 ──
 
-export interface SerializeOptions {
+interface SerializeOptions {
     /** 声明行；默认无声明。 */
     declaration?: string;
     /** 缩进空格数；0=单行。 */
@@ -248,14 +225,4 @@ export function parseDocument(xml: string): XmlNode {
         throw new XmlParseError('文档尾部存在多余内容', next);
     }
     return node;
-}
-
-/** 试解析：返回错误信息或 null。 */
-export function tryParse(xml: string): string | null {
-    try {
-        parseDocument(xml);
-        return null;
-    } catch (e) {
-        return e instanceof Error ? e.message : String(e);
-    }
 }

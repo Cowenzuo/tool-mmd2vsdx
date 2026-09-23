@@ -2,7 +2,7 @@
 import { attr, elementChildren, parseDocument, type XmlNode } from '../common/xml/index.js';
 import type { XmlPart } from '../contracts/index.js';
 
-export interface PageProbe {
+interface PageProbe {
     name: string;
     widthIn: number;
     heightIn: number;

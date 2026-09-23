@@ -22,7 +22,7 @@ export interface RenderReceipt {
 }
 
 /** 契约 A 里值得提示但不阻断转换的项。 */
-export function warningsOf(a: ContractA): string[] {
+function warningsOf(a: ContractA): string[] {
     const out: string[] = [];
     if (a.kind === 'class' && a.classModel) {
         const others = new Set<string>();
@@ -55,7 +55,7 @@ export function receiptOf(a: ContractA, bytes: Buffer): RenderReceipt {
 }
 
 /** 把标题变成安全的文件名主体。 */
-export function suggestFileName(title: string | undefined): string {
+function suggestFileName(title: string | undefined): string {
     const base = (title ?? '').trim() || 'diagram';
     const slug = base
         .replace(/[\\/:*?"<>|\r\n\t]+/g, '-')

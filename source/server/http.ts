@@ -30,13 +30,11 @@ const kStatusOf: Record<ServiceErrorCode, number> = {
     internal: 500,
 };
 
-export interface HttpServerOptions {
+interface HttpServerOptions {
     session: ServiceSession;
     config: ServerConfig;
     log: Logger;
-    /** 排队上限，默认 kMaxQueue；0 表示不排队。 */
-    maxQueue?: number;
-    /** 复用外部队列；不传就按 maxQueue 建一个。 */
+    /** 复用外部队列（index.ts 与测试都自带）；不传就按 kMaxQueue 建一个。 */
     queue?: RenderQueue;
     /** 版本号，测试可注入。 */
     version?: string;
@@ -44,7 +42,7 @@ export interface HttpServerOptions {
     onActivity?: () => void;
 }
 
-export interface HttpServer {
+interface HttpServer {
     server: Server;
     queue: RenderQueue;
 }
@@ -163,7 +161,7 @@ export function successHeaders(receipt: RenderReceipt, version: string): Record<
 export function createHttpServer(opts: HttpServerOptions): HttpServer {
     const { session, config, log } = opts;
     const version = opts.version ?? kServiceVersion;
-    const queue = opts.queue ?? new RenderQueue(opts.maxQueue ?? kMaxQueue);
+    const queue = opts.queue ?? new RenderQueue(kMaxQueue);
     const startedAt = Date.now();
 
     const sendError = (res: ServerResponse, err: ServiceError, extra: Record<string, string> = {}): void => {

@@ -5,34 +5,20 @@
 
 // ── 基础几何 ──
 
-export interface Point {
+interface Point {
     x: number;
     y: number;
 }
 
-export interface BoundingBox {
+interface BoundingBox {
     minX: number;
     minY: number;
     maxX: number;
     maxY: number;
 }
-
-export function defaultPoint(): Point {
-    return { x: 0, y: 0 };
-}
-
 export function defaultBoundingBox(): BoundingBox {
     return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 }
-
-export function boundsWidth(b: BoundingBox): number {
-    return b.maxX - b.minX;
-}
-
-export function boundsHeight(b: BoundingBox): number {
-    return b.maxY - b.minY;
-}
-
 // ── 图型枚举（值即 mermaid 语义，不借用旧实现枚举） ──
 
 /** 契约 A 支持的图型（软件行业常用 Visio 格式，2026-09 收敛）。
@@ -48,12 +34,12 @@ export const kDiagramKinds = [
 export type DiagramKind = (typeof kDiagramKinds)[number];
 
 export type NodeShapeKind = 'rect' | 'roundRect' | 'diamond' | 'circle' | 'ellipse';
-export type EdgeStyleKind = 'normal' | 'dotted' | 'thick';
-export type ArrowKind = 'none' | 'arrow' | 'circle' | 'openarrow';
+type EdgeStyleKind = 'normal' | 'dotted' | 'thick';
+type ArrowKind = 'none' | 'arrow' | 'circle' | 'openarrow';
 
 // ── 通用骨架（扁平图类） ──
 
-export interface Meta {
+interface Meta {
     title: string;
     direction: string;
     /** 整图像素边界（SVG 坐标，y 向下为正）。 */
@@ -62,7 +48,7 @@ export interface Meta {
     sourceText: string;
 }
 
-export interface GenericShape {
+interface GenericShape {
     id: string;
     label: string;
     shapeKind: NodeShapeKind;
@@ -83,7 +69,7 @@ export interface GenericShape {
     dividers: number[];
 }
 
-export interface GenericEdge {
+interface GenericEdge {
     from: string;
     to: string;
     label: string;
@@ -97,7 +83,7 @@ export interface GenericEdge {
     toMultiplicity: string;
 }
 
-export interface Cluster {
+interface Cluster {
     id: string;
     label: string;
     x: number;
@@ -108,7 +94,7 @@ export interface Cluster {
 
 // ── class 扩展块 ──
 
-export interface ClassMember {
+interface ClassMember {
     name: string;
     /** 可见性标记：+ - # ~，空=默认。 */
     visibility?: string;
@@ -128,7 +114,7 @@ export interface ClassBox {
     height?: number;
 }
 
-export interface ClassLayoutItem {
+interface ClassLayoutItem {
     x: number;
     y: number;
     width: number;
@@ -137,7 +123,7 @@ export interface ClassLayoutItem {
 
 export type ClassRelationKind = 'dependency' | 'inheritance' | 'realization' | 'aggregation' | 'composition' | 'association' | 'unsupported';
 
-export interface ClassRelation {
+interface ClassRelation {
     from: string;
     to: string;
     label: string;
@@ -156,7 +142,7 @@ export interface ClassModel {
 
 // ── er 扩展块 ──
 
-export interface ErAttribute {
+interface ErAttribute {
     name: string;
     type: string;
     primaryKey: boolean;
@@ -170,7 +156,7 @@ export interface ErEntity {
     attributes: ErAttribute[];
 }
 
-export interface ErRelation {
+interface ErRelation {
     from: string;
     to: string;
     label: string;
@@ -284,7 +270,7 @@ export interface ContractA {
 
 // ── 默认工厂 ──
 
-export function defaultMeta(): Meta {
+function defaultMeta(): Meta {
     return { title: '', direction: '', bounds: defaultBoundingBox(), sourceText: '' };
 }
 
@@ -318,11 +304,6 @@ export function defaultGenericEdge(): GenericEdge {
         toMultiplicity: '',
     };
 }
-
-export function defaultCluster(): Cluster {
-    return { id: '', label: '', x: 0, y: 0, width: 0, height: 0 };
-}
-
 export function defaultContractA(): ContractA {
     return {
         kind: 'flowchart',
@@ -334,7 +315,3 @@ export function defaultContractA(): ContractA {
 }
 
 // ── 语义谓词 ──
-
-export function isSequenceEmpty(s: SequenceModel): boolean {
-    return s.actors.length === 0 && s.messages.length === 0;
-}

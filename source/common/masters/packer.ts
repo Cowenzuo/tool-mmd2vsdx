@@ -10,7 +10,7 @@ import { kMasterContentType, kMastersContentType } from '../xml/constants.js';
 import { part, type XmlPart } from '../../contracts/index.js';
 import { findMasterEntry, type MasterCatalog, type StencilRecord } from './assets.js';
 
-export interface PackedMasters {
+interface PackedMasters {
     parts: XmlPart[];
     /** NameU → 文档内母版 ID（渲染期 Master="N" 用）。 */
     masterIds: Map<string, number>;

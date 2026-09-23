@@ -58,7 +58,3 @@ export function cell(name: string, value?: string, unit?: string, formula?: stri
 export function row(kind: string | undefined, ix: number | undefined, cells: CellIntent[], del = false): RowIntent {
     return { kind, ix, cells, del };
 }
-
-export function geometrySection(g: GeometryIntent): SectionIntent {
-    return { kind: 'Geometry', rows: g.rows };
-}
