@@ -34,7 +34,7 @@ npx playwright install chromium
 
 ```bash
 npm install && npx playwright install chromium && npm run build
-node bin/mmd2vsdx-server.mjs                  # 默认监听 127.0.0.1:17321
+node bin/mmd2vsdx-server.mjs                  # 默认监听 127.0.0.1:12138
 ```
 
 参数只有几个：`--port`、`--idle-browser`、`--timeout`、`--version`、`-h`，
@@ -46,13 +46,13 @@ node bin/mmd2vsdx-server.mjs                  # 默认监听 127.0.0.1:17321
 请求体就是 mermaid 原文，响应体就是 `.vsdx` 字节，元数据在响应头里：
 
 ```bash
-curl -sS -X POST http://127.0.0.1:17321/convert \
+curl -sS -X POST http://127.0.0.1:12138/convert \
      -H 'Content-Type: text/plain; charset=utf-8' \
      --data-binary @图.mmd -o 图.vsdx
 ```
 
 ```ts
-const res = await fetch('http://127.0.0.1:17321/convert', {
+const res = await fetch('http://127.0.0.1:12138/convert', {
   method: 'POST',
   headers: { 'Content-Type': 'text/plain; charset=utf-8' },
   body: 'flowchart LR\n  A-->B',

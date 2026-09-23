@@ -417,7 +417,7 @@ describe('启动参数', () => {
         const defaults = parseServerArgs([], {});
         expect(defaults).toEqual({
             kind: 'run',
-            config: { port: 17321, idleBrowserMs: 300_000, timeoutMs: 15_000, logLevel: 'info' },
+            config: { port: 12138, idleBrowserMs: 300_000, timeoutMs: 15_000, logLevel: 'info' },
         });
 
         const fromEnv = parseServerArgs([], { MMD2VSDX_PORT: '18000', MMD2VSDX_LOG: 'debug' });
