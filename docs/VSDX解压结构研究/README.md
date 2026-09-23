@@ -35,6 +35,9 @@
 
 素材约定：
 
+- **素材常驻仓库**：这批解压包是**对外共研的标本**——把真实的 Visio 图纸逐文件摊开，
+  方便他人对照研究、一起补充结论；同时它也是 `tests/master-templates.test.ts` 的夹具。
+  不要当冗余产物清理，改动素材必须同时改测试；
 - 素材根目录：`标准研究模板-手动创建vsdx并解压/`，共 14 份解压包：
   `basic-1` 到 `basic-6`（手工最简图纸）、`class`、`ER`、`sequence`（图型图纸）、
   `class-all-in-one`、`er-all-in-one`、`seq-all-in-one`（现行模板来源）、
