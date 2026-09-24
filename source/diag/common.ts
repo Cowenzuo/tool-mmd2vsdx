@@ -229,7 +229,54 @@ function connectionSection(w: number, h: number): XmlNode {
     return sec;
 }
 
-/** 节点形状：有母版时最小实例（Master+Pin+文本），无母版时自足式。 */
+/** 保存态连接点：照抄 Visio 重存形态——5 行只写 X/Y，绝对英寸值加 F='Inh'。
+ *  自足式那支的 connectionSection 带方向列，形态不同，别混。 */
+function saveStateConnectionSection(w: number, h: number): XmlNode {
+    const sec = makeElement('Section');
+    setAttribute(sec, 'N', 'Connection');
+    const points: ReadonlyArray<readonly [number, number]> = [
+        [w / 2, 0],
+        [w, h / 2],
+        [w / 2, h],
+        [0, h / 2],
+        [w / 2, h / 2],
+    ];
+    points.forEach((point, ix) => {
+        const row = makeElement('Row');
+        setAttribute(row, 'T', 'Connection');
+        setAttribute(row, 'IX', String(ix));
+        row.children.push(cellNode('X', kIn(point[0]), 'IN', 'Inh'), cellNode('Y', kIn(point[1]), 'IN', 'Inh'));
+        sec.children.push(row);
+    });
+    return sec;
+}
+
+/** 保存态矩形几何：照抄 Visio 重存形态——MoveTo 加三段 LineTo，再一条闭合行；
+ *  坐标是该形状自己的局部坐标，绝对值加 F='Inh'（公式仍由母版持有）。 */
+function saveStateRectGeometry(w: number, h: number): XmlNode {
+    const geo = makeElement('Section');
+    setAttribute(geo, 'N', 'Geometry');
+    setAttribute(geo, 'IX', '0');
+    const rows: ReadonlyArray<readonly [string, number, number, number]> = [
+        ['MoveTo', 1, 0, 0],
+        ['LineTo', 2, w, 0],
+        ['LineTo', 3, w, h],
+        ['LineTo', 4, 0, h],
+        ['LineTo', 5, 0, 0],
+    ];
+    for (const item of rows) {
+        const row = makeElement('Row');
+        setAttribute(row, 'T', item[0]);
+        setAttribute(row, 'IX', String(item[1]));
+        row.children.push(cellNode('X', kIn(item[2]), 'IN', 'Inh'), cellNode('Y', kIn(item[3]), 'IN', 'Inh'));
+        geo.children.push(row);
+    }
+    return geo;
+}
+
+/** 节点形状：有母版时写实实例（Master + 尺寸覆盖 + 几何/连接点缓存），无母版时自足式。
+ *  写实形态照抄 Visio 重存态（docs/VSDX处理经验/02-坑位与解法.md 8.1）：
+ *  OLE 激活首帧不解析母版继承，空壳会被按母版默认尺寸作画。 */
 function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: number, opts: RenderOptions): XmlNode {
     const k = opts.pxPerInch ?? 96;
     const m = opts.pageMargin ?? kCanvasMargin;
@@ -265,7 +312,10 @@ function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: num
             cellNode('Angle', '0', 'DEG'),
             cellNode('FlipX', '0'),
             cellNode('FlipY', '0'),
+            cellNode('ObjType', '1'),
         );
+        // 写实态：几何与连接点落到实例上（照抄 Visio 重存：绝对值 + F='Inh'，公式仍在母版）
+        el.children.push(saveStateConnectionSection(w, h), saveStateRectGeometry(w, h));
     }
     if (masterId === 0) {
         // 自足式：尺寸/锚/覆盖/连接点/几何全写

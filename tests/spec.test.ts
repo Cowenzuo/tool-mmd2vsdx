@@ -286,6 +286,35 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
                 for (const c of ['Width', 'Height', 'LocPinX', 'LocPinY']) {
                     if (!s.body.includes(`N="${c}"`)) err.push(`通用节点 Shape ${s.id} 缺 ${c} 尺寸覆盖（6.2.3.2 防重叠）`);
                 }
+                // 写实态（P-7 / 坑位 8.1）：几何与连接点落到实例上，形态照抄 Visio 重存
+                // ——绝对值加 F="Inh"，连接点每行只写 X/Y。缺了会让 OLE 激活首帧按母版默认尺寸作画。
+                const nodeGeo = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
+                const nodeConn = /<Section N="Connection"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
+                if (!nodeGeo) err.push(`通用节点 Shape ${s.id} 缺 Geometry 段（P-7 写实态）`);
+                if (!nodeConn) err.push(`通用节点 Shape ${s.id} 缺 Connection 段（P-7 写实态）`);
+                if (nodeGeo) {
+                    if (!/<Row T="MoveTo" IX="1"/.test(nodeGeo)) err.push(`通用节点 Shape ${s.id} 几何缺 MoveTo IX=1（P-7）`);
+                    for (const ix of ['2', '3', '4', '5']) {
+                        if (!nodeGeo.includes(`<Row T="LineTo" IX="${ix}"`)) {
+                            err.push(`通用节点 Shape ${s.id} 几何缺 LineTo IX=${ix}（P-7 闭合矩形）`);
+                        }
+                    }
+                    const nw = Number(/N="Width" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
+                    const nh = Number(/N="Height" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
+                    for (const m of nodeGeo.matchAll(/<Cell N="X" V="([^"]+)"[^>]*F="Inh"/g)) {
+                        const x = Number(m[1]);
+                        if (!(x >= -0.01 * nw && x <= nw * 1.01)) err.push(`通用节点 Shape ${s.id} 几何顶点 X=${x} 越出框宽 ${nw}（P-7）`);
+                    }
+                    for (const m of nodeGeo.matchAll(/<Cell N="Y" V="([^"]+)"[^>]*F="Inh"/g)) {
+                        const y = Number(m[1]);
+                        if (!(y >= -0.01 * nh && y <= nh * 1.01)) err.push(`通用节点 Shape ${s.id} 几何顶点 Y=${y} 越出框高 ${nh}（P-7）`);
+                    }
+                }
+                if (nodeConn) {
+                    const connRows = [...nodeConn.matchAll(/<Row T="Connection"/g)].length;
+                    if (connRows !== 5) err.push(`通用节点 Shape ${s.id} 连接点 ${connRows}/5（P-7 四边中点加中心）`);
+                    if (/N="DirX"/.test(nodeConn)) err.push(`通用节点 Shape ${s.id} 连接点带了方向列（P-7：只写 X/Y）`);
+                }
             }
         }
         // 双端自动 Connects 记录（basic-5：两端 ToCell='PinY' ToPart='3'）
