@@ -49,6 +49,19 @@ function mustParts(pkg: OpcPackage): string[] {
     ];
     for (const u of need) if (!pkg.has(u)) missing.push(u);           // 6.1.4 骨架恒定（除 1.4 可变件外全有）
     if (!pkg.listUris().some((u) => /^\/visio\/masters\/master\d+\.xml$/.test(u))) missing.push('masters/masterN.xml（≥1 内容文件 5.4.1）');
+    // 页→母版关系件：官方样本除自产的 c4-1 外都有。缺了页面关系闭包里没有母版，
+    // OLE 激活首帧会按"母版未解析"作画（docs/VSDX处理经验/02-坑位与解法.md 8.2）。
+    const pageXml = pkg.get('/visio/pages/page1.xml')?.xml ?? '';
+    if (/<Shape[^>]*Master="\d+"/.test(pageXml)) {
+        const uri = '/visio/pages/_rels/page1.xml.rels';
+        const rels = pkg.get(uri)?.xml ?? '';
+        if (!rels) missing.push(`${uri}（页→母版关系件）`);
+        else {
+            const targets = [...rels.matchAll(/Target="\.\.\/([^"]+)"/g)].map((m) => '/visio/' + m[1]);
+            if (targets.length === 0) missing.push(`${uri} 没有任何 master 关系`);
+            for (const t of targets) if (!pkg.has(t)) missing.push(`${uri} 的 Target 不存在：${t}`);
+        }
+    }
     return missing;
 }
 
