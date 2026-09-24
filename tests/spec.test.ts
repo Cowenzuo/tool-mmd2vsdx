@@ -300,8 +300,19 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
                         if (!/<TxtWidth"[^>]*MAX\(TEXTWIDTH\(TheText\)/.test(connMaster) && !/MAX\(TEXTWIDTH\(TheText\),/.test(connMaster)) err.push(`连接线母版缺 TxtWidth 公式（master2）`);
                     }
                     // 实例必须带（basic-5/6）：Width/Height + Geometry 段（MoveTo+LineTo×2）
-                    if (!has(s.body, /N="Width"[^>]*F="GUARD\(EndX-BeginX\)/) || !has(s.body, /N="Height"[^>]*F="GUARD\(EndY-BeginY\)/)) {
-                        err.push(`通用连接线 Shape ${s.id} 缺 Width/Height 随端点公式（basic-5）`);
+                    // 退化维例外：纯竖直走线按 Visio 保存态写 GUARD(0.2DL)（宽度为 0 会被下游按宽度归一化），
+                    // 水平同理取 GUARD(-0.2DL)（金标准实测，docs/VSDX处理经验/02-坑位与解法.md 8.x）
+                    if (
+                        !has(s.body, /N="Width"[^>]*F="GUARD\(EndX-BeginX\)"/) &&
+                        !has(s.body, /N="Width"[^>]*F="GUARD\(0\.2DL\)"/)
+                    ) {
+                        err.push(`通用连接线 Shape ${s.id} 缺 Width 随端点公式（basic-5）`);
+                    }
+                    if (
+                        !has(s.body, /N="Height"[^>]*F="GUARD\(EndY-BeginY\)/) &&
+                        !has(s.body, /N="Height"[^>]*F="GUARD\(-0\.2DL\)"/)
+                    ) {
+                        err.push(`通用连接线 Shape ${s.id} 缺 Height 随端点公式（basic-5）`);
                     }
                     const gir = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
                     if (!/<Row T="MoveTo"/.test(gir)) err.push(`通用连接线 Shape ${s.id} 实例几何缺 MoveTo（basic-6 实例化几何）`);

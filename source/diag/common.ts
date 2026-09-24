@@ -5,7 +5,7 @@
 // basic-5 基准）+ Connects 记录（本体粘附）。
 // 坐标换算：像素（SVG y 向下）→ 英寸（y 向上）。
 
-import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
+import { attr, makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kPageContentType, kPageUri, kPagesContentType, kPagesUri } from '../common/xml/constants.js';
 import { part, type ContractA, type ContractB, type XmlPart } from '../contracts/index.js';
 import { fmtInch, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
@@ -354,6 +354,40 @@ function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: num
     return el;
 }
 
+/** 端点吸附到形状最近连接点（英寸，页面坐标）：距离超过 kSnapTolerance 就保持原值。
+ *  连接点用节点实例写的同一组五点（四边中点 + 中心），矩形与菱形都成立。 */
+const kSnapTolerance = 0.15;
+
+function snapToConnectionPoint(
+    x: number,
+    y: number,
+    shape: ContractA['shapes'][number] | undefined,
+    pageHpx: number,
+    opts: RenderOptions,
+): [number, number] {
+    if (!shape) return [x, y];
+    const k = opts.pxPerInch ?? 96;
+    const m = opts.pageMargin ?? kCanvasMargin;
+    const cx = pxToInch(shape.x, { pxPerInch: k }) + m;
+    const cy = (pageHpx - shape.y) / k + m;
+    const w = pxSizeToInch(shape.width, { pxPerInch: k });
+    const h = pxSizeToInch(shape.height, { pxPerInch: k });
+    const fx = [0.5, 1, 0.5, 0, 0.5];
+    const fy = [0, 0.5, 1, 0.5, 0.5];
+    let best: [number, number] = [x, y];
+    let bestDist = kSnapTolerance;
+    for (let i = 0; i < fx.length; i++) {
+        const px = cx + (fx[i] ?? 0) * w - w / 2;
+        const py = cy + (fy[i] ?? 0) * h - h / 2;
+        const dist = Math.hypot(px - x, py - y);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = [px, py];
+        }
+    }
+    return best;
+}
+
 /** 连接线实例（basic-5 基准）：Master= 引用动态连接线母版（flowchart 官方模具），
  *  实例只写与母版不同的 cell——端点公式（双端 WALKGLUE 镜像）、触发器（_XFTRIGGER V=2）、
  *  WalkPreference=3、ConFixedCode=6、EndArrow、TxtPinX/Y 缓存、Control 段缓存。
@@ -373,10 +407,18 @@ function writeConnectorNode(
     // V 缓存：WAYPOINTS 首末点（mermaid 真实贴附，打开后由 WALKGLUE 重算）；缺省用形状中心
     const wp0 = e.waypoints[0];
     const wpN = e.waypoints[e.waypoints.length - 1];
-    const bx = pxToInch(wp0?.x ?? srcShape?.x ?? 0, { pxPerInch: k }) + m;
-    const by = (pageHpx - (wp0?.y ?? srcShape?.y ?? 0)) / k + m;
-    const ex = pxToInch(wpN?.x ?? dstShape?.x ?? 0, { pxPerInch: k }) + m;
-    const ey = (pageHpx - (wpN?.y ?? dstShape?.y ?? 0)) / k + m;
+    const rawBx = pxToInch(wp0?.x ?? srcShape?.x ?? 0, { pxPerInch: k }) + m;
+    const rawBy = (pageHpx - (wp0?.y ?? srcShape?.y ?? 0)) / k + m;
+    const rawEx = pxToInch(wpN?.x ?? dstShape?.x ?? 0, { pxPerInch: k }) + m;
+    const rawEy = (pageHpx - (wpN?.y ?? dstShape?.y ?? 0)) / k + m;
+    // 端点吸附：mermaid 走线端点是形状边界上的任意点，Visio 打开时会按 WALKGLUE 重算到
+    // 最近的连接点；这里提前落到同一语义（金标准实测：终点 3.61~3.98pt 的缺口消失）
+    const snappedB = snapToConnectionPoint(rawBx, rawBy, srcShape, pageHpx, opts);
+    const snappedE = snapToConnectionPoint(rawEx, rawEy, dstShape, pageHpx, opts);
+    const bx = snappedB[0];
+    const by = snappedB[1];
+    const ex = snappedE[0];
+    const ey = snappedE[1];
     const dx = ex - bx;
     const dy = ey - by;
 
@@ -394,30 +436,37 @@ function writeConnectorNode(
         setAttribute(el, 'LineStyle', '5');
         setAttribute(el, 'FillStyle', '5');
         setAttribute(el, 'TextStyle', '5');
+        // 退化维按 Visio 保存态规范成 0.2DL（纯竖直的 Width=0 会让下游按宽度归一化时炸掉；
+        // 与 LocPin、几何 X 成组自洽，页面路径不变）
+        const vertical = Math.abs(dx) < 1e-6;
+        const horizontal = Math.abs(dy) < 1e-6;
+        const spanCross = 0.2;
+        const wCell = vertical ? spanCross : dx;
+        const hCell = horizontal ? -spanCross : dy;
         el.children.push(
             cellNode('PinX', kIn((bx + ex) / 2), 'IN', 'Inh'),
             cellNode('PinY', kIn((by + ey) / 2), 'IN', 'Inh'),
             // 尺寸随端点（basic-5/6 实例实证：Width/Height 实例写 GUARD 公式，非仅母版承载）
-            cellNode('Width', kIn(dx), 'IN', spanX()),
-            cellNode('Height', kIn(dy), 'IN', spanY()),
-            cellNode('LocPinX', kIn(dx / 2), 'IN', 'Inh'),
-            cellNode('LocPinY', kIn(dy / 2), 'IN', 'Inh'),
+            cellNode('Width', kIn(wCell), 'IN', vertical ? 'GUARD(0.2DL)' : spanX()),
+            cellNode('Height', kIn(hCell), 'IN', horizontal ? 'GUARD(-0.2DL)' : spanY()),
+            cellNode('LocPinX', kIn(wCell / 2), 'IN', 'Inh'),
+            cellNode('LocPinY', kIn(hCell / 2), 'IN', 'Inh'),
         );
         // 几何实例化（basic-5/6 实证：Geometry 两行 LineTo L 型——母版几何是占位，
         // 实例必须写实际走线；缺失会显示母版占位形状致文本定位错乱/漂移）
         const geo = makeElement('Section');
         setAttribute(geo, 'N', 'Geometry');
         setAttribute(geo, 'IX', '0');
-        if (Math.abs(dx) < 1e-6) {
-            // 纯竖直：单段（LocPinX=0 时从原点直达）
+        if (vertical) {
+            // 纯竖直：单段（局部 X 取 LocPin 同一值，页面路径仍是 Begin→End）
             const m2 = makeElement('Row');
             setAttribute(m2, 'T', 'MoveTo');
             setAttribute(m2, 'IX', '1');
-            m2.children.push(cellNode('X', '0'), cellNode('Y', '0'));
+            m2.children.push(cellNode('X', kIn(wCell / 2)), cellNode('Y', '0'));
             const l2 = makeElement('Row');
             setAttribute(l2, 'T', 'LineTo');
             setAttribute(l2, 'IX', '2');
-            l2.children.push(cellNode('X', '0'), cellNode('Y', kIn(dy)));
+            l2.children.push(cellNode('X', kIn(wCell / 2)), cellNode('Y', kIn(hCell)));
             geo.children.push(m2, l2);
         } else {
             const m2 = makeElement('Row');
@@ -433,6 +482,23 @@ function writeConnectorNode(
             setAttribute(l3, 'IX', '3');
             l3.children.push(cellNode('X', kIn(dx)), cellNode('Y', kIn(dy)));
             geo.children.push(m2, l2, l3);
+        }
+        // 母版里未被用到的几何行按 Visio 保存态写 Del='1' 墓碑：
+        // 缺墓碑时按行继承会多画一段母版占位线（纯竖线 2 行 vs 母版 3 行）
+        const connectorContent = opts.masterContents?.get('Dynamic connector');
+        const connectorGeo = connectorContent ? readMasterGeometry(connectorContent) : null;
+        if (connectorGeo) {
+            const writtenIx = new Set(
+                geo.children.filter((r): r is XmlNode => typeof r !== 'string').map((r) => attr(r, 'IX') ?? ''),
+            );
+            for (const mr of connectorGeo.rows) {
+                if (writtenIx.has(mr.ix)) continue;
+                const tomb = makeElement('Row');
+                setAttribute(tomb, 'T', mr.type);
+                setAttribute(tomb, 'IX', mr.ix);
+                setAttribute(tomb, 'Del', '1');
+                geo.children.push(tomb);
+            }
         }
         el.children.push(geo);
     } else {
@@ -486,12 +552,14 @@ function writeConnectorNode(
         const ty = midOnHoriz ? 0 : sgnY * (halfLen - horiz);
         el.children.push(cellNode('TxtPinX', kIn(tx), 'IN', 'Inh'));
         el.children.push(cellNode('TxtPinY', kIn(ty), 'IN', 'Inh'));
-        // 文本高缓存（basic-6 V=0.2444939358181424 系 TEXTHEIGHT 结果；TxtLocPinY=高/2）
+        // 文本四件套缓存（Visio 保存态对连接线一律写全，与文字有无无关）：
+        // TxtWidth=5*Char.Size（8pt→0.5555…）、TxtHeight=TEXTHEIGHT 结果、LocPin 取半
+        const textW = 0.5555555555555556;
         const textH = 0.2444939358181424; // 素材实测默认高（TEXTHEIGHT(TheText, TxtWidth) 结果）
-        if (hasLabel) {
-            el.children.push(cellNode('TxtHeight', String(textH), undefined, 'Inh'));
-            el.children.push(cellNode('TxtLocPinY', String(textH / 2), undefined, 'Inh'));
-        }
+        el.children.push(cellNode('TxtWidth', String(textW), 'IN', 'Inh'));
+        el.children.push(cellNode('TxtHeight', String(textH), 'IN', 'Inh'));
+        el.children.push(cellNode('TxtLocPinX', String(textW / 2), 'IN', 'Inh'));
+        el.children.push(cellNode('TxtLocPinY', String(textH / 2), 'IN', 'Inh'));
         const ctrl = makeElement('Section');
         setAttribute(ctrl, 'N', 'Control');
         const cRow = makeElement('Row');
