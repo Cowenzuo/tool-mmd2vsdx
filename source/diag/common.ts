@@ -16,6 +16,7 @@ import { buildDocumentPart } from '../common/styles/writer.js';
 import { StyleRegistry } from '../common/styles/model.js';
 import { MasterPacker } from '../common/masters/packer.js';
 import { shapeKindToMasterName } from '../common/masters/client.js';
+import { instantiateMasterGeometry, readMasterGeometry } from '../common/masters/geometry.js';
 import type { MasterCatalog } from '../common/masters/assets.js';
 import type { CellIntent, RowIntent } from '../common/intents.js';
 import { kVisioNamespace } from '../common/xml/constants.js';
@@ -28,6 +29,8 @@ interface RenderOptions {
     stencil?: MasterCatalog;
     /** 内部：母版 ID 映射（render 填充后下传）。 */
     masterIds?: Map<string, number>;
+    /** 内部：母版内容 XML（NameU → contentXml），按母版几何实例化用。 */
+    masterContents?: Map<string, string>;
     /** pages.xml 的 DrawingResizeType：1=随图形自动缩放（Visio 默认，按打印纸倍数放大页面，
      *  实测会忽略 PageWidth/PageHeight）、2=不缩放（页面尺寸 = 我们算的尺寸）。
      *  **全部图型统一用 2**（P-4 画布策略）：页面严格等于内容外包围框。 */
@@ -43,12 +46,14 @@ export class CommonRenderer {
     render(a: ContractA, opts: RenderOptions = {}): ContractB {
         const parts: XmlPart[] = [buildDocumentPart(new StyleRegistry())];
         let masterIds = new Map<string, number>();
+        let masterContents = new Map<string, string>();
         if (opts.stencil) {
             const packed = new MasterPacker(opts.stencil).pack(wantedNames(a));
             parts.push(...packed.parts);
             masterIds = packed.masterIds;
+            masterContents = packed.contents;
         }
-        parts.push(...buildPageParts(a, { ...opts, masterIds }));
+        parts.push(...buildPageParts(a, { ...opts, masterIds, masterContents }));
         return { parts };
     }
 }
@@ -251,27 +256,28 @@ function saveStateConnectionSection(w: number, h: number): XmlNode {
     return sec;
 }
 
-/** 保存态矩形几何：照抄 Visio 重存形态——MoveTo 加三段 LineTo，再一条闭合行；
- *  坐标是该形状自己的局部坐标，绝对值加 F='Inh'（公式仍由母版持有）。 */
-function saveStateRectGeometry(w: number, h: number): XmlNode {
-    const geo = makeElement('Section');
-    setAttribute(geo, 'N', 'Geometry');
-    setAttribute(geo, 'IX', '0');
-    const rows: ReadonlyArray<readonly [string, number, number, number]> = [
-        ['MoveTo', 1, 0, 0],
-        ['LineTo', 2, w, 0],
-        ['LineTo', 3, w, h],
-        ['LineTo', 4, 0, h],
-        ['LineTo', 5, 0, 0],
-    ];
-    for (const item of rows) {
+/** 保存态几何：按该形状自身母版的 Geometry 行实例化（照抄 Visio 重存形态——
+ *  值取母版公式在自身 Width/Height 上的结果，每格 F='Inh'，公式仍由母版持有）。
+ *  母版几何缺失或公式超出支持文法时返回 null：宁可不写（退回母版继承），也不写错形状
+ *  ——矩形一刀切会让 Diamond 变方框（docs/VSDX处理经验/02-坑位与解法.md 8.1）。 */
+function saveStateGeometry(s: ContractA['shapes'][number], w: number, h: number, opts: RenderOptions): XmlNode | null {
+    const content = opts.masterContents?.get(shapeKindToMasterName(s.shapeKind));
+    if (!content) return null;
+    const geo = readMasterGeometry(content);
+    if (!geo) return null;
+    const rows = instantiateMasterGeometry(geo, w, h);
+    if (!rows) return null;
+    const section = makeElement('Section');
+    setAttribute(section, 'N', 'Geometry');
+    setAttribute(section, 'IX', '0');
+    for (const r of rows) {
         const row = makeElement('Row');
-        setAttribute(row, 'T', item[0]);
-        setAttribute(row, 'IX', String(item[1]));
-        row.children.push(cellNode('X', kIn(item[2]), 'IN', 'Inh'), cellNode('Y', kIn(item[3]), 'IN', 'Inh'));
-        geo.children.push(row);
+        setAttribute(row, 'T', r.type);
+        setAttribute(row, 'IX', r.ix);
+        for (const c of r.cells) row.children.push(cellNode(c.name, kIn(c.value), 'IN', 'Inh'));
+        section.children.push(row);
     }
-    return geo;
+    return section;
 }
 
 /** 节点形状：有母版时写实实例（Master + 尺寸覆盖 + 几何/连接点缓存），无母版时自足式。
@@ -315,7 +321,9 @@ function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: num
             cellNode('ObjType', '1'),
         );
         // 写实态：几何与连接点落到实例上（照抄 Visio 重存：绝对值 + F='Inh'，公式仍在母版）
-        el.children.push(saveStateConnectionSection(w, h), saveStateRectGeometry(w, h));
+        el.children.push(saveStateConnectionSection(w, h));
+        const geometry = saveStateGeometry(s, w, h, opts);
+        if (geometry) el.children.push(geometry);
     }
     if (masterId === 0) {
         // 自足式：尺寸/锚/覆盖/连接点/几何全写

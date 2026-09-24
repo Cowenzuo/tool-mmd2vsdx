@@ -11,6 +11,7 @@ import { renderContract, kImplementedKinds } from '../source/convert.js';
 import { PartsAssembler } from '../source/xml-parts/index.js';
 import { Squeeze } from '../source/squeeze/index.js';
 import { OpcPackage } from '../source/opc/index.js';
+import { instantiateMasterGeometry, readMasterGeometry } from '../source/common/masters/geometry.js';
 
 let hasBrowser = false;
 beforeAll(async () => {
@@ -63,6 +64,34 @@ function mustParts(pkg: OpcPackage): string[] {
         }
     }
     return missing;
+}
+
+/** 母版内容：Master ID → masterN.xml 内容（经 masters.xml 的 Rel 与 masters.xml.rels）。 */
+function masterContentOf(pkg: OpcPackage, masterId: string): string {
+    const masters = pkg.get('/visio/masters/masters.xml')?.xml ?? '';
+    const rels = pkg.get('/visio/masters/_rels/masters.xml.rels')?.xml ?? '';
+    const entry =
+        new RegExp(`<Master[^>]*ID="${masterId}"[\\s\\S]*?</Master>`).exec(masters)?.[0] ??
+        new RegExp(`<Master[^>]*ID="${masterId}"[^>]*/>`).exec(masters)?.[0] ??
+        '';
+    const relId = /<Rel[^>]*r:id="([^"]+)"/.exec(entry)?.[1] ?? /<Rel[^>]*id="([^"]+)"/.exec(entry)?.[1];
+    if (!relId) return '';
+    const file = new RegExp(`Id="${relId}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] ?? '';
+    return file ? (pkg.get(`/visio/masters/${file}`)?.xml ?? '') : '';
+}
+
+/** 实例写出的几何行（行类型/IX 与 X/Y/A/B/C/D 数值）。 */
+function writtenGeometry(body: string): Array<{ t: string; ix: string; cells: Map<string, number> }> {
+    const section = /<Section N="Geometry"[^>]*>([\s\S]*?)<\/Section>/.exec(body)?.[1] ?? '';
+    const out: Array<{ t: string; ix: string; cells: Map<string, number> }> = [];
+    for (const row of section.matchAll(/<Row T="([^"]+)" IX="(\d+)"[^>]*>([\s\S]*?)<\/Row>/g)) {
+        const cells = new Map<string, number>();
+        for (const cell of (row[3] ?? '').matchAll(/<Cell N="([^"]+)" V="([^"]+)"/g)) {
+            cells.set(cell[1] ?? '', Number(cell[2]));
+        }
+        out.push({ t: row[1] ?? '', ix: row[2] ?? '', cells });
+    }
+    return out;
 }
 
 /** 栈式 Shape 解析（嵌套 Group 子形状正确配对；避免被嵌套 Shape 切割）。 */
@@ -300,28 +329,35 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
                     if (!s.body.includes(`N="${c}"`)) err.push(`通用节点 Shape ${s.id} 缺 ${c} 尺寸覆盖（6.2.3.2 防重叠）`);
                 }
                 // 写实态（P-7 / 坑位 8.1）：几何与连接点落到实例上，形态照抄 Visio 重存
-                // ——绝对值加 F="Inh"，连接点每行只写 X/Y。缺了会让 OLE 激活首帧按母版默认尺寸作画。
+                // ——绝对值加 F="Inh"，连接点每行只写 X/Y。缺了会让原始 XML 消费者按母版占位作画。
                 const nodeGeo = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
                 const nodeConn = /<Section N="Connection"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
-                if (!nodeGeo) err.push(`通用节点 Shape ${s.id} 缺 Geometry 段（P-7 写实态）`);
                 if (!nodeConn) err.push(`通用节点 Shape ${s.id} 缺 Connection 段（P-7 写实态）`);
-                if (nodeGeo) {
-                    if (!/<Row T="MoveTo" IX="1"/.test(nodeGeo)) err.push(`通用节点 Shape ${s.id} 几何缺 MoveTo IX=1（P-7）`);
-                    for (const ix of ['2', '3', '4', '5']) {
-                        if (!nodeGeo.includes(`<Row T="LineTo" IX="${ix}"`)) {
-                            err.push(`通用节点 Shape ${s.id} 几何缺 LineTo IX=${ix}（P-7 闭合矩形）`);
-                        }
+                // 几何必须等于"该形状母版几何按自身 W/H 实例化"（批 1 修正：一刀切矩形会让 Diamond 变方框）
+                const nodeMasterId = /Master="(\d+)"/.exec(s.attrs)?.[1] ?? '';
+                const nodeContent = nodeMasterId ? masterContentOf(pkg, nodeMasterId) : '';
+                const nodeGeoModel = nodeContent ? readMasterGeometry(nodeContent) : null;
+                const nw = Number(/N="Width" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
+                const nh = Number(/N="Height" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
+                if (nodeGeoModel) {
+                    const want = instantiateMasterGeometry(nodeGeoModel, nw, nh);
+                    const got = writtenGeometry(s.body);
+                    if (want === null) err.push(`通用节点 Shape ${s.id} 母版几何含未支持公式（应整体不写）`);
+                    else if (got.length !== want.length) err.push(`通用节点 Shape ${s.id} 几何行数 ${got.length} != 母版实例化 ${want.length}（P-7 批 1）`);
+                    else {
+                        want.forEach((w, i) => {
+                            const g = got[i]!;
+                            if (g.t !== w.type || g.ix !== w.ix) err.push(`通用节点 Shape ${s.id} 几何第 ${i} 行类型/IX 不符（P-7 批 1）`);
+                            for (const c of w.cells) {
+                                const v = g.cells.get(c.name);
+                                if (v === undefined || Math.abs(v - c.value) > 1e-6) {
+                                    err.push(`通用节点 Shape ${s.id} 几何 ${c.name} 与母版实例化不符（${v ?? '缺'} vs ${c.value}）`);
+                                }
+                            }
+                        });
                     }
-                    const nw = Number(/N="Width" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
-                    const nh = Number(/N="Height" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
-                    for (const m of nodeGeo.matchAll(/<Cell N="X" V="([^"]+)"[^>]*F="Inh"/g)) {
-                        const x = Number(m[1]);
-                        if (!(x >= -0.01 * nw && x <= nw * 1.01)) err.push(`通用节点 Shape ${s.id} 几何顶点 X=${x} 越出框宽 ${nw}（P-7）`);
-                    }
-                    for (const m of nodeGeo.matchAll(/<Cell N="Y" V="([^"]+)"[^>]*F="Inh"/g)) {
-                        const y = Number(m[1]);
-                        if (!(y >= -0.01 * nh && y <= nh * 1.01)) err.push(`通用节点 Shape ${s.id} 几何顶点 Y=${y} 越出框高 ${nh}（P-7）`);
-                    }
+                } else if (nodeGeo) {
+                    err.push(`通用节点 Shape ${s.id} 母版无几何却写了实例几何段（P-7 写实态）`);
                 }
                 if (nodeConn) {
                     const connRows = [...nodeConn.matchAll(/<Row T="Connection"/g)].length;
