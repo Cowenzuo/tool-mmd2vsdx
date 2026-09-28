@@ -58,11 +58,43 @@
         return span ? (span.textContent || '').trim() : '';
     }
 
-    function edgeIds(path) {
+    /** 用本轮已解析出的节点 id 集合切分边 id。
+     *  节点侧 nodeId() 取的是任意字符（.+) 所以中文节点正常；边侧过去按 ASCII 白名单匹配，
+     *  中文 id 的边会整条丢掉（连 Dynamic connector 形状都不产出）。这里改为按已知 id 切分，
+     *  同时兼容：block 的 `1-A-B` 序号前缀、flowchart 的 `-0` 索引后缀、id 里自带 `-`。 */
+    function matchByNodeIds(text, idSet) {
+        if (!text || idSet.size === 0) return null;
+        const tokens = text.trim().split(/\s+/).filter((t) => t.indexOf('-') >= 0);
+        for (const token of tokens) {
+            const segs = token.split(/-+/).filter((s) => s.length > 0);
+            for (let i = 0; i < segs.length; i++) {
+                for (let j = i + 1; j < segs.length; j++) {
+                    const from = segs.slice(i, j).join('-');
+                    if (!idSet.has(from)) continue;
+                    for (let k = j + 1; k <= segs.length; k++) {
+                        const to = segs.slice(j, k).join('-');
+                        if (to !== from && idSet.has(to)) return { from, to };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function edgeIds(path, idSet) {
+        // 首选：按已知节点 id 切分（中文/含 '-' 的 id 都走这条）
+        const rawId = attr(path, 'id');
+        const rawCls = attr(path, 'class');
+        const byNodes = matchByNodeIds(rawId, idSet) || matchByNodeIds(rawCls, idSet);
+        if (byNodes) return byNodes;
+        // 回退：按 id/class 的固定形态解析（已知节点集合缺失或未命中时）
         // v10：flowchart id 形如 L-A-B-0；class 形如 "… LS-A LE-B"；
-        // state/其它图型 id 形如 state-A-B-1 或 A-B；统一容错解析
-        let id = attr(path, 'id');
+        // state/其它图型 id 形如 state-A-B-1 或 A-B；block 形如 1-A-B（数字序号前缀）；
+        // 统一容错解析
+        let id = rawId;
         if (id) {
+            const block = /^\d+-([A-Za-z0-9_]+)-([A-Za-z0-9_]+)$/.exec(id);
+            if (block) return { from: block[1], to: block[2] };
             const m = /^[a-z]*-([A-Za-z0-9_]+)--?([A-Za-z0-9_]+)-?\d*$/.exec(id);
             if (m) return { from: m[1], to: m[2] };
             const m2 = /^([A-Za-z0-9_]+)--?([A-Za-z0-9_]+)-?\d*$/.exec(id);
@@ -75,14 +107,80 @@
     }
 
     function waypoints(svg, path) {
-        // d 属性是路径局部坐标（g.edgePaths 等容器带 transform）——先经 path.getCTM()
+        // d 属性是路径局部坐标（g.edgePaths / g.block 等容器带 transform）——先经 path.getCTM()
         // 到根用户空间，再经 svg.getScreenCTM().inverse() 返回世界坐标（与 worldBox 同口径）。
+        // 逐段解析：M/L/H/V 的每个端点都在线上；C/S/Q/T 只取该段末端（控制点不在线上）；
+        // 坐标可带负号（block 的边整条都在负坐标区），不能用 [\d.] 硬匹配。
         const d = attr(path, 'd');
         const raw = [];
-        const lm = d.match(/M\s*([\d.]+)[,\s]+([\d.]+)/);
-        if (lm) raw.push({ x: +lm[1], y: +lm[2] });
-        for (const mm of d.matchAll(/[Ll]\s*([\d.]+)[,\s]+([\d.]+)/g)) {
-            raw.push({ x: +mm[1], y: +mm[2] });
+        const numRe = /-?\d*\.?\d+(?:[eE][-+]?\d+)?/g;
+        const segRe = /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g;
+        let cx = 0;
+        let cy = 0;
+        let sx = 0;
+        let sy = 0;
+        const push = (x, y) => {
+            const last = raw[raw.length - 1];
+            if (last && Math.abs(last.x - x) < 1e-9 && Math.abs(last.y - y) < 1e-9) return;
+            raw.push({ x, y });
+        };
+        for (const seg of d.matchAll(segRe)) {
+            const cmd = seg[1];
+            const nums = (seg[2].match(numRe) || []).map(Number);
+            const rel = cmd === cmd.toLowerCase();
+            const upper = cmd.toUpperCase();
+            if (upper === 'M' || upper === 'L' || upper === 'T') {
+                const step = upper === 'T' ? 2 : 2;
+                for (let i = 0; i + 1 < nums.length; i += step) {
+                    const x = rel ? cx + nums[i] : nums[i];
+                    const y = rel ? cy + nums[i + 1] : nums[i + 1];
+                    cx = x;
+                    cy = y;
+                    if (upper === 'M' && i === 0) {
+                        sx = x;
+                        sy = y;
+                    }
+                    push(x, y);
+                }
+            } else if (upper === 'H') {
+                for (const v of nums) {
+                    cx = rel ? cx + v : v;
+                    push(cx, cy);
+                }
+            } else if (upper === 'V') {
+                for (const v of nums) {
+                    cy = rel ? cy + v : v;
+                    push(cx, cy);
+                }
+            } else if (upper === 'C') {
+                for (let i = 0; i + 5 < nums.length; i += 6) {
+                    const x = rel ? cx + nums[i + 4] : nums[i + 4];
+                    const y = rel ? cy + nums[i + 5] : nums[i + 5];
+                    cx = x;
+                    cy = y;
+                    push(x, y);
+                }
+            } else if (upper === 'S' || upper === 'Q') {
+                for (let i = 0; i + 3 < nums.length; i += 4) {
+                    const x = rel ? cx + nums[i + 2] : nums[i + 2];
+                    const y = rel ? cy + nums[i + 3] : nums[i + 3];
+                    cx = x;
+                    cy = y;
+                    push(x, y);
+                }
+            } else if (upper === 'A') {
+                for (let i = 0; i + 6 < nums.length; i += 7) {
+                    const x = rel ? cx + nums[i + 5] : nums[i + 5];
+                    const y = rel ? cy + nums[i + 6] : nums[i + 6];
+                    cx = x;
+                    cy = y;
+                    push(x, y);
+                }
+            } else if (upper === 'Z') {
+                cx = sx;
+                cy = sy;
+                push(cx, cy);
+            }
         }
         const ctm = svg.getScreenCTM();
         const pathCtm = path.getScreenCTM();
@@ -130,14 +228,21 @@
             });
         }
         const edges = [];
+        const nodeIdSet = new Set(nodes.map((n) => n.id));
         // 标签按位置匹配：每个 .edgeLabel 的包围盒中心 vs 边中点，取最近者
         const labels = [...svgEl.querySelectorAll('.edgeLabels .edgeLabel')].map((t) => {
             const r = t.getBoundingClientRect();
             const p = userPoint(svg, r.left + r.width / 2, r.top + r.height / 2);
             return { text: (t.textContent || '').trim(), cx: p.x, cy: p.y };
         });
-        for (const el of svgEl.querySelectorAll('.edgePaths path')) {
-            const ids = edgeIds(el);
+        // 边路径容器因图型而异：flowchart 在 g.edgePaths 下，block 直接挂在 g.block 下
+        // （block 的边若漏选会整批丢线，且 master 目录里连 Dynamic connector 都不会出现）
+        const edgePathEls = [];
+        for (const el of svgEl.querySelectorAll('.edgePaths path, g.block > path.flowchart-link')) {
+            if (edgePathEls.indexOf(el) < 0) edgePathEls.push(el);
+        }
+        for (const el of edgePathEls) {
+            const ids = edgeIds(el, nodeIdSet);
             if (!ids) continue;
             const pts = waypoints(svg, el);
             let label = '';

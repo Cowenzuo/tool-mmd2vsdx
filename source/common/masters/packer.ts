@@ -1,4 +1,4 @@
-﻿// 母版组：装配服务——NameU 集 → masters 三件套（docs/开发过程/01-结构设计.md）
+// 母版组：装配服务——NameU 集 → masters 三件套（docs/开发过程/01-结构设计.md）
 //
 // 规则（规范版 5.4）：目录条目按 wanted 序重排、ID 从 100 起重写、
 // Rel r:id 重写为目录内唯一（跨记录合并防冲突）、内容文件原样复制、
@@ -14,6 +14,8 @@ interface PackedMasters {
     parts: XmlPart[];
     /** NameU → 文档内母版 ID（渲染期 Master="N" 用）。 */
     masterIds: Map<string, number>;
+    /** NameU → 母版内容 XML（渲染期按母版几何实例化用）。 */
+    contents: Map<string, string>;
 }
 
 function serializeRoot(root: XmlNode): string {
@@ -33,7 +35,8 @@ export class MasterPacker {
 
     /** 按 wanted 序打包；ID 从 100 起连续；rId 重写为目录内唯一。 */
     pack(nameUs: string[]): PackedMasters {
-        if (!this.catalog || this.catalog.records.length === 0) return { parts: [], masterIds: new Map() };
+        const contents = new Map<string, string>();
+        if (!this.catalog || this.catalog.records.length === 0) return { parts: [], masterIds: new Map(), contents };
         const masterIds = new Map<string, number>();
         let nextId = 100;
         let nextRel = 1;
@@ -47,7 +50,7 @@ export class MasterPacker {
             const newId = `rId${nextRel++}`;
             kept.push({ nameU, rec: entry.record ?? this.catalog.records[0]!, oldId: entry.relId, newId, fileName: entry.fileName });
         }
-        if (kept.length === 0) return { parts: [], masterIds };
+        if (kept.length === 0) return { parts: [], masterIds, contents };
 
         // masters.xml：重排 + 重写 ID + 重写 Rel r:id（来源记录各自的目录条目）
         const mastersEl = makeElement('Masters');
@@ -69,18 +72,19 @@ export class MasterPacker {
             const content = k.rec.contents[k.fileName];
             if (content === undefined) continue;
             parts.push(part(`/visio/masters/${k.fileName}`, kMasterContentType, content));
+            contents.set(k.nameU, content);
             const rel = makeElement('Relationship');
             setAttribute(rel, 'Id', k.newId);
             setAttribute(rel, 'Type', 'http://schemas.microsoft.com/visio/2010/relationships/master');
             setAttribute(rel, 'Target', k.fileName);
             relsEl.children.push(rel);
         }
-        if (parts.length === 0) return { parts: [], masterIds };
+        if (parts.length === 0) return { parts: [], masterIds, contents };
         parts.unshift(
             part('/visio/masters/masters.xml', kMastersContentType, serializeRoot(mastersEl)),
             part('/visio/masters/_rels/masters.xml.rels', 'application/vnd.openxmlformats-package.relationships+xml', serializeRoot(relsEl)),
         );
-        return { parts, masterIds };
+        return { parts, masterIds, contents };
     }
 }
 

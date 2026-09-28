@@ -11,6 +11,7 @@ import { renderContract, kImplementedKinds } from '../source/convert.js';
 import { PartsAssembler } from '../source/xml-parts/index.js';
 import { Squeeze } from '../source/squeeze/index.js';
 import { OpcPackage } from '../source/opc/index.js';
+import { instantiateMasterGeometry, readMasterGeometry } from '../source/common/masters/geometry.js';
 
 let hasBrowser = false;
 beforeAll(async () => {
@@ -49,7 +50,48 @@ function mustParts(pkg: OpcPackage): string[] {
     ];
     for (const u of need) if (!pkg.has(u)) missing.push(u);           // 6.1.4 骨架恒定（除 1.4 可变件外全有）
     if (!pkg.listUris().some((u) => /^\/visio\/masters\/master\d+\.xml$/.test(u))) missing.push('masters/masterN.xml（≥1 内容文件 5.4.1）');
+    // 页→母版关系件：官方样本除自产的 c4-1 外都有。缺了页面关系闭包里没有母版，
+    // OLE 激活首帧会按"母版未解析"作画（docs/VSDX处理经验/02-坑位与解法.md 8.2）。
+    const pageXml = pkg.get('/visio/pages/page1.xml')?.xml ?? '';
+    if (/<Shape[^>]*Master="\d+"/.test(pageXml)) {
+        const uri = '/visio/pages/_rels/page1.xml.rels';
+        const rels = pkg.get(uri)?.xml ?? '';
+        if (!rels) missing.push(`${uri}（页→母版关系件）`);
+        else {
+            const targets = [...rels.matchAll(/Target="\.\.\/([^"]+)"/g)].map((m) => '/visio/' + m[1]);
+            if (targets.length === 0) missing.push(`${uri} 没有任何 master 关系`);
+            for (const t of targets) if (!pkg.has(t)) missing.push(`${uri} 的 Target 不存在：${t}`);
+        }
+    }
     return missing;
+}
+
+/** 母版内容：Master ID → masterN.xml 内容（经 masters.xml 的 Rel 与 masters.xml.rels）。 */
+function masterContentOf(pkg: OpcPackage, masterId: string): string {
+    const masters = pkg.get('/visio/masters/masters.xml')?.xml ?? '';
+    const rels = pkg.get('/visio/masters/_rels/masters.xml.rels')?.xml ?? '';
+    const entry =
+        new RegExp(`<Master[^>]*ID="${masterId}"[\\s\\S]*?</Master>`).exec(masters)?.[0] ??
+        new RegExp(`<Master[^>]*ID="${masterId}"[^>]*/>`).exec(masters)?.[0] ??
+        '';
+    const relId = /<Rel[^>]*r:id="([^"]+)"/.exec(entry)?.[1] ?? /<Rel[^>]*id="([^"]+)"/.exec(entry)?.[1];
+    if (!relId) return '';
+    const file = new RegExp(`Id="${relId}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] ?? '';
+    return file ? (pkg.get(`/visio/masters/${file}`)?.xml ?? '') : '';
+}
+
+/** 实例写出的几何行（行类型/IX 与 X/Y/A/B/C/D 数值）。 */
+function writtenGeometry(body: string): Array<{ t: string; ix: string; cells: Map<string, number> }> {
+    const section = /<Section N="Geometry"[^>]*>([\s\S]*?)<\/Section>/.exec(body)?.[1] ?? '';
+    const out: Array<{ t: string; ix: string; cells: Map<string, number> }> = [];
+    for (const row of section.matchAll(/<Row T="([^"]+)" IX="(\d+)"[^>]*>([\s\S]*?)<\/Row>/g)) {
+        const cells = new Map<string, number>();
+        for (const cell of (row[3] ?? '').matchAll(/<Cell N="([^"]+)" V="([^"]+)"/g)) {
+            cells.set(cell[1] ?? '', Number(cell[2]));
+        }
+        out.push({ t: row[1] ?? '', ix: row[2] ?? '', cells });
+    }
+    return out;
 }
 
 /** 栈式 Shape 解析（嵌套 Group 子形状正确配对；避免被嵌套 Shape 切割）。 */
@@ -258,8 +300,19 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
                         if (!/<TxtWidth"[^>]*MAX\(TEXTWIDTH\(TheText\)/.test(connMaster) && !/MAX\(TEXTWIDTH\(TheText\),/.test(connMaster)) err.push(`连接线母版缺 TxtWidth 公式（master2）`);
                     }
                     // 实例必须带（basic-5/6）：Width/Height + Geometry 段（MoveTo+LineTo×2）
-                    if (!has(s.body, /N="Width"[^>]*F="GUARD\(EndX-BeginX\)/) || !has(s.body, /N="Height"[^>]*F="GUARD\(EndY-BeginY\)/)) {
-                        err.push(`通用连接线 Shape ${s.id} 缺 Width/Height 随端点公式（basic-5）`);
+                    // 退化维例外：纯竖直走线按 Visio 保存态写 GUARD(0.2DL)（宽度为 0 会被下游按宽度归一化），
+                    // 水平同理取 GUARD(-0.2DL)（金标准实测，docs/VSDX处理经验/02-坑位与解法.md 8.x）
+                    if (
+                        !has(s.body, /N="Width"[^>]*F="GUARD\(EndX-BeginX\)"/) &&
+                        !has(s.body, /N="Width"[^>]*F="GUARD\(0\.2DL\)"/)
+                    ) {
+                        err.push(`通用连接线 Shape ${s.id} 缺 Width 随端点公式（basic-5）`);
+                    }
+                    if (
+                        !has(s.body, /N="Height"[^>]*F="GUARD\(EndY-BeginY\)/) &&
+                        !has(s.body, /N="Height"[^>]*F="GUARD\(-0\.2DL\)"/)
+                    ) {
+                        err.push(`通用连接线 Shape ${s.id} 缺 Height 随端点公式（basic-5）`);
                     }
                     const gir = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
                     if (!/<Row T="MoveTo"/.test(gir)) err.push(`通用连接线 Shape ${s.id} 实例几何缺 MoveTo（basic-6 实例化几何）`);
@@ -285,6 +338,42 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
                 if (shapes.length > 0 && !/Master="/.test(s.attrs)) err.push(`通用节点 Shape ${s.id} 缺 Master= 引用（5.5.3.2）`);
                 for (const c of ['Width', 'Height', 'LocPinX', 'LocPinY']) {
                     if (!s.body.includes(`N="${c}"`)) err.push(`通用节点 Shape ${s.id} 缺 ${c} 尺寸覆盖（6.2.3.2 防重叠）`);
+                }
+                // 写实态（P-7 / 坑位 8.1）：几何与连接点落到实例上，形态照抄 Visio 重存
+                // ——绝对值加 F="Inh"，连接点每行只写 X/Y。缺了会让原始 XML 消费者按母版占位作画。
+                const nodeGeo = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
+                const nodeConn = /<Section N="Connection"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
+                if (!nodeConn) err.push(`通用节点 Shape ${s.id} 缺 Connection 段（P-7 写实态）`);
+                // 几何必须等于"该形状母版几何按自身 W/H 实例化"（批 1 修正：一刀切矩形会让 Diamond 变方框）
+                const nodeMasterId = /Master="(\d+)"/.exec(s.attrs)?.[1] ?? '';
+                const nodeContent = nodeMasterId ? masterContentOf(pkg, nodeMasterId) : '';
+                const nodeGeoModel = nodeContent ? readMasterGeometry(nodeContent) : null;
+                const nw = Number(/N="Width" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
+                const nh = Number(/N="Height" V="([^"]+)"/.exec(s.body)?.[1] ?? '0');
+                if (nodeGeoModel) {
+                    const want = instantiateMasterGeometry(nodeGeoModel, nw, nh);
+                    const got = writtenGeometry(s.body);
+                    if (want === null) err.push(`通用节点 Shape ${s.id} 母版几何含未支持公式（应整体不写）`);
+                    else if (got.length !== want.length) err.push(`通用节点 Shape ${s.id} 几何行数 ${got.length} != 母版实例化 ${want.length}（P-7 批 1）`);
+                    else {
+                        want.forEach((w, i) => {
+                            const g = got[i]!;
+                            if (g.t !== w.type || g.ix !== w.ix) err.push(`通用节点 Shape ${s.id} 几何第 ${i} 行类型/IX 不符（P-7 批 1）`);
+                            for (const c of w.cells) {
+                                const v = g.cells.get(c.name);
+                                if (v === undefined || Math.abs(v - c.value) > 1e-6) {
+                                    err.push(`通用节点 Shape ${s.id} 几何 ${c.name} 与母版实例化不符（${v ?? '缺'} vs ${c.value}）`);
+                                }
+                            }
+                        });
+                    }
+                } else if (nodeGeo) {
+                    err.push(`通用节点 Shape ${s.id} 母版无几何却写了实例几何段（P-7 写实态）`);
+                }
+                if (nodeConn) {
+                    const connRows = [...nodeConn.matchAll(/<Row T="Connection"/g)].length;
+                    if (connRows !== 5) err.push(`通用节点 Shape ${s.id} 连接点 ${connRows}/5（P-7 四边中点加中心）`);
+                    if (/N="DirX"/.test(nodeConn)) err.push(`通用节点 Shape ${s.id} 连接点带了方向列（P-7：只写 X/Y）`);
                 }
             }
         }
@@ -546,6 +635,49 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
 
     return err;
 }
+
+describe('回归：block 图的边不能被静默丢掉', () => {
+    const cases: Array<{ tag: string; text: string; edges: number }> = [
+        {
+            tag: 'block-beta ASCII id',
+            text: 'block-beta\n    columns 3\n    A["甲"] --> B["乙"]\n    B --> C["丙"]\n    C --> D["丁"]\n',
+            edges: 3,
+        },
+        {
+            tag: 'block-beta 中文 id',
+            text: 'block-beta\n    columns 3\n    系统["甲"] --> 模块["乙"]\n    模块 --> 末级["丙"]\n',
+            edges: 2,
+        },
+        {
+            tag: 'flowchart 中文 id',
+            text: 'flowchart TB\n    系统["甲"] --> 模块["乙"]\n    模块 --> 末级["丙"]\n',
+            edges: 2,
+        },
+        {
+            tag: 'flowchart 中文 id 混 ASCII',
+            text: 'flowchart TB\n    系统["甲"] --> B["乙"]\n    B --> 末级["丙"]\n',
+            edges: 2,
+        },
+    ];
+    for (const c of cases) {
+        it(`${c.tag} → 边进契约、连线形状与 Connects 都写出来`, async (ctx) => {
+            if (!hasBrowser) ctx.skip();
+            const parser = new Parser();
+            try {
+                const a = await parser.convertText(c.text);
+                expect(a.edges.length, `${c.tag} 的边数`).toBe(c.edges);
+                const b = renderContract(a, {});
+                const pkg = OpcPackage.open(new Squeeze().pack(new PartsAssembler().assemble(b.parts)));
+                const page = pkg.get('/visio/pages/page1.xml')?.xml ?? '';
+                expect((page.match(/N="BeginX"/g) ?? []).length, '产物里的连线形状数').toBe(c.edges);
+                expect((page.match(/<Connect /g) ?? []).length, 'Connects 记录数').toBe(c.edges * 2);
+                expect(pkg.get('/visio/masters/masters.xml')?.xml ?? '', '连接线母版在册').toContain('Dynamic connector');
+            } finally {
+                await parser.shutdown();
+            }
+        }, 120_000);
+    }
+});
 
 describe('结构规范：每图型解压包 vs 研究准则规格（缺一即败）', () => {
     for (const c of kCases) {

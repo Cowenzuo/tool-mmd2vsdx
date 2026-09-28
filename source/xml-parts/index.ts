@@ -1,5 +1,5 @@
 // xml-parts（部件栈）：契约 B 收口——补公共部件（docProps/windows/登记表/关系表）+ 校验
-import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
+import { attr, elementChildren, makeElement, parseDocument, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kCorePropsContentType, kDocPropsVTypesNs, kExtendedPropsContentType, kDcNs, kCorePropsNs, kExtendedPropsNs } from '../common/xml/constants.js';
 import { part, validateContractB, type ContractB, type XmlPart } from '../contracts/index.js';
 import { OpcPackage } from '../opc/index.js';
@@ -71,6 +71,63 @@ export class PartsAssembler {
                 this.pagesRels(),
             );
         }
+        this.addPageMasterRels(pkg);
+    }
+
+    /** 页→母版关系表：pageN.xml 用到的每个母版一条。
+     *  官方样本除自产的 c4-1 外 14/15 都有此件；缺了之后页面的关系闭包里没有母版，
+     *  OLE 激活首帧会按"母版未解析"作画（见 docs/VSDX处理经验/02-坑位与解法.md 8.1）。 */
+    private addPageMasterRels(pkg: OpcPackage): void {
+        const mastersUri = '/visio/masters/masters.xml';
+        const mastersRelsUri = '/visio/masters/_rels/masters.xml.rels';
+        if (!pkg.has(mastersUri) || !pkg.has(mastersRelsUri)) return;
+        const fileByRel = new Map<string, string>();
+        for (const rel of this.relElements(pkg.get(mastersRelsUri)!.xml)) {
+            const id = attr(rel, 'Id');
+            const target = attr(rel, 'Target');
+            if (id && target) fileByRel.set(id, target);
+        }
+        const relById = new Map<string, string>();
+        for (const master of elementChildren(parseDocument(pkg.get(mastersUri)!.xml))) {
+            if (master.name !== 'Master') continue;
+            const id = attr(master, 'ID');
+            const relChild = elementChildren(master).find((c) => c.name === 'Rel');
+            const relId = relChild ? (attr(relChild, 'r:id') ?? attr(relChild, 'id')) : null;
+            if (id && relId) relById.set(id, relId);
+        }
+        if (relById.size === 0) return;
+        for (const pageUri of pkg.listUris().filter((u) => /^\/visio\/pages\/page\d+\.xml$/.test(u)).sort()) {
+            const relsUri = pageUri.replace(/^\/visio\/pages\//, '/visio/pages/_rels/').replace(/\.xml$/, '.xml.rels');
+            if (pkg.has(relsUri)) continue;
+            const targets: string[] = [];
+            for (const id of this.masterIdsUsed(pkg.get(pageUri)!.xml)) {
+                const relId = relById.get(id);
+                const file = relId ? fileByRel.get(relId) : undefined;
+                if (file && !targets.includes(file)) targets.push(file);
+            }
+            if (targets.length === 0) continue;
+            pkg.addPart(relsUri, 'application/vnd.openxmlformats-package.relationships+xml', this.pageMasterRels(targets));
+        }
+    }
+
+    private relElements(xml: string): XmlNode[] {
+        return elementChildren(parseDocument(xml)).filter((n) => n.name === 'Relationship');
+    }
+
+    /** 页内所有形状（含嵌套子形状）用到的母版 ID，按首次出现去重。 */
+    private masterIdsUsed(xml: string): string[] {
+        const out: string[] = [];
+        const walk = (node: XmlNode): void => {
+            for (const child of elementChildren(node)) {
+                if (child.name === 'Shape') {
+                    const id = attr(child, 'Master');
+                    if (id && !out.includes(id)) out.push(id);
+                }
+                walk(child);
+            }
+        };
+        walk(parseDocument(xml));
+        return out;
     }
 
     private coreXml(opts: PublicOptions): string {
@@ -182,6 +239,20 @@ export class PartsAssembler {
         setAttribute(el, 'Type', 'http://schemas.microsoft.com/visio/2010/relationships/page');
         setAttribute(el, 'Target', 'page1.xml');
         root.children.push(el);
+        return decl(root);
+    }
+
+    /** 页→母版关系表内容：rId 从 1 起连续，Target 相对页部件（官方 basic-2 形态）。 */
+    private pageMasterRels(files: string[]): string {
+        const root = makeElement('Relationships');
+        setAttribute(root, 'xmlns', 'http://schemas.openxmlformats.org/package/2006/relationships');
+        files.forEach((file, i) => {
+            const el = makeElement('Relationship');
+            setAttribute(el, 'Id', `rId${i + 1}`);
+            setAttribute(el, 'Type', 'http://schemas.microsoft.com/visio/2010/relationships/master');
+            setAttribute(el, 'Target', `../masters/${file}`);
+            root.children.push(el);
+        });
         return decl(root);
     }
 
