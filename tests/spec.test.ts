@@ -80,16 +80,16 @@ function masterContentOf(pkg: OpcPackage, masterId: string): string {
     return file ? (pkg.get(`/visio/masters/${file}`)?.xml ?? '') : '';
 }
 
-/** 实例写出的几何行（行类型/IX 与 X/Y/A/B/C/D 数值）。 */
-function writtenGeometry(body: string): Array<{ t: string; ix: string; cells: Map<string, number> }> {
+/** 实例写出的几何行（行类型/IX、Del 墓碑标记与 X/Y/A/B/C/D 数值）。 */
+function writtenGeometry(body: string): Array<{ t: string; ix: string; del: boolean; cells: Map<string, number> }> {
     const section = /<Section N="Geometry"[^>]*>([\s\S]*?)<\/Section>/.exec(body)?.[1] ?? '';
-    const out: Array<{ t: string; ix: string; cells: Map<string, number> }> = [];
-    for (const row of section.matchAll(/<Row T="([^"]+)" IX="(\d+)"[^>]*>([\s\S]*?)<\/Row>/g)) {
+    const out: Array<{ t: string; ix: string; del: boolean; cells: Map<string, number> }> = [];
+    for (const row of section.matchAll(/<Row T="([^"]+)" IX="(\d+)"([^>]*)>([\s\S]*?)<\/Row>/g)) {
         const cells = new Map<string, number>();
-        for (const cell of (row[3] ?? '').matchAll(/<Cell N="([^"]+)" V="([^"]+)"/g)) {
+        for (const cell of (row[4] ?? '').matchAll(/<Cell N="([^"]+)" V="([^"]+)"/g)) {
             cells.set(cell[1] ?? '', Number(cell[2]));
         }
-        out.push({ t: row[1] ?? '', ix: row[2] ?? '', cells });
+        out.push({ t: row[1] ?? '', ix: row[2] ?? '', del: /Del="1"/.test(row[3] ?? ''), cells });
     }
     return out;
 }
@@ -316,6 +316,32 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
                     }
                     const gir = /<Section N="Geometry"[\s\S]*?<\/Section>/.exec(s.body)?.[0] ?? '';
                     if (!/<Row T="MoveTo"/.test(gir)) err.push(`通用连接线 Shape ${s.id} 实例几何缺 MoveTo（basic-6 实例化几何）`);
+                    // 缓存走线必须与端点自洽：几何首末点按 Pin/LocPin 折算到页面坐标后等于 Begin/End。
+                    // 退化维规范化时若忘了同步平移几何行，整条线会偏 0.1in——Visio 打开重算会掩盖，
+                    // 读原始 XML 的下游（docx 嵌入预览）就直接错位。
+                    const geoRows = writtenGeometry(s.body).filter((r) => !r.del);
+                    if (geoRows.length > 0) {
+                        const pinX = Number(/N="PinX" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const pinY = Number(/N="PinY" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const locX = Number(/N="LocPinX" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const locY = Number(/N="LocPinY" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const beginX = Number(/N="BeginX" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const beginY = Number(/N="BeginY" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const endX = Number(/N="EndX" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const endY = Number(/N="EndY" V="([^"]+)"/.exec(s.body)?.[1] ?? 'NaN');
+                        const first = geoRows[0]!;
+                        const last = geoRows[geoRows.length - 1]!;
+                        const sx = pinX - locX + (first.cells.get('X') ?? 0);
+                        const sy = pinY - locY + (first.cells.get('Y') ?? 0);
+                        const ex = pinX - locX + (last.cells.get('X') ?? 0);
+                        const ey = pinY - locY + (last.cells.get('Y') ?? 0);
+                        if (Math.hypot(sx - beginX, sy - beginY) > 1e-6) {
+                            err.push(`通用连接线 Shape ${s.id} 几何起点与 Begin 不自洽（${sx},${sy} vs ${beginX},${beginY}）`);
+                        }
+                        if (Math.hypot(ex - endX, ey - endY) > 1e-6) {
+                            err.push(`通用连接线 Shape ${s.id} 几何终点与 End 不自洽（${ex},${ey} vs ${endX},${endY}）`);
+                        }
+                    }
                     // 纯竖线（|dx|<1e-6）两行即可（basic-4 shape 3 实证）；否则 L 型必带 IX=3
                     const ddx = Math.abs((+((/N="BeginX" V="([^"]+)"/.exec(s.body))?.[1] ?? 0)) - (+((/N="EndX" V="([^"]+)"/.exec(s.body))?.[1] ?? 0)));
                     if (ddx > 1e-6 && !/<Row T="LineTo" IX="3"/.test(gir)) {

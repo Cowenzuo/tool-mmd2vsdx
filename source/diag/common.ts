@@ -354,7 +354,9 @@ function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: num
     return el;
 }
 
-/** 端点吸附到形状最近连接点（英寸，页面坐标）：距离超过 kSnapTolerance 就保持原值。
+/** 端点吸附（英寸，页面坐标），对齐 Visio WALKGLUE 的语义：
+ *  ① 落在形状框外时先投影到框边（mermaid 端点带描边余量，常差 2pt 左右，直接用会留缺口）；
+ *  ② 随后若距某个连接点不超过 kSnapTolerance 就吸到该点（金标准实测 3.6~4.0pt 的缺口即此）。
  *  连接点用节点实例写的同一组五点（四边中点 + 中心），矩形与菱形都成立。 */
 const kSnapTolerance = 0.15;
 
@@ -372,17 +374,30 @@ function snapToConnectionPoint(
     const cy = (pageHpx - shape.y) / k + m;
     const w = pxSizeToInch(shape.width, { pxPerInch: k });
     const h = pxSizeToInch(shape.height, { pxPerInch: k });
+    const x0 = cx - w / 2;
+    const y0 = cy - h / 2;
+    const x1 = cx + w / 2;
+    const y1 = cy + h / 2;
+    // ① 框外投影：矩形的最近点 = 两轴各自钳制到框内（只在一轴外就只动那一轴，
+    //    两轴都在外就落到角上）——不要写成"哪一轴差得多就只动哪一轴"，那样会漏投影
+    let px = x;
+    let py = y;
+    if (x < x0 || x > x1 || y < y0 || y > y1) {
+        px = Math.min(Math.max(x, x0), x1);
+        py = Math.min(Math.max(y, y0), y1);
+    }
+    // ② 连接点吸附
     const fx = [0.5, 1, 0.5, 0, 0.5];
     const fy = [0, 0.5, 1, 0.5, 0.5];
-    let best: [number, number] = [x, y];
+    let best: [number, number] = [px, py];
     let bestDist = kSnapTolerance;
     for (let i = 0; i < fx.length; i++) {
-        const px = cx + (fx[i] ?? 0) * w - w / 2;
-        const py = cy + (fy[i] ?? 0) * h - h / 2;
-        const dist = Math.hypot(px - x, py - y);
+        const cpx = x0 + (fx[i] ?? 0) * w;
+        const cpy = y0 + (fy[i] ?? 0) * h;
+        const dist = Math.hypot(cpx - px, cpy - py);
         if (dist < bestDist) {
             bestDist = dist;
-            best = [px, py];
+            best = [cpx, cpy];
         }
     }
     return best;
@@ -454,33 +469,40 @@ function writeConnectorNode(
         );
         // 几何实例化（basic-5/6 实证：Geometry 两行 LineTo L 型——母版几何是占位，
         // 实例必须写实际走线；缺失会显示母版占位形状致文本定位错乱/漂移）
+        //
+        // 页面坐标映射：page = (PinX − LocPinX + localX, PinY − LocPinY + localY)。
+        // 退化维被规范化成 ±0.2DL 后 LocPin 也跟着变成 ±0.1，**几何行必须同步平移同样的量**，
+        // 否则整条线会相对 Begin/End 偏 0.1in（＝7.2pt）——Visio 打开会按 WALKGLUE 重算掩盖它，
+        // 但读原始 XML 的下游（docx 嵌入预览）就直接错位。
+        const geoOffX = vertical ? wCell / 2 : 0;
+        const geoOffY = horizontal ? hCell / 2 : 0;
         const geo = makeElement('Section');
         setAttribute(geo, 'N', 'Geometry');
         setAttribute(geo, 'IX', '0');
         if (vertical) {
-            // 纯竖直：单段（局部 X 取 LocPin 同一值，页面路径仍是 Begin→End）
+            // 纯竖直：单段（局部 X = LocPinX，页面 X 仍是 Begin/End 的 X）
             const m2 = makeElement('Row');
             setAttribute(m2, 'T', 'MoveTo');
             setAttribute(m2, 'IX', '1');
-            m2.children.push(cellNode('X', kIn(wCell / 2)), cellNode('Y', '0'));
+            m2.children.push(cellNode('X', kIn(geoOffX)), cellNode('Y', '0'));
             const l2 = makeElement('Row');
             setAttribute(l2, 'T', 'LineTo');
             setAttribute(l2, 'IX', '2');
-            l2.children.push(cellNode('X', kIn(wCell / 2)), cellNode('Y', kIn(hCell)));
+            l2.children.push(cellNode('X', kIn(geoOffX)), cellNode('Y', kIn(hCell)));
             geo.children.push(m2, l2);
         } else {
             const m2 = makeElement('Row');
             setAttribute(m2, 'T', 'MoveTo');
             setAttribute(m2, 'IX', '1');
-            m2.children.push(cellNode('X', '0'), cellNode('Y', '0'));
+            m2.children.push(cellNode('X', '0'), cellNode('Y', kIn(geoOffY)));
             const l2 = makeElement('Row');
             setAttribute(l2, 'T', 'LineTo');
             setAttribute(l2, 'IX', '2');
-            l2.children.push(cellNode('X', kIn(dx)), cellNode('Y', '0'));
+            l2.children.push(cellNode('X', kIn(dx)), cellNode('Y', kIn(geoOffY)));
             const l3 = makeElement('Row');
             setAttribute(l3, 'T', 'LineTo');
             setAttribute(l3, 'IX', '3');
-            l3.children.push(cellNode('X', kIn(dx)), cellNode('Y', kIn(dy)));
+            l3.children.push(cellNode('X', kIn(dx)), cellNode('Y', kIn(geoOffY + dy)));
             geo.children.push(m2, l2, l3);
         }
         // 母版里未被用到的几何行按 Visio 保存态写 Del='1' 墓碑：
