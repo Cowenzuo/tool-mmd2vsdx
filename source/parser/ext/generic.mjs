@@ -58,11 +58,40 @@
         return span ? (span.textContent || '').trim() : '';
     }
 
-    function edgeIds(path) {
+    /** 用本轮已解析出的节点 id 集合切分边 id。
+     *  节点侧 nodeId() 取的是任意字符（.+) 所以中文节点正常；边侧过去按 ASCII 白名单匹配，
+     *  中文 id 的边会整条丢掉（连 Dynamic connector 形状都不产出）。这里改为按已知 id 切分，
+     *  同时兼容：block 的 `1-A-B` 序号前缀、flowchart 的 `-0` 索引后缀、id 里自带 `-`。 */
+    function matchByNodeIds(text, idSet) {
+        if (!text || idSet.size === 0) return null;
+        const tokens = text.trim().split(/\s+/).filter((t) => t.indexOf('-') >= 0);
+        for (const token of tokens) {
+            const segs = token.split(/-+/).filter((s) => s.length > 0);
+            for (let i = 0; i < segs.length; i++) {
+                for (let j = i + 1; j < segs.length; j++) {
+                    const from = segs.slice(i, j).join('-');
+                    if (!idSet.has(from)) continue;
+                    for (let k = j + 1; k <= segs.length; k++) {
+                        const to = segs.slice(j, k).join('-');
+                        if (to !== from && idSet.has(to)) return { from, to };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function edgeIds(path, idSet) {
+        // 首选：按已知节点 id 切分（中文/含 '-' 的 id 都走这条）
+        const rawId = attr(path, 'id');
+        const rawCls = attr(path, 'class');
+        const byNodes = matchByNodeIds(rawId, idSet) || matchByNodeIds(rawCls, idSet);
+        if (byNodes) return byNodes;
+        // 回退：按 id/class 的固定形态解析（已知节点集合缺失或未命中时）
         // v10：flowchart id 形如 L-A-B-0；class 形如 "… LS-A LE-B"；
         // state/其它图型 id 形如 state-A-B-1 或 A-B；block 形如 1-A-B（数字序号前缀）；
         // 统一容错解析
-        let id = attr(path, 'id');
+        let id = rawId;
         if (id) {
             const block = /^\d+-([A-Za-z0-9_]+)-([A-Za-z0-9_]+)$/.exec(id);
             if (block) return { from: block[1], to: block[2] };
@@ -199,6 +228,7 @@
             });
         }
         const edges = [];
+        const nodeIdSet = new Set(nodes.map((n) => n.id));
         // 标签按位置匹配：每个 .edgeLabel 的包围盒中心 vs 边中点，取最近者
         const labels = [...svgEl.querySelectorAll('.edgeLabels .edgeLabel')].map((t) => {
             const r = t.getBoundingClientRect();
@@ -212,7 +242,7 @@
             if (edgePathEls.indexOf(el) < 0) edgePathEls.push(el);
         }
         for (const el of edgePathEls) {
-            const ids = edgeIds(el);
+            const ids = edgeIds(el, nodeIdSet);
             if (!ids) continue;
             const pts = waypoints(svg, el);
             let label = '';

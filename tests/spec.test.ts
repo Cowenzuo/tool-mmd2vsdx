@@ -637,23 +637,46 @@ function l2Audit(kind: string, pkg: OpcPackage): string[] {
 }
 
 describe('回归：block 图的边不能被静默丢掉', () => {
-    it('block-beta 带箭头 → 边进契约、连线形状与 Connects 都写出来', async (ctx) => {
-        if (!hasBrowser) ctx.skip();
-        const parser = new Parser();
-        try {
-            const text = 'block-beta\n    columns 3\n    A["甲"] --> B["乙"]\n    B --> C["丙"]\n    C --> D["丁"]\n';
-            const a = await parser.convertText(text);
-            expect(a.edges.length, 'block 图的边数').toBe(3);
-            const b = renderContract(a, {});
-            const pkg = OpcPackage.open(new Squeeze().pack(new PartsAssembler().assemble(b.parts)));
-            const page = pkg.get('/visio/pages/page1.xml')?.xml ?? '';
-            expect((page.match(/N="BeginX"/g) ?? []).length, '产物里的连线形状数').toBe(3);
-            expect((page.match(/<Connect /g) ?? []).length, 'Connects 记录数').toBe(6);
-            expect(pkg.get('/visio/masters/masters.xml')?.xml ?? '', '连接线母版在册').toContain('Dynamic connector');
-        } finally {
-            await parser.shutdown();
-        }
-    }, 120_000);
+    const cases: Array<{ tag: string; text: string; edges: number }> = [
+        {
+            tag: 'block-beta ASCII id',
+            text: 'block-beta\n    columns 3\n    A["甲"] --> B["乙"]\n    B --> C["丙"]\n    C --> D["丁"]\n',
+            edges: 3,
+        },
+        {
+            tag: 'block-beta 中文 id',
+            text: 'block-beta\n    columns 3\n    系统["甲"] --> 模块["乙"]\n    模块 --> 末级["丙"]\n',
+            edges: 2,
+        },
+        {
+            tag: 'flowchart 中文 id',
+            text: 'flowchart TB\n    系统["甲"] --> 模块["乙"]\n    模块 --> 末级["丙"]\n',
+            edges: 2,
+        },
+        {
+            tag: 'flowchart 中文 id 混 ASCII',
+            text: 'flowchart TB\n    系统["甲"] --> B["乙"]\n    B --> 末级["丙"]\n',
+            edges: 2,
+        },
+    ];
+    for (const c of cases) {
+        it(`${c.tag} → 边进契约、连线形状与 Connects 都写出来`, async (ctx) => {
+            if (!hasBrowser) ctx.skip();
+            const parser = new Parser();
+            try {
+                const a = await parser.convertText(c.text);
+                expect(a.edges.length, `${c.tag} 的边数`).toBe(c.edges);
+                const b = renderContract(a, {});
+                const pkg = OpcPackage.open(new Squeeze().pack(new PartsAssembler().assemble(b.parts)));
+                const page = pkg.get('/visio/pages/page1.xml')?.xml ?? '';
+                expect((page.match(/N="BeginX"/g) ?? []).length, '产物里的连线形状数').toBe(c.edges);
+                expect((page.match(/<Connect /g) ?? []).length, 'Connects 记录数').toBe(c.edges * 2);
+                expect(pkg.get('/visio/masters/masters.xml')?.xml ?? '', '连接线母版在册').toContain('Dynamic connector');
+            } finally {
+                await parser.shutdown();
+            }
+        }, 120_000);
+    }
 });
 
 describe('结构规范：每图型解压包 vs 研究准则规格（缺一即败）', () => {
