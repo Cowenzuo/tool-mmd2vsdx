@@ -8,7 +8,7 @@
 import { attr, makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kPageContentType, kPageUri, kPagesContentType, kPagesUri } from '../common/xml/constants.js';
 import { part, type ContractA, type ContractB, type XmlPart } from '../contracts/index.js';
-import { fmtInch, kCanvasBleed, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
+import { fmtInch, kCanvasBleedRatio, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
 import { defaultSwitches, rectRows } from '../common/geometry/box.js';
 import { midPoint, setAtRef, spanX, spanY, trigger, walkGlue } from '../common/formula/writer.js';
 import { splitRuns } from '../common/text/runs.js';
@@ -109,19 +109,21 @@ function writeRowIntentNode(r: RowIntent): XmlNode {
  *  P-4 画布策略：页面 = 内容盒 + 半线宽，保证最外圈线不被裁。 */
 export { kCanvasMargin };
 
-/** 有效页面边距（半线宽 + 出血）：页面装配与形状/连线坐标平移**必须**用同一个值。 */
-function canvasMargin(opts: RenderOptions): number {
-    return (opts.pageMargin ?? kCanvasMargin) + kCanvasBleed;
+/** 有效页面边距（半线宽 + 比例出血），按轴给：x 用内容宽、y 用内容高。
+ *  页面装配与形状/连线坐标平移**必须**用同一组值，否则页面与内容错位；
+ *  按比例（而非固定英寸）保证页面比例 == 内容比例。 */
+export function canvasMargins(contentW: number, contentH: number, opts: RenderOptions): { x: number; y: number } {
+    const half = opts.pageMargin ?? kCanvasMargin;
+    return { x: half + contentW * kCanvasBleedRatio, y: half + contentH * kCanvasBleedRatio };
 }
 
 /** 页面像素边界 → 英寸页面尺寸（默认严格贴合内容 + 半线宽呼吸位）。 */
 function pageInchSize(a: ContractA, opts: RenderOptions): { w: number; h: number } {
     const k = opts.pxPerInch ?? 96;
-    const margin = canvasMargin(opts);
-    return {
-        w: pxSizeToInch(a.meta.bounds.maxX - a.meta.bounds.minX, { pxPerInch: k }) + margin * 2,
-        h: pxSizeToInch(a.meta.bounds.maxY - a.meta.bounds.minY, { pxPerInch: k }) + margin * 2,
-    };
+    const cw = pxSizeToInch(a.meta.bounds.maxX - a.meta.bounds.minX, { pxPerInch: k });
+    const ch = pxSizeToInch(a.meta.bounds.maxY - a.meta.bounds.minY, { pxPerInch: k });
+    const m = canvasMargins(cw, ch, opts);
+    return { w: cw + m.x * 2, h: ch + m.y * 2 };
 }
 
 /** pages.xml：单页，PageSheet 最小集。根需声明 r 命名空间（5.5.2 素材一致）。 */
@@ -168,6 +170,12 @@ function buildPage1Xml(a: ContractA, opts: RenderOptions): XmlPart {
     root.children.push(shapes, connects);
 
     const pageH = a.meta.bounds.maxY;
+    const k = opts.pxPerInch ?? 96;
+    const m = canvasMargins(
+        pxSizeToInch(a.meta.bounds.maxX - a.meta.bounds.minX, { pxPerInch: k }),
+        pxSizeToInch(a.meta.bounds.maxY - a.meta.bounds.minY, { pxPerInch: k }),
+        opts,
+    );
     const idOf = new Map<string, number>();
     const posOf = new Map<string, ContractA['shapes'][number]>();
     let nextId = 1;
@@ -175,14 +183,14 @@ function buildPage1Xml(a: ContractA, opts: RenderOptions): XmlPart {
         const id = nextId++;
         idOf.set(s.id, id);
         posOf.set(s.id, s);
-        shapes.children.push(writeShapeNode(s, id, pageH, opts));
+        shapes.children.push(writeShapeNode(s, id, pageH, opts, m));
     }
     for (const e of a.edges) {
         const id = nextId++;
         const src = idOf.get(e.from);
         const dst = idOf.get(e.to);
         if (src === undefined || dst === undefined) continue;
-        shapes.children.push(writeConnectorNode(e, id, src, dst, posOf.get(e.from), posOf.get(e.to), pageH, opts));
+        shapes.children.push(writeConnectorNode(e, id, src, dst, posOf.get(e.from), posOf.get(e.to), pageH, opts, m));
         // 端点粘附（basic-5 实证：双端全部走线吸附 WALKGLUE，落点=形状本体）
         // ToCell='PinY' ToPart='3'（本体粘附角色码；PinX/PinY 选取规律见研究 W-15，
         // 基准样本两端均为 PinY，随基准实现）。
@@ -288,13 +296,18 @@ function saveStateGeometry(s: ContractA['shapes'][number], w: number, h: number,
 /** 节点形状：有母版时写实实例（Master + 尺寸覆盖 + 几何/连接点缓存），无母版时自足式。
  *  写实形态照抄 Visio 重存态（docs/VSDX处理经验/02-坑位与解法.md 8.1）：
  *  OLE 激活首帧不解析母版继承，空壳会被按母版默认尺寸作画。 */
-function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: number, opts: RenderOptions): XmlNode {
+function writeShapeNode(
+    s: ContractA['shapes'][number],
+    id: number,
+    pageHpx: number,
+    opts: RenderOptions,
+    m: { x: number; y: number },
+): XmlNode {
     const k = opts.pxPerInch ?? 96;
-    const m = canvasMargin(opts);
     const w = pxSizeToInch(s.width, { pxPerInch: k });
     const h = pxSizeToInch(s.height, { pxPerInch: k });
-    const x = pxToInch(s.x, { pxPerInch: k }) + m;
-    const y = (pageHpx - s.y) / k + m;
+    const x = pxToInch(s.x, { pxPerInch: k }) + m.x;
+    const y = (pageHpx - s.y) / k + m.y;
     const masterId = opts.masterIds?.get(shapeKindToMasterName(s.shapeKind)) ?? 0;
 
     const el = makeElement('Shape');
@@ -371,12 +384,12 @@ function snapToConnectionPoint(
     shape: ContractA['shapes'][number] | undefined,
     pageHpx: number,
     opts: RenderOptions,
+    m: { x: number; y: number },
 ): [number, number] {
     if (!shape) return [x, y];
     const k = opts.pxPerInch ?? 96;
-    const m = canvasMargin(opts);
-    const cx = pxToInch(shape.x, { pxPerInch: k }) + m;
-    const cy = (pageHpx - shape.y) / k + m;
+    const cx = pxToInch(shape.x, { pxPerInch: k }) + m.x;
+    const cy = (pageHpx - shape.y) / k + m.y;
     const w = pxSizeToInch(shape.width, { pxPerInch: k });
     const h = pxSizeToInch(shape.height, { pxPerInch: k });
     const x0 = cx - w / 2;
@@ -421,20 +434,20 @@ function writeConnectorNode(
     dstShape: ContractA['shapes'][number] | undefined,
     pageHpx: number,
     opts: RenderOptions,
+    m: { x: number; y: number },
 ): XmlNode {
     const k = opts.pxPerInch ?? 96;
-    const m = canvasMargin(opts);
     // V 缓存：WAYPOINTS 首末点（mermaid 真实贴附，打开后由 WALKGLUE 重算）；缺省用形状中心
     const wp0 = e.waypoints[0];
     const wpN = e.waypoints[e.waypoints.length - 1];
-    const rawBx = pxToInch(wp0?.x ?? srcShape?.x ?? 0, { pxPerInch: k }) + m;
-    const rawBy = (pageHpx - (wp0?.y ?? srcShape?.y ?? 0)) / k + m;
-    const rawEx = pxToInch(wpN?.x ?? dstShape?.x ?? 0, { pxPerInch: k }) + m;
-    const rawEy = (pageHpx - (wpN?.y ?? dstShape?.y ?? 0)) / k + m;
+    const rawBx = pxToInch(wp0?.x ?? srcShape?.x ?? 0, { pxPerInch: k }) + m.x;
+    const rawBy = (pageHpx - (wp0?.y ?? srcShape?.y ?? 0)) / k + m.y;
+    const rawEx = pxToInch(wpN?.x ?? dstShape?.x ?? 0, { pxPerInch: k }) + m.x;
+    const rawEy = (pageHpx - (wpN?.y ?? dstShape?.y ?? 0)) / k + m.y;
     // 端点吸附：mermaid 走线端点是形状边界上的任意点，Visio 打开时会按 WALKGLUE 重算到
     // 最近的连接点；这里提前落到同一语义（金标准实测：终点 3.61~3.98pt 的缺口消失）
-    const snappedB = snapToConnectionPoint(rawBx, rawBy, srcShape, pageHpx, opts);
-    const snappedE = snapToConnectionPoint(rawEx, rawEy, dstShape, pageHpx, opts);
+    const snappedB = snapToConnectionPoint(rawBx, rawBy, srcShape, pageHpx, opts, m);
+    const snappedE = snapToConnectionPoint(rawEx, rawEy, dstShape, pageHpx, opts, m);
     const bx = snappedB[0];
     const by = snappedB[1];
     const ex = snappedE[0];

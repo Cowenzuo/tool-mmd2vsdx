@@ -1,7 +1,7 @@
 // 编排门面：契约 A → 契约 B（按图型分派到各 diag 包；docs/开发过程/01-结构设计.md 编排层）
 import type { ContractA, ContractB, XmlPart } from './contracts/index.js';
 import { part } from './contracts/index.js';
-import { CommonRenderer, buildPagesXml, kCanvasMargin } from './diag/common.js';
+import { CommonRenderer, buildPagesXml, canvasMargins, kCanvasMargin } from './diag/common.js';
 import { SeqRenderer, sequenceContentBox } from './diag/sequence.js';
 import { ClassRenderer, classPageSize } from './diag/class.js';
 import { ErRenderer, erPageSize } from './diag/er.js';
@@ -141,14 +141,14 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
     if (a.kind === 'sequence' && a.sequence) {
         const packed = new MasterPacker(catalog).pack(wantedSequenceMasters(a.sequence));
         parts.push(...packed.parts);
-        // 页面 = 内容外包围框 + 半线宽呼吸位（P-4 画布策略；呼吸位由 buildPagesXml 统一叠加）
+        // 页面 = 内容外包围框 + 半线宽 + 比例出血（页面装配与坐标映射必须同口径，否则内容与页面错位）
         const box = sequenceContentBox(a.sequence);
-        const m = kCanvasMargin;
         const w = (box.maxX - box.minX) / 96;
         const h = (box.maxY - box.minY) / 96;
+        const m = canvasMargins(w, h, cfg);
         const a2 = { ...a, meta: { ...a.meta, bounds: { minX: 0, minY: 0, maxX: Math.ceil(w * 96), maxY: Math.ceil(h * 96) } } };
         parts.push(buildPagesXml(a2, { ...cfg, drawingResizeType: '2' }));
-        parts.push(new SeqRenderer().render(a2, box.maxY + m * 96, opts.pxPerInch ?? 96, packed.masterIds, box.minX - m * 96));
+        parts.push(new SeqRenderer().render(a2, box.maxY + m.y * 96, opts.pxPerInch ?? 96, packed.masterIds, box.minX - m.x * 96));
         return { parts };
     }
     if (a.kind === 'class' && a.classModel) {

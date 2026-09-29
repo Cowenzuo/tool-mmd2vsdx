@@ -11,7 +11,7 @@
 // 实例模式来源：docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压/class/ 素材包实测。
 
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
-import { kCanvasBleed, kCanvasMargin } from '../common/geometry/transform.js';
+import { kCanvasBleedRatio, kCanvasMargin } from '../common/geometry/transform.js';
 import { kPageContentType, kPageUri } from '../common/xml/constants.js';
 import { part, type XmlPart, type ClassBox, type ClassModel, type ClassRelationKind } from '../contracts/index.js';
 
@@ -63,7 +63,7 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
     const pad = 0.08;
     const gapX = 1.2;
     const gapY = 0.9;
-    const margin = kCanvasMargin + kCanvasBleed; // 页面 = 内容盒 + 半线宽 + 出血（Visio 会重算走线，须留余量）
+    const margin = kCanvasMargin;           // 起始摆放偏移（内容盒之后由 boxExtent 统一按比例平移到出血位）
     const cols = 2;
     // 官方内容公式盒高（成员槽 0.25IN/分隔线 1MM）
     const boxH = (c: ClassBox) => {
@@ -102,7 +102,7 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
                 top: (rowY.get(row) ?? 0) + h,
             });
         });
-        return { boxes, ...boxExtent(boxes, margin) };
+        return { boxes, ...boxExtent(boxes) };
     }
 
     // ── mmd 比例布局 ──
@@ -171,12 +171,12 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
             bb.top = rowBottoms[ri]! + hRow;
         }
     }
-    return { boxes, ...boxExtent(boxes, margin) };
+    return { boxes, ...boxExtent(boxes) };
 }
 
 /** 内容盒 = 实际放置的盒并集；同时把盒整体平移到 (margin, margin) 起点（页面严格贴合）。
  *  返回内容尺寸；页面尺寸由 buildPagesXml 统一加 2×pageMargin（P-4 画布策略）。 */
-function boxExtent(boxes: Map<string, BoxGeom>, margin: number): { pageW: number; pageH: number } {
+function boxExtent(boxes: Map<string, BoxGeom>): { pageW: number; pageH: number } {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const b of boxes.values()) {
         minX = Math.min(minX, b.x - b.w / 2);
@@ -185,8 +185,14 @@ function boxExtent(boxes: Map<string, BoxGeom>, margin: number): { pageW: number
         maxY = Math.max(maxY, b.y + b.h / 2);
     }
     if (!Number.isFinite(minX)) return { pageW: 0, pageH: 0 };
-    const dx = margin - minX;
-    const dy = margin - minY;
+    // 比例出血（每侧 = 内容尺寸 × kCanvasBleedRatio）+ 半线宽：页面比例 == 内容比例。
+    // 页面尺寸由 buildPagesXml 按同一条公式叠加（bounds 传的就是内容尺寸），两边必须一致。
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    const mx = kCanvasMargin + contentW * kCanvasBleedRatio;
+    const my = kCanvasMargin + contentH * kCanvasBleedRatio;
+    const dx = mx - minX;
+    const dy = my - minY;
     if (dx !== 0 || dy !== 0) {
         for (const b of boxes.values()) {
             b.x += dx;
