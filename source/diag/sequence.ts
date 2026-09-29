@@ -730,12 +730,17 @@ export function sequenceContentBox(m: SequenceModel): { minX: number; minY: numb
         maxX = Math.max(maxX, x1); maxY = Math.max(maxY, y1);
     };
     const actorX = new Map(m.actors.map((a) => [a.id, a.x]));
-    // 页眉盒：宽≈文字宽（母版 Sheet.6!Width 由文本驱动），高 kHdrH，中心在 rowY(0)-24-半高
+    // 页眉盒：宽≈文字宽（母版 Sheet.6!Width 由文本驱动），高 kHdrH，中心在 rowY(0)-24-半高。
+    // Actor 变体的母版在人形子件上方还要多出 13.25MM（该子件 PinY=Sheet.5!Height+1.25MM、
+    // Height=12MM，见 source/common/masters/templates/sequence.ts 的 Actor lifeline 母版）——
+    // 只按页眉盒量，人形就会顶出画布（canvas-audit 实测顶端 −0.1849IN）。Object 变体没有人形，不加。
+    const kActorFigureTop = (1.25 + 12) / 25.4; // 13.25MM → 英寸
     const hdrCy = rowY(0) - kRowStep * 96 - (kHdrH / 2) * 96;
     const hdrHalf = (kHdrH / 2) * 96;
     for (const a of m.actors) {
         const half = (headerWidth(a.label) / 2) * 96;
-        acc(a.x - half, hdrCy - hdrHalf, a.x + half, hdrCy + hdrHalf);
+        const topExtra = a.kind === 'actor' ? kActorFigureTop * 96 : 0;
+        acc(a.x - half, hdrCy - hdrHalf - topExtra, a.x + half, hdrCy + hdrHalf);
     }
     // 生命线：长度 = (maxRow+2)×0.25IN，从页眉底向下
     const maxRow = Math.max(0, rows.total - 1);
