@@ -17,7 +17,7 @@
 //   End=(W-DXEnd,H)）；User.DYBegin/DXEnd=端点内缩缓存；端标记子形状 6/7（Begin 对）与 8/9（End 对）
 //   = 旋转 ∓45°/±135° 的 2.5MM 标记（PinY=Con±...；End 侧写 PinX/PinY 缓存，π 翻向时补 LocPin+EndAngle）。
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
-import { kCanvasBleedRatio, kCanvasMargin } from '../common/geometry/transform.js';
+import { kCanvasSlackRatio, kCanvasMargin } from '../common/geometry/transform.js';
 import { kPageContentType, kPageUri } from '../common/xml/constants.js';
 import { part, type XmlPart, type ErModel, type ErEntity } from '../contracts/index.js';
 
@@ -62,7 +62,7 @@ function boxH(e: ErEntity): number {
 
 function layout(m: ErModel): { boxes: Map<string, BoxGeom>; pageW: number; pageH: number } {
     const w = kMemberW;
-    const margin = kCanvasMargin;           // 起始摆放偏移（内容盒之后由 boxExtent 统一按比例平移到出血位）
+    const margin = kCanvasMargin;           // 起始摆放偏移（内容盒之后由 boxExtent 统一按比例外扩平移）
     const boxes = new Map<string, BoxGeom>();
     const mmd = m.layout ?? undefined;
     const hasMmd = !!mmd && m.entities.every((e) => mmd[e.name] !== undefined && mmd[e.name]!.x !== undefined);
@@ -155,12 +155,12 @@ function boxExtent(boxes: Map<string, BoxGeom>): { pageW: number; pageH: number 
         maxY = Math.max(maxY, b.y + b.h / 2);
     }
     if (!Number.isFinite(minX)) return { pageW: 0, pageH: 0 };
-    // 比例出血（每侧 = 内容尺寸 × kCanvasBleedRatio）+ 半线宽：页面比例 == 内容比例。
+    // 按比例外扩（每侧 = 内容尺寸 × kCanvasSlackRatio）+ 半线宽：页面比例 == 内容比例。
     // 页面尺寸由 buildPagesXml 按同一条公式叠加（bounds 传的就是内容尺寸），两边必须一致。
     const contentW = maxX - minX;
     const contentH = maxY - minY;
-    const mx = kCanvasMargin + contentW * kCanvasBleedRatio;
-    const my = kCanvasMargin + contentH * kCanvasBleedRatio;
+    const mx = kCanvasMargin + contentW * kCanvasSlackRatio;
+    const my = kCanvasMargin + contentH * kCanvasSlackRatio;
     const dx = mx - minX;
     const dy = my - minY;
     if (dx !== 0 || dy !== 0) {

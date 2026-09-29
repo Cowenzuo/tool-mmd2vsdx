@@ -8,7 +8,7 @@
 import { attr, makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kPageContentType, kPageUri, kPagesContentType, kPagesUri } from '../common/xml/constants.js';
 import { part, type ContractA, type ContractB, type XmlPart } from '../contracts/index.js';
-import { fmtInch, kCanvasBleedRatio, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
+import { fmtInch, kCanvasSlackRatio, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
 import { defaultSwitches, rectRows } from '../common/geometry/box.js';
 import { midPoint, setAtRef, spanX, spanY, trigger, walkGlue } from '../common/formula/writer.js';
 import { splitRuns } from '../common/text/runs.js';
@@ -109,12 +109,12 @@ function writeRowIntentNode(r: RowIntent): XmlNode {
  *  P-4 画布策略：页面 = 内容盒 + 半线宽，保证最外圈线不被裁。 */
 export { kCanvasMargin };
 
-/** 有效页面边距（半线宽 + 比例出血），按轴给：x 用内容宽、y 用内容高。
+/** 有效页面边距（半线宽 + 按内容尺寸比例的外扩余量），按轴给：x 用内容宽、y 用内容高。
  *  页面装配与形状/连线坐标平移**必须**用同一组值，否则页面与内容错位；
  *  按比例（而非固定英寸）保证页面比例 == 内容比例。 */
 export function canvasMargins(contentW: number, contentH: number, opts: RenderOptions): { x: number; y: number } {
     const half = opts.pageMargin ?? kCanvasMargin;
-    return { x: half + contentW * kCanvasBleedRatio, y: half + contentH * kCanvasBleedRatio };
+    return { x: half + contentW * kCanvasSlackRatio, y: half + contentH * kCanvasSlackRatio };
 }
 
 /** 页面像素边界 → 英寸页面尺寸（默认严格贴合内容 + 半线宽呼吸位）。 */

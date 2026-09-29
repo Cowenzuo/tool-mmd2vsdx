@@ -141,7 +141,7 @@ export function renderContract(a: ContractA, opts: ConvertOptions = {}): Contrac
     if (a.kind === 'sequence' && a.sequence) {
         const packed = new MasterPacker(catalog).pack(wantedSequenceMasters(a.sequence));
         parts.push(...packed.parts);
-        // 页面 = 内容外包围框 + 半线宽 + 比例出血（页面装配与坐标映射必须同口径，否则内容与页面错位）
+        // 页面 = 内容外包围框 + 半线宽 + 按比例外扩的余量（页面装配与坐标映射必须同口径，否则内容与页面错位）
         const box = sequenceContentBox(a.sequence);
         const w = (box.maxX - box.minX) / 96;
         const h = (box.maxY - box.minY) / 96;
