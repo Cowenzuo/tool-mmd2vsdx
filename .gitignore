@@ -8,3 +8,7 @@ coverage/
 
 # 转换产物（本地产出，可再生成，不入验收契约）
 resources/vsdx-output/
+
+# 离线可分发包（大文件，本地产出，可再生成）
+release/
+.pack/
