@@ -8,7 +8,7 @@
 import { attr, makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
 import { kPageContentType, kPageUri, kPagesContentType, kPagesUri } from '../common/xml/constants.js';
 import { part, type ContractA, type ContractB, type XmlPart } from '../contracts/index.js';
-import { fmtInch, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
+import { fmtInch, kCanvasBleed, kCanvasMargin, pxToInch, pxSizeToInch } from '../common/geometry/transform.js';
 import { defaultSwitches, rectRows } from '../common/geometry/box.js';
 import { midPoint, setAtRef, spanX, spanY, trigger, walkGlue } from '../common/formula/writer.js';
 import { splitRuns } from '../common/text/runs.js';
@@ -109,10 +109,15 @@ function writeRowIntentNode(r: RowIntent): XmlNode {
  *  P-4 画布策略：页面 = 内容盒 + 半线宽，保证最外圈线不被裁。 */
 export { kCanvasMargin };
 
+/** 有效页面边距（半线宽 + 出血）：页面装配与形状/连线坐标平移**必须**用同一个值。 */
+function canvasMargin(opts: RenderOptions): number {
+    return (opts.pageMargin ?? kCanvasMargin) + kCanvasBleed;
+}
+
 /** 页面像素边界 → 英寸页面尺寸（默认严格贴合内容 + 半线宽呼吸位）。 */
 function pageInchSize(a: ContractA, opts: RenderOptions): { w: number; h: number } {
     const k = opts.pxPerInch ?? 96;
-    const margin = opts.pageMargin ?? kCanvasMargin;
+    const margin = canvasMargin(opts);
     return {
         w: pxSizeToInch(a.meta.bounds.maxX - a.meta.bounds.minX, { pxPerInch: k }) + margin * 2,
         h: pxSizeToInch(a.meta.bounds.maxY - a.meta.bounds.minY, { pxPerInch: k }) + margin * 2,
@@ -285,7 +290,7 @@ function saveStateGeometry(s: ContractA['shapes'][number], w: number, h: number,
  *  OLE 激活首帧不解析母版继承，空壳会被按母版默认尺寸作画。 */
 function writeShapeNode(s: ContractA['shapes'][number], id: number, pageHpx: number, opts: RenderOptions): XmlNode {
     const k = opts.pxPerInch ?? 96;
-    const m = opts.pageMargin ?? kCanvasMargin;
+    const m = canvasMargin(opts);
     const w = pxSizeToInch(s.width, { pxPerInch: k });
     const h = pxSizeToInch(s.height, { pxPerInch: k });
     const x = pxToInch(s.x, { pxPerInch: k }) + m;
@@ -369,7 +374,7 @@ function snapToConnectionPoint(
 ): [number, number] {
     if (!shape) return [x, y];
     const k = opts.pxPerInch ?? 96;
-    const m = opts.pageMargin ?? kCanvasMargin;
+    const m = canvasMargin(opts);
     const cx = pxToInch(shape.x, { pxPerInch: k }) + m;
     const cy = (pageHpx - shape.y) / k + m;
     const w = pxSizeToInch(shape.width, { pxPerInch: k });
@@ -418,7 +423,7 @@ function writeConnectorNode(
     opts: RenderOptions,
 ): XmlNode {
     const k = opts.pxPerInch ?? 96;
-    const m = opts.pageMargin ?? kCanvasMargin;
+    const m = canvasMargin(opts);
     // V 缓存：WAYPOINTS 首末点（mermaid 真实贴附，打开后由 WALKGLUE 重算）；缺省用形状中心
     const wp0 = e.waypoints[0];
     const wpN = e.waypoints[e.waypoints.length - 1];

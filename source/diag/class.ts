@@ -11,7 +11,7 @@
 // 实例模式来源：docs/VSDX解压结构研究/标准研究模板-手动创建vsdx并解压/class/ 素材包实测。
 
 import { makeElement, serializeDocument, setAttribute, type XmlNode } from '../common/xml/index.js';
-import { kCanvasMargin } from '../common/geometry/transform.js';
+import { kCanvasBleed, kCanvasMargin } from '../common/geometry/transform.js';
 import { kPageContentType, kPageUri } from '../common/xml/constants.js';
 import { part, type XmlPart, type ClassBox, type ClassModel, type ClassRelationKind } from '../contracts/index.js';
 
@@ -63,7 +63,7 @@ function layout(a: ClassModel): { boxes: Map<string, BoxGeom>; pageW: number; pa
     const pad = 0.08;
     const gapX = 1.2;
     const gapY = 0.9;
-    const margin = kCanvasMargin;           // 页面 = 内容盒 + 半线宽（P-4 画布策略）
+    const margin = kCanvasMargin + kCanvasBleed; // 页面 = 内容盒 + 半线宽 + 出血（Visio 会重算走线，须留余量）
     const cols = 2;
     // 官方内容公式盒高（成员槽 0.25IN/分隔线 1MM）
     const boxH = (c: ClassBox) => {
